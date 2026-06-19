@@ -1,0 +1,16 @@
+# Documentacion interna de trabajo (no es parte del proyecto publico)
+.claude/
+PROJECT_CONTEXT.md
+
+# Proyecto no relacionado que vive en este mismo directorio (su propio repo)
+Proyeccion 1/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Logs y backups locales
+*.log
+*.bak
+*.bak-*
