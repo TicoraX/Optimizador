@@ -269,4 +269,4 @@ Each module has its own README with detailed usage and portability notes:
 
 ## License
 
-MIT
+[MIT](LICENSE)
