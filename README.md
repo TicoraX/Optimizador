@@ -1,64 +1,64 @@
-# D1 — Windows System Automations
+# Optimizador — Automatizaciones de mantenimiento para Windows
 
-A local system maintenance toolkit for Windows: automated scripts for software updates, disk cleanup, and startup optimization — controlled from a modern web dashboard.
+Conjunto de herramientas de mantenimiento local para Windows: scripts automatizados para actualizaciones de software, limpieza de disco y optimización de inicio — controlados desde un dashboard web moderno.
 
-> Everything runs **locally on your machine**. No cloud, no telemetry, no data leaves your PC.
+> Todo corre **localmente en tu equipo**. Sin nube, sin telemetría, ningún dato sale de tu PC.
 
 ---
 
-## What it does
+## Qué hace
 
-| Module | What it automates |
+| Módulo | Qué automatiza |
 |---|---|
-| **Update Checker** | Detects pending updates for winget (apps/drivers), pip, npm global packages and Chocolatey |
-| **Disk Cleanup** | Finds recoverable space: Windows temp files, browser cache, old downloads, recycle bin |
-| **Startup Optimizer** | Audits startup programs (registry + Startup folder), auto-start services and logon scheduled tasks. Disabling is reversible — re-enable anything from the dashboard |
+| **Update Checker** | Detecta actualizaciones pendientes de winget (apps/drivers), pip, paquetes globales de npm y Chocolatey |
+| **Disk Cleanup** | Encuentra espacio recuperable: temporales de Windows, caché de navegadores, descargas viejas, papelera de reciclaje |
+| **Startup Optimizer** | Audita programas de inicio (registro + carpeta Startup), servicios auto-start y tareas programadas de logon. Deshabilitar es reversible — reactiva cualquier cosa desde el dashboard |
 
-Each module follows the same pattern:
-- **Scan** — reads the system, generates a Markdown report + structured JSON. Never modifies anything.
-- **Action** — asks for confirmation by category before doing anything. Logs every action.
-- **Notify** — weekly Windows Task Scheduler job shows a popup summary and optionally launches the action script.
+Cada módulo sigue el mismo patrón:
+- **Scan** — lee el sistema, genera un reporte en Markdown + JSON estructurado. No modifica nada.
+- **Action** — pide confirmación por categoría antes de hacer cualquier cosa. Registra cada acción en un log.
+- **Notify** — la tarea programada semanal de Windows muestra un popup con el resumen y opcionalmente lanza el script de acción.
 
 ---
 
-## Project structure
+## Estructura del proyecto
 
 ```
-D1/
-├── update-checker/          # Update detection and application scripts
-├── disk-cleanup/            # Disk space scan and cleanup scripts
-├── startup-optimizer/       # Startup audit and optimization scripts
-├── server/                  # Node.js REST + SSE backend (Express)
-└── frontend/                # React + Vite web dashboard
+Optimizador/
+├── update-checker/          # Scripts de deteccion e instalacion de actualizaciones
+├── disk-cleanup/            # Scripts de escaneo y limpieza de espacio en disco
+├── startup-optimizer/       # Scripts de auditoria y optimizacion de inicio
+├── server/                  # Backend Node.js REST + SSE (Express)
+└── frontend/                # Dashboard web en React + Vite
 ```
 
 ---
 
-## Requirements
+## Requisitos
 
-### Scripts only (no web UI)
-- Windows 10 or 11
-- PowerShell 5.1+ (built into Windows) or PowerShell Core (`pwsh`)
-- At least one of: `winget`, `pip`, `npm`, `choco` (missing tools are skipped gracefully)
+### Solo scripts (sin interfaz web)
+- Windows 10 u 11
+- PowerShell 5.1+ (incluido en Windows) o PowerShell Core (`pwsh`)
+- Al menos una de: `winget`, `pip`, `npm`, `choco` (las que falten se omiten sin error)
 
-### Web Dashboard (backend + frontend)
-- [Node.js 18+](https://nodejs.org/) (LTS recommended)
-- `npm` (bundled with Node.js)
+### Dashboard web (backend + frontend)
+- [Node.js 18+](https://nodejs.org/) (se recomienda la versión LTS)
+- `npm` (incluido con Node.js)
 
 ---
 
-## Quick start — Web Dashboard
+## Inicio rápido — Dashboard web
 
-This is the recommended way to use the project. The dashboard gives you a visual interface to scan, review reports, run actions and manage scheduled tasks.
+Esta es la forma recomendada de usar el proyecto. El dashboard te da una interfaz visual para escanear, revisar reportes, ejecutar acciones y administrar tareas programadas.
 
-### 1. Clone or download the repository
+### 1. Clonar el repositorio
 
 ```powershell
-git clone <repo-url>
-cd D1
+git clone https://github.com/TicoraX/Optimizador.git
+cd Optimizador
 ```
 
-### 2. Start the backend API server
+### 2. Levantar el backend (API)
 
 ```powershell
 cd server
@@ -66,13 +66,13 @@ npm install
 npm start
 ```
 
-The server starts at `http://127.0.0.1:3001`. It only accepts connections from `localhost` — it is **not accessible from your local network**.
+El servidor arranca en `http://127.0.0.1:3001`. Solo acepta conexiones desde `localhost` — **no es accesible desde tu red local**.
 
-> For development with auto-reload: `npm run dev`
+> Para desarrollo con recarga automática: `npm run dev`
 
-### 3. Start the web frontend
+### 3. Levantar el frontend web
 
-Open a second terminal:
+Abre una segunda terminal:
 
 ```powershell
 cd frontend
@@ -80,64 +80,64 @@ npm install
 npm run dev
 ```
 
-Open your browser at **http://localhost:5173**
+Abre tu navegador en **http://localhost:5173**
 
-The status indicator in the top right corner will turn green once the frontend connects to the backend.
+El indicador de estado en la esquina superior derecha se pondrá verde cuando el frontend se conecte al backend.
 
 ---
 
-## Quick start — Scripts only (no Node.js required)
+## Inicio rápido — Solo scripts (sin Node.js)
 
-You can use the PowerShell scripts directly without the web dashboard.
+Puedes usar los scripts de PowerShell directamente, sin el dashboard web.
 
-### Run a scan
+### Correr un escaneo
 
 ```powershell
-# Check for pending software updates
+# Revisar actualizaciones de software pendientes
 powershell -ExecutionPolicy Bypass -File update-checker\Check-Updates.ps1
 
-# Scan for recoverable disk space
+# Escanear espacio recuperable en disco
 powershell -ExecutionPolicy Bypass -File disk-cleanup\Scan-Cleanup.ps1
 
-# Audit startup configuration
+# Auditar la configuracion de inicio
 powershell -ExecutionPolicy Bypass -File startup-optimizer\Scan-Startup.ps1
 ```
 
-Reports are saved in each module's `reports/` folder.
+Los reportes se guardan en la carpeta `reports/` de cada módulo.
 
-### Apply actions interactively
+### Aplicar acciones interactivamente
 
 ```powershell
-# Install pending updates (asks per category before doing anything)
+# Instalar actualizaciones pendientes (pregunta por categoria antes de hacer algo)
 powershell -ExecutionPolicy Bypass -File update-checker\Apply-Updates.ps1
 
-# Clean disk (asks per category before deleting anything)
+# Limpiar disco (pregunta por categoria antes de borrar)
 powershell -ExecutionPolicy Bypass -File disk-cleanup\Clean-Disk.ps1
 
-# Disable startup programs / logon tasks (numbered list, you choose)
+# Deshabilitar programas de inicio / tareas de logon (lista numerada, tu eliges)
 powershell -ExecutionPolicy Bypass -File startup-optimizer\Optimize-Startup.ps1
 ```
 
 ---
 
-## Setting up weekly automation (optional)
+## Configurar automatización semanal (opcional)
 
-The scripts can run automatically every week using Windows Task Scheduler. Replace `<FULL_PATH>` with the absolute path to the folder where you cloned this repo.
+Los scripts pueden correr automáticamente cada semana usando el Programador de Tareas de Windows. Reemplaza `<RUTA_COMPLETA>` con la ruta absoluta donde clonaste este repo.
 
 ```powershell
-# Update Checker — every Monday at 9:00 AM
-schtasks /Create /TN "UpdateChecker_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<FULL_PATH>\update-checker\Notify-Updates.ps1`"" /SC WEEKLY /D MON /ST 09:00 /RL LIMITED /F
+# Update Checker — todos los lunes a las 9:00 AM
+schtasks /Create /TN "UpdateChecker_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\update-checker\Notify-Updates.ps1`"" /SC WEEKLY /D MON /ST 09:00 /RL LIMITED /F
 
-# Disk Cleanup — every Wednesday at 9:00 AM
-schtasks /Create /TN "DiskCleanup_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<FULL_PATH>\disk-cleanup\Notify-Cleanup.ps1`"" /SC WEEKLY /D WED /ST 09:00 /RL LIMITED /F
+# Disk Cleanup — todos los miercoles a las 9:00 AM
+schtasks /Create /TN "DiskCleanup_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\disk-cleanup\Notify-Cleanup.ps1`"" /SC WEEKLY /D WED /ST 09:00 /RL LIMITED /F
 
-# Startup Optimizer — every Friday at 9:00 AM
-schtasks /Create /TN "StartupOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<FULL_PATH>\startup-optimizer\Notify-Startup.ps1`"" /SC WEEKLY /D FRI /ST 09:00 /RL LIMITED /F
+# Startup Optimizer — todos los viernes a las 9:00 AM
+schtasks /Create /TN "StartupOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1`"" /SC WEEKLY /D FRI /ST 09:00 /RL LIMITED /F
 ```
 
-Each scheduled task shows a popup notification. Accepting the popup launches the interactive action script.
+Cada tarea programada muestra una notificación popup. Aceptar el popup lanza el script de acción interactivo.
 
-You can also enable, disable, or run tasks on demand:
+También puedes habilitar, deshabilitar o correr las tareas manualmente:
 
 ```powershell
 schtasks /Change /TN "UpdateChecker_Weekly" /ENABLE
@@ -145,121 +145,114 @@ schtasks /Change /TN "UpdateChecker_Weekly" /DISABLE
 schtasks /Run   /TN "UpdateChecker_Weekly"
 ```
 
-Alternatively, manage all tasks from the **Scheduler** tab in the web dashboard — enable/disable,
-or click "Configurar horario" to change the day, time and frequency (weekly on chosen days, or
-daily / every N days) without touching `schtasks` directly.
+También puedes administrar todas las tareas desde la pestaña **Programador** del dashboard web — habilitar/deshabilitar, o hacer clic en "Configurar horario" para cambiar el día, hora y frecuencia (semanal en los días que elijas, o diaria / cada N días) sin tocar `schtasks` directamente.
 
 ---
 
-## Optional: PowerShell shortcut commands
+## Opcional: comandos rápidos de PowerShell
 
-Add these functions to your PowerShell profile (`notepad $PROFILE`) for quick access from any terminal:
+Agrega estas funciones a tu perfil de PowerShell (`notepad $PROFILE`) para acceso rápido desde cualquier terminal:
 
 ```powershell
-function Update-Check    { powershell -ExecutionPolicy Bypass -File "<FULL_PATH>\update-checker\Notify-Updates.ps1" }
-function Disk-Cleanup    { powershell -ExecutionPolicy Bypass -File "<FULL_PATH>\disk-cleanup\Notify-Cleanup.ps1" }
-function Startup-Optimize{ powershell -ExecutionPolicy Bypass -File "<FULL_PATH>\startup-optimizer\Notify-Startup.ps1" }
+function Update-Check    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\update-checker\Notify-Updates.ps1" }
+function Disk-Cleanup    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\disk-cleanup\Notify-Cleanup.ps1" }
+function Startup-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1" }
 ```
 
-Reload your profile after editing: `. $PROFILE`
+Recarga tu perfil después de editarlo: `. $PROFILE`
 
 ---
 
-## Architecture overview
+## Arquitectura
 
 ```
-Browser  http://localhost:5173
+Navegador  http://localhost:5173
     │
-    ├── GET  /api/status          →  Dashboard: consolidated metrics (polled every 30s)
-    ├── GET  /api/reports/:module →  Report viewer: rendered Markdown
-    ├── POST /api/scan/:module    →  Live scan output (Server-Sent Events stream)
-    ├── POST /api/action/:module  →  Live action output (Server-Sent Events stream)
-    ├── GET  /api/scheduler                  →  Scheduled task status
-    ├── POST /api/scheduler/:task/toggle     →  Enable / disable a scheduled task
-    ├── POST /api/scheduler/:task/reschedule →  Change day/time/frequency (daily or weekly)
-    ├── GET  /api/logs/:module    →  Last 100 lines of the action log
-    └── DELETE /api/logs/:module  →  Clear or rotate the action log
+    ├── GET  /api/status          →  Dashboard: metricas consolidadas (consulta cada 30s)
+    ├── GET  /api/reports/:module →  Visor de reportes: Markdown renderizado
+    ├── POST /api/scan/:module    →  Salida de escaneo en vivo (stream Server-Sent Events)
+    ├── POST /api/action/:module  →  Salida de accion en vivo (stream Server-Sent Events)
+    ├── GET  /api/scheduler                  →  Estado de tareas programadas
+    ├── POST /api/scheduler/:task/toggle     →  Habilitar / deshabilitar una tarea
+    ├── POST /api/scheduler/:task/reschedule →  Cambiar dia/hora/frecuencia (diaria o semanal)
+    ├── GET  /api/logs/:module    →  Ultimas 100 lineas del log de accion
+    └── DELETE /api/logs/:module  →  Limpiar o rotar el log de accion
                 │
                 ▼
-    Express API  http://127.0.0.1:3001   (localhost only)
+    API Express  http://127.0.0.1:3001   (solo localhost)
                 │
-                ├── Reads JSON / Markdown reports from disk
-                ├── Runs scan/action logic natively in Node (fs, reg.exe, schtasks.exe,
-                │   winget.exe, pip, npm) — does NOT spawn powershell.exe for any of this
-                └── Calls schtasks.exe to query / toggle / reschedule scheduled tasks
+                ├── Lee reportes JSON / Markdown del disco
+                ├── Corre la logica de scan/action nativa en Node (fs, reg.exe, schtasks.exe,
+                │   winget.exe, pip, npm) — NO invoca powershell.exe para nada de esto
+                └── Llama a schtasks.exe para consultar / activar / reprogramar tareas
 ```
 
-> **Why native Node instead of spawning the `.ps1` scripts?** Spawning `powershell.exe -File`
-> from inside this long-running Express server turned out to be unreliable — it would hang
-> indefinitely or exit silently with no output, while the exact same script ran fine from a
-> one-off process. The root cause was never pinned down with certainty, so instead of working
-> around it, the web dashboard's scan/action logic was rewritten to call the underlying tools
-> (`reg`, `schtasks`, `winget`, `pip`, `npm`, plain filesystem operations) directly. The
-> `.ps1` scripts in each module folder are still fully functional and are what the weekly
-> Windows Task Scheduler jobs and the PowerShell profile shortcuts run — only the web
-> dashboard's backend avoids invoking PowerShell.
+> **¿Por qué Node nativo en vez de invocar los scripts `.ps1`?** Invocar `powershell.exe -File`
+> desde este servidor Express de larga duración resultó poco confiable — se colgaba
+> indefinidamente o salía en silencio sin ninguna salida, mientras que el mismo script
+> exacto corría bien desde un proceso suelto. La causa raíz nunca se identificó con certeza,
+> así que en vez de seguir peleando con eso, la lógica de scan/action del dashboard se
+> reescribió para llamar directamente a las herramientas subyacentes (`reg`, `schtasks`,
+> `winget`, `pip`, `npm`, operaciones de filesystem). Los scripts `.ps1` de cada módulo
+> siguen siendo completamente funcionales y son los que corren las tareas programadas
+> semanales y los accesos rápidos de PowerShell — solo el backend del dashboard web evita
+> invocar PowerShell.
 
-### Security model
+### Modelo de seguridad
 
-| Risk | Control |
+| Riesgo | Control |
 |---|---|
-| Command injection | Module whitelist + `spawn()` with `shell: false` + args as array — no user input is ever concatenated into a command (the only exception is `npm`, which needs `shell: true` to resolve its `.cmd` wrapper on Windows — used exclusively with fixed literal arguments, never user input) |
-| LAN exposure | Server binds to `127.0.0.1` only — inaccessible from other devices on the network |
-| Directory traversal | Date validation with real-calendar check + `normalize()` + boundary assertion on all file paths |
-| Stack trace leak | Global error handler returns generic 500 — no OS details reach the client |
-| Input validation | Strict type checks on all body params — wrong types return `400 Bad Request` |
-| DoS | 16 KB body limit + timeout safety net on every scan/action (2 min scan, 10 min action) |
-| Privilege escalation | Registry/task changes that require admin (e.g. `HKLM` entries) are detected up front and skipped with a clear log message instead of failing silently |
+| Inyección de comandos | Whitelist de módulos + `spawn()` con `shell: false` + argumentos como array — ningún input del usuario se concatena en un comando (la única excepción es `npm`, que necesita `shell: true` para resolver su wrapper `.cmd` en Windows — se usa exclusivamente con argumentos fijos, nunca con input del usuario) |
+| Exposición en red local | El servidor solo escucha en `127.0.0.1` — inaccesible desde otros equipos de la red |
+| Directory traversal | Validación de fecha con chequeo de calendario real + `normalize()` + verificación de límites en todas las rutas de archivo |
+| Filtración de stack trace | El manejador de errores global responde 500 genérico — no llegan detalles del sistema operativo al cliente |
+| Validación de input | Chequeo estricto de tipos en todos los parámetros — tipos incorrectos devuelven `400 Bad Request` |
+| DoS | Límite de 16 KB por body + timeout de seguridad en cada scan/action (2 min scan, 10 min action) |
+| Escalación de privilegios | Los cambios de registro/tareas que requieren admin (ej. entradas `HKLM`) se detectan de antemano y se omiten con un mensaje claro en el log, en vez de fallar a medias |
 
-### Disabling and re-enabling startup items
+### Deshabilitar y reactivar elementos de inicio
 
-The Startup Optimizer module never deletes anything irreversibly:
-- Registry `Run` entries are recorded (name + command + key) before being removed, so they
-  can be recreated exactly as they were.
-- Startup folder shortcuts are moved to a `Startup_Disabled` subfolder instead of being deleted.
-- Scheduled tasks are disabled via Task Scheduler, never deleted.
+El módulo Startup Optimizer nunca borra nada de forma irreversible:
+- Las entradas del registro `Run` se guardan (nombre + comando + clave) antes de borrarse, para poder recrearlas exactamente como estaban.
+- Los accesos directos de la carpeta Startup se mueven a una subcarpeta `Startup_Disabled` en vez de borrarse.
+- Las tareas programadas se deshabilitan vía el Programador de Tareas, nunca se borran.
 
-The report and dashboard show a separate "Disabled" section (kept apart from the list of
-active items so it doesn't clutter it) with a checklist to re-enable anything you disabled.
+El reporte y el dashboard muestran una sección separada de "Deshabilitados" (aparte de la lista de elementos activos, para no sobrecargarla) con una lista para reactivar lo que hayas deshabilitado.
 
 ---
 
-## How scripts handle confirmations (AUTO_CONFIRM)
+## Cómo manejan los scripts las confirmaciones (AUTO_CONFIRM)
 
-`Confirm-Action` (used by the `.ps1` scripts) reads the `AUTO_CONFIRM` environment variable
-and auto-approves instead of waiting for `Read-Host` input when it's set to `true`.
+`Confirm-Action` (usada por los scripts `.ps1`) lee la variable de entorno `AUTO_CONFIRM` y aprueba automáticamente en vez de esperar input de `Read-Host` cuando está en `true`.
 
-This means:
-- **Running scripts manually from a terminal** → interactive, asks you before each step.
-- **Running the weekly scheduled task / `Notify-*.ps1`** → still interactive unless you accept
-  the popup, which then runs the action script normally.
-- **Running from the web dashboard** → doesn't go through these `.ps1` scripts at all (see
-  the architecture note above), so there's nothing to confirm — actions run immediately for
-  whatever you selected in the UI.
+Esto significa:
+- **Corriendo los scripts manualmente desde una terminal** → interactivo, pregunta antes de cada paso.
+- **Corriendo la tarea programada semanal / `Notify-*.ps1`** → sigue siendo interactivo a menos que aceptes el popup, que entonces corre el script de acción normalmente.
+- **Corriendo desde el dashboard web** → no pasa por estos scripts `.ps1` en absoluto (ver la nota de arquitectura arriba), así que no hay nada que confirmar — las acciones corren de inmediato sobre lo que seleccionaste en la interfaz.
 
 ---
 
-## Portability
+## Portabilidad
 
-All PowerShell scripts are self-contained. They use `$PSScriptRoot` for their own location and standard environment variables (`$env:TEMP`, `$env:USERPROFILE`, etc.) for everything else. There are no hardcoded paths or usernames. You can clone this repo anywhere and run the scripts without editing them.
+Todos los scripts de PowerShell son autocontenidos. Usan `$PSScriptRoot` para su propia ubicación y variables de entorno estándar (`$env:TEMP`, `$env:USERPROFILE`, etc.) para todo lo demás. No hay rutas ni nombres de usuario hardcodeados. Puedes clonar este repo en cualquier lugar y correr los scripts sin editarlos.
 
-The only thing you need to update after cloning is the `<FULL_PATH>` placeholder in the `schtasks` commands and PowerShell profile functions above.
-
----
-
-## Known limitations
-
-- `winget upgrade` has no official JSON output (verified on v1.28). Output is parsed from the text table by column position. If Microsoft changes the format, winget results may appear empty — check the winget parsing logic in `server/server.js` (or `update-checker/Check-Updates.ps1` for the script-only path) if that happens.
-- Boot performance (Windows Performance EventLog ID 100) is **not available from the web dashboard**. The only reliable way to read it without administrator rights is PowerShell's `Get-WinEvent` — `wevtutil` returns "Access is denied" for a non-admin user even though `Get-WinEvent` doesn't. Since the dashboard backend deliberately avoids spawning PowerShell (see the architecture note above), this metric is reported as unavailable rather than reintroduced at the cost of stability. It's still fully visible when running `startup-optimizer/Scan-Startup.ps1` directly.
-- Startup folder shortcuts (`.lnk`) are listed by filename only from the web dashboard — resolving their actual target normally requires `WScript.Shell` (COM/PowerShell), which isn't used here for the same reason.
-- Auto-start services are listed for information only and are never modified — disabling auto-start services without knowing which are critical can break the system.
-- The npm global check may fail with `ENOENT` if the global npm folder (`%APPDATA%\npm`) does not exist — reported as an error, not as "0 updates".
+Lo único que necesitas actualizar después de clonar es el placeholder `<RUTA_COMPLETA>` en los comandos de `schtasks` y las funciones de perfil de PowerShell de arriba.
 
 ---
 
-## Module READMEs
+## Limitaciones conocidas
 
-Each module has its own README with detailed usage and portability notes:
+- `winget upgrade` no tiene salida JSON oficial (verificado en v1.28). La salida se parsea de la tabla de texto por posición de columna. Si Microsoft cambia el formato, los resultados de winget pueden aparecer vacíos — revisa la lógica de parsing de winget en `server/server.js` (o `update-checker/Check-Updates.ps1` para la vía de solo-scripts) si eso pasa.
+- El rendimiento de arranque (EventLog de Rendimiento de Windows, ID 100) **no está disponible desde el dashboard web**. La única forma confiable de leerlo sin permisos de administrador es `Get-WinEvent` de PowerShell — `wevtutil` devuelve "Access is denied" para un usuario no-admin aunque `Get-WinEvent` sí funcione. Como el backend del dashboard evita deliberadamente invocar PowerShell (ver la nota de arquitectura arriba), esta métrica se reporta como no disponible en vez de reintroducirla a costa de la estabilidad. Sigue siendo visible corriendo `startup-optimizer/Scan-Startup.ps1` directamente.
+- Los accesos directos (`.lnk`) de la carpeta Startup se listan solo por nombre de archivo desde el dashboard web — resolver su destino real normalmente requiere `WScript.Shell` (COM/PowerShell), que no se usa aquí por la misma razón.
+- Los servicios auto-start se listan solo informativamente y nunca se modifican — deshabilitar servicios auto-start sin saber cuáles son críticos puede dejar el sistema inestable.
+- La revisión de paquetes globales de npm puede fallar con `ENOENT` si no existe la carpeta global de npm (`%APPDATA%\npm`) — se reporta como error, no como "0 actualizaciones".
+
+---
+
+## READMEs de cada módulo
+
+Cada módulo tiene su propio README con notas detalladas de uso y portabilidad:
 
 - [`update-checker/README.md`](update-checker/README.md)
 - [`disk-cleanup/README.md`](disk-cleanup/README.md)
@@ -267,6 +260,6 @@ Each module has its own README with detailed usage and portability notes:
 
 ---
 
-## License
+## Licencia
 
 [MIT](LICENSE)
