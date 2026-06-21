@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-
-const API_BASE = 'http://127.0.0.1:3001/api';
+import { API_BASE } from '../config';
 
 export default function Dashboard({ systemStatus, loading, error, onRefreshStatus }) {
   const navigate = useNavigate();
@@ -65,7 +64,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
   if (loading) {
     return (
       <div className="dashboard-grid">
-        {[1, 2, 3].map(i => (
+        {[1, 2, 3, 4].map(i => (
           <div key={i} className="glass-panel module-card" style={{ height: '350px' }}>
             <div className="skeleton" style={{ width: '40px', height: '40px', borderRadius: '12px', marginBottom: '1.5rem' }} />
             <div className="skeleton" style={{ width: '60%', height: '24px', marginBottom: '1rem' }} />
@@ -93,7 +92,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
     );
   }
 
-  const { updates, cleanup, startup } = systemStatus || {};
+  const { updates, cleanup, startup, ram } = systemStatus || {};
 
   // Parse boot history for Recharts
   const chartData = (startup?.bootHistory || [])
@@ -240,6 +239,103 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
             </button>
           </div>
         </div>
+
+        {/* Module 4: RAM Optimizer */}
+        <div className="glass-panel module-card">
+          <div className="card-header">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title">Optimización de RAM</span>
+              <span className="card-subtitle">Último escaneo: {ram?.lastScan || 'Nunca'}</span>
+            </div>
+            <div className="card-icon" style={{ color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+            </div>
+          </div>
+
+          <div className="card-body">
+            {(ram?.usagePercent ?? 0) >= 90 && (
+              <div style={{
+                background: 'rgba(255, 50, 50, 0.15)', border: '1px solid rgba(255, 50, 50, 0.3)',
+                borderRadius: '6px', padding: '0.5rem 0.75rem', marginBottom: '0.75rem',
+                fontSize: '0.8rem', color: 'var(--danger)',
+              }}>
+                ⚠ Uso de RAM crítico ({ram?.usagePercent}%). Considera liberar memoria.
+              </div>
+            )}
+            <div className="metric-row">
+              <span className="metric-label">RAM Total</span>
+              <span className="metric-value">{formatSize(ram?.totalMB)}</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">RAM en Uso</span>
+              <span className={`metric-value ${(ram?.usagePercent ?? 0) > 80 ? 'has-warning' : ''}`}>
+                {formatSize(ram?.usedMB)} ({ram?.usagePercent ?? 0}%)
+              </span>
+            </div>
+            <div className="metric-row" style={{ borderBottom: 'none' }}>
+              <span className="metric-label">RAM Libre</span>
+              <span className="metric-value">{formatSize(ram?.freeMB)}</span>
+            </div>
+            <div className="metric-row" style={{ borderBottom: 'none' }}>
+              <span className="metric-label">Procesos Candidatos</span>
+              <span className="metric-value">{ram?.knownProcesses ?? 0}</span>
+            </div>
+            <div style={{ marginTop: '0.75rem', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(ram?.usagePercent ?? 0, 100)}%`,
+                background: (ram?.usagePercent ?? 0) > 80 ? 'var(--danger)' : (ram?.usagePercent ?? 0) > 60 ? 'var(--warning)' : 'var(--success)',
+                borderRadius: '3px',
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+          </div>
+
+          <div className="card-footer">
+            <button className="btn btn-secondary" onClick={() => handleScan('ram')} disabled={scanning['ram']}>
+              {scanning['ram'] ? 'Escaneando...' : 'Escanear'}
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/report/ram')}>
+              Ver Reporte
+            </button>
+          </div>
+        </div>
+
+        {/* RAM Process Breakdown */}
+        {(ram?.lastScan) && (
+          <div className="glass-panel module-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/report/ram')}>
+            <div className="card-header">
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span className="card-title">Desglose de Procesos</span>
+                <span className="card-subtitle">Categorías del último escaneo</span>
+              </div>
+              <div className="card-icon" style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+            </div>
+            <div className="card-body">
+              <div className="metric-row" onClick={(e) => { e.stopPropagation(); navigate('/report/ram'); }}>
+                <span className="metric-label" style={{ color: 'var(--success)' }}>Identificados (seguros)</span>
+                <span className="metric-value" style={{ color: 'var(--success)' }}>{ram?.knownProcesses ?? 0}</span>
+              </div>
+              <div className="metric-row" onClick={(e) => { e.stopPropagation(); navigate('/report/ram'); }}>
+                <span className="metric-label" style={{ color: 'var(--warning)' }}>No recomendados</span>
+                <span className="metric-value" style={{ color: 'var(--warning)' }}>{ram?.riskyProcesses ?? 0}</span>
+              </div>
+              <div className="metric-row" onClick={(e) => { e.stopPropagation(); navigate('/report/ram'); }}>
+                <span className="metric-label" style={{ color: '#a0a0b8' }}>No identificados</span>
+                <span className="metric-value" style={{ color: '#a0a0b8' }}>{ram?.unknownProcesses ?? 0}</span>
+              </div>
+              <div className="metric-row" style={{ borderBottom: 'none' }} onClick={(e) => { e.stopPropagation(); navigate('/report/ram'); }}>
+                <span className="metric-label" style={{ color: 'var(--danger)' }}>Críticos (sistema)</span>
+                <span className="metric-value" style={{ color: 'var(--danger)' }}>{ram?.criticalProcesses ?? 0}</span>
+              </div>
+            </div>
+            <div className="card-footer" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              {ram?.totalProcesses ?? 0} procesos totales — clic para ver detalle
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Boot Performance Chart */}

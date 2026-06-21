@@ -3,8 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ReportViewer from './components/ReportViewer';
 import Scheduler from './components/Scheduler';
-
-const API_BASE = 'http://127.0.0.1:3001/api';
+import { API_BASE } from './config';
 
 export default function App() {
   const [systemStatus, setSystemStatus] = useState(null);

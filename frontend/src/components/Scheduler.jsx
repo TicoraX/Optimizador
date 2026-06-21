@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-const API_BASE = 'http://127.0.0.1:3001/api';
+import { API_BASE } from '../config';
 const WEEKDAYS = [
   { value: 'MON', label: 'Lun' },
   { value: 'TUE', label: 'Mar' },

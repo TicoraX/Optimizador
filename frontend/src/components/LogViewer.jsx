@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-
-const API_BASE = 'http://127.0.0.1:3001/api';
+import { API_BASE } from '../config';
 
 function classifyLine(line) {
   if (line.includes('===')) return 'sep';

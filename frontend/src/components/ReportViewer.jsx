@@ -5,14 +5,14 @@ import { Marked } from 'marked';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
 import CommandPreview from './CommandPreview';
-
-const API_BASE = 'http://127.0.0.1:3001/api';
+import { API_BASE } from '../config';
 const marked = new Marked();
 
 const MODULE_SCRIPTS = {
   updates: { scan: 'Check-Updates.ps1', action: 'Apply-Updates.ps1' },
   cleanup: { scan: 'Scan-Cleanup.ps1', action: 'Clean-Disk.ps1' },
   startup: { scan: 'Scan-Startup.ps1', action: 'Optimize-Startup.ps1' },
+  ram: { scan: 'Scan-RAM.ps1', action: 'Free-RAM.ps1' },
 };
 
 export default function ReportViewer() {
@@ -32,6 +32,17 @@ export default function ReportViewer() {
   const [selectedEnablePrograms, setSelectedEnablePrograms] = useState({});
   const [disabledTasks, setDisabledTasks] = useState([]);
   const [selectedEnableTasks, setSelectedEnableTasks] = useState({});
+
+  // RAM Optimizer States
+  const [availableProcesses, setAvailableProcesses] = useState([]);
+  const [unknownProcesses, setUnknownProcesses] = useState([]);
+  const [riskyProcesses, setRiskyProcesses] = useState([]);
+  const [selectedProcesses, setSelectedProcesses] = useState({});
+  const [selectedUnknownProcesses, setSelectedUnknownProcesses] = useState({});
+  const [selectedRiskyProcesses, setSelectedRiskyProcesses] = useState({});
+  const [riskyAck, setRiskyAck] = useState(false);
+  const [minRamMB, setMinRamMB] = useState(50);
+  const [cleanMode, setCleanMode] = useState('soft');
 
   // Terminal & SSE States
   const [logs, setLogs] = useState([]);
@@ -53,8 +64,8 @@ export default function ReportViewer() {
       const data = await res.json();
       setReport(data);
 
-      // Parse startup options if we are in startup optimizer
-      if (module === 'startup' && data.content) {
+      // Parse startup/RAM options (la misma funcion parsea ambos reportes)
+      if ((module === 'startup' || module === 'ram') && data.content) {
         parseStartupItems(data.content);
       }
     } catch (err) {
@@ -157,6 +168,59 @@ export default function ReportViewer() {
     setDisabledPrograms(disabledProgs);
     setDisabledTasks(disabledTasksList);
 
+    // Parse RAM identified processes (safe_known)
+    const processes = [];
+    const procMatch = markdown.match(/## Procesos identificados.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    if (procMatch) {
+      const lines = procMatch[1].split('\n');
+      for (const line of lines) {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+(\d+)\s+MB/);
+        if (m) {
+          processes.push({ pid: parseInt(m[1]), name: m[2].trim(), mb: parseInt(m[3]) });
+        }
+      }
+    }
+    setAvailableProcesses(processes);
+    const initialProcState = {};
+    processes.forEach((_, idx) => { initialProcState[idx] = false; });
+    setSelectedProcesses(initialProcState);
+
+    // Parse RAM unknown processes
+    const unknown = [];
+    const unknownMatch = markdown.match(/## Procesos no identificados.*?\r?\n\r?\n.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    if (unknownMatch) {
+      const lines = unknownMatch[1].split('\n');
+      for (const line of lines) {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+(\d+)\s+MB/);
+        if (m) {
+          unknown.push({ pid: parseInt(m[1]), name: m[2].trim(), mb: parseInt(m[3]) });
+        }
+      }
+    }
+    setUnknownProcesses(unknown);
+    const initialUnknownState = {};
+    unknown.forEach((_, idx) => { initialUnknownState[idx] = false; });
+    setSelectedUnknownProcesses(initialUnknownState);
+
+    // Parse RAM "no recomendados" processes - seleccionables a mano, bajo
+    // confirmacion explicita del usuario (ver riskyAck), nunca via "todos".
+    const riskyProcesses = [];
+    const riskyMatch = markdown.match(/## Procesos no recomendados.*?\r?\n\r?\n.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    if (riskyMatch) {
+      const lines = riskyMatch[1].split('\n');
+      for (const line of lines) {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+(\d+)\s+MB/);
+        if (m) {
+          riskyProcesses.push({ pid: parseInt(m[1]), name: m[2].trim(), mb: parseInt(m[3]) });
+        }
+      }
+    }
+    setRiskyProcesses(riskyProcesses);
+    const initialRiskyState = {};
+    riskyProcesses.forEach((_, idx) => { initialRiskyState[idx] = false; });
+    setSelectedRiskyProcesses(initialRiskyState);
+    setRiskyAck(false);
+
     // Initialize all checkboxes to false
     const initialProgState = {};
     programs.forEach((_, idx) => { initialProgState[idx] = false; });
@@ -216,6 +280,30 @@ export default function ReportViewer() {
       envLines.push(`$env:ENABLE_PROGRAMS = "${checkedEnableProgs.length ? checkedEnableProgs.join(',') : '(ninguno)'}"`);
       envLines.push(`$env:ENABLE_TASKS = "${checkedEnableTasks.length ? checkedEnableTasks.join(',') : '(ninguno)'}"`);
     }
+    if (module === 'ram') {
+      if (!isAction) {
+        envLines.push(`$env:MIN_RAM_MB = "${minRamMB}"`);
+        envLines.push(`$env:CLEAN_MODE = "${cleanMode}"`);
+      }
+    }
+    if (isAction && module === 'ram') {
+      const checkedProcs = Object.keys(selectedProcesses)
+        .filter(k => selectedProcesses[k])
+        .map(k => availableProcesses[parseInt(k)]?.pid)
+        .filter(Boolean);
+      envLines.push(`$env:OPTIMIZE_PROCESSES = "${checkedProcs.length ? checkedProcs.join(',') : '(ninguno)'}"`);
+      const checkedUnknown = Object.keys(selectedUnknownProcesses)
+        .filter(k => selectedUnknownProcesses[k])
+        .map(k => unknownProcesses[parseInt(k)]?.pid)
+        .filter(Boolean);
+      envLines.push(`$env:UNKNOWN_PROCESSES = "${checkedUnknown.length ? checkedUnknown.join(',') : '(ninguno)'}"`);
+      const checkedRisky = riskyAck
+        ? Object.keys(selectedRiskyProcesses).filter(k => selectedRiskyProcesses[k]).map(k => riskyProcesses[parseInt(k)]?.pid).filter(Boolean)
+        : [];
+      envLines.push(`$env:RISKY_PROCESSES = "${checkedRisky.length ? checkedRisky.join(',') : '(ninguno)'}"`);
+      envLines.push(`$env:MIN_RAM_MB = "${minRamMB}"`);
+      envLines.push(`$env:CLEAN_MODE = "${cleanMode}"`);
+    }
 
     const script = isAction ? scripts.action : scripts.scan;
     const cmd = `powershell.exe -ExecutionPolicy Bypass -NoProfile -NonInteractive -File ${script}`;
@@ -223,7 +311,16 @@ export default function ReportViewer() {
   };
 
   const runScan = () => {
-    triggerExecution(`/scan/${module}`, module === 'cleanup' ? { downloadsAgeDays } : {});
+    const body = {};
+    if (module === 'cleanup') body.downloadsAgeDays = downloadsAgeDays;
+    if (module === 'ram') {
+      body.cleanMode = cleanMode;
+      // Mismo umbral que se manda en runAction() - el scan y la accion deben
+      // usar el mismo valor, o los indices marcados en el reporte podrian
+      // referirse a un proceso distinto al ejecutar la accion.
+      body.minRamMB = minRamMB;
+    }
+    triggerExecution(`/scan/${module}`, body);
   };
 
   const runAction = () => {
@@ -253,6 +350,30 @@ export default function ReportViewer() {
 
       body.enablePrograms = checkedEnableProgs.length === 0 ? '' : checkedEnableProgs.join(',');
       body.enableTasks = checkedEnableTasks.length === 0 ? '' : checkedEnableTasks.join(',');
+    } else if (module === 'ram') {
+      // Se manda el PID real (no la posicion en la lista): si solo se
+      // mandara la posicion, un proceso que cambio de orden entre el
+      // escaneo y este clic (su MB vario un poco) haria que el indice
+      // apunte a un proceso distinto al que el usuario vio y marco.
+      const checkedProcs = Object.keys(selectedProcesses)
+        .filter(k => selectedProcesses[k])
+        .map(k => availableProcesses[parseInt(k)]?.pid)
+        .filter(Boolean);
+      body.processes = checkedProcs.length === 0 ? '' : checkedProcs.join(',');
+      const checkedUnknown = Object.keys(selectedUnknownProcesses)
+        .filter(k => selectedUnknownProcesses[k])
+        .map(k => unknownProcesses[parseInt(k)]?.pid)
+        .filter(Boolean);
+      body.unknownProcesses = checkedUnknown.length === 0 ? '' : checkedUnknown.join(',');
+      // Los procesos "no recomendados" solo se mandan si el usuario marco el
+      // checkbox de confirmacion explicita (riskyAck) - de lo contrario se
+      // ignoran aunque tengan checkboxes individuales marcados.
+      const checkedRisky = riskyAck
+        ? Object.keys(selectedRiskyProcesses).filter(k => selectedRiskyProcesses[k]).map(k => riskyProcesses[parseInt(k)]?.pid).filter(Boolean)
+        : [];
+      body.riskyProcesses = checkedRisky.length === 0 ? '' : checkedRisky.join(',');
+      body.minRamMB = minRamMB;
+      body.cleanMode = cleanMode;
     }
 
     triggerExecution(`/action/${module}`, body);
@@ -352,6 +473,7 @@ export default function ReportViewer() {
       case 'updates': return 'Actualizaciones pendientes';
       case 'cleanup': return 'Limpieza de disco';
       case 'startup': return 'Optimización de inicio';
+      case 'ram': return 'Optimización de RAM';
       default: return 'Detalles del Módulo';
     }
   };
@@ -525,6 +647,179 @@ export default function ReportViewer() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+            </>
+          )}
+
+          {module === 'ram' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Modo de limpieza:</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <button
+                    className={`btn btn-sm${cleanMode === 'soft' ? ' btn-primary' : ''}`}
+                    onClick={() => { setCleanMode('soft'); setMinRamMB(50); }}
+                    disabled={isRunning}
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', flex: 1 }}
+                  >
+                    Suave
+                  </button>
+                  <button
+                    className={`btn btn-sm${cleanMode === 'deep' ? ' btn-primary' : ''}`}
+                    onClick={() => { setCleanMode('deep'); setMinRamMB(10); }}
+                    disabled={isRunning}
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', flex: 1 }}
+                  >
+                    Profundo
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  {cleanMode === 'soft'
+                    ? 'Solo procesos identificados seguros (>= umbral).'
+                    : 'Incluye procesos no identificados sin ventana visible (>= 10 MB).'}
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Umbral mínimo de RAM (MB):</label>
+                <input
+                  type="range"
+                  min="10"
+                  max="500"
+                  step="10"
+                  value={minRamMB}
+                  onChange={(e) => setMinRamMB(parseInt(e.target.value))}
+                  className="range-slider"
+                  disabled={isRunning}
+                />
+                <div className="range-value">{minRamMB} MB</div>
+              </div>
+
+              {availableProcesses.length > 0 && (
+                <div className="form-group">
+                  <label className="form-label">Procesos identificados a liberar:</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => {
+                        const all = {};
+                        availableProcesses.forEach((_, idx) => { all[idx] = true; });
+                        setSelectedProcesses(all);
+                      }}
+                      disabled={isRunning}
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}
+                    >
+                      Seleccionar todos
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => {
+                        const none = {};
+                        availableProcesses.forEach((_, idx) => { none[idx] = false; });
+                        setSelectedProcesses(none);
+                      }}
+                      disabled={isRunning}
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}
+                    >
+                      Deseleccionar todos
+                    </button>
+                  </div>
+                  <div className="checkbox-list">
+                    {availableProcesses.map((proc, idx) => (
+                      <label key={idx} className="checkbox-item">
+                        <input
+                          type="checkbox"
+                          checked={selectedProcesses[idx] || false}
+                          onChange={() => {
+                            setSelectedProcesses(prev => ({ ...prev, [idx]: !prev[idx] }));
+                          }}
+                          disabled={isRunning}
+                        />
+                        <span className="checkbox-label" title={proc.name}>
+                          {proc.name}
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            PID: {proc.pid} — {proc.mb} MB
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {unknownProcesses.length > 0 && (
+                <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                  <label className="form-label" style={{ color: 'var(--warning-color, #e0a32a)' }}>
+                    Procesos no identificados:
+                  </label>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', marginBottom: '0.75rem' }}>
+                    Procesos en segundo plano sin descripcion conocida. No se incluyen en "Seleccionar todos".
+                    Revise antes de liberar, bajo su responsabilidad.
+                  </p>
+                  <div className="checkbox-list">
+                    {unknownProcesses.map((proc, idx) => (
+                      <label key={idx} className="checkbox-item">
+                        <input
+                          type="checkbox"
+                          checked={selectedUnknownProcesses[idx] || false}
+                          onChange={() => {
+                            setSelectedUnknownProcesses(prev => ({ ...prev, [idx]: !prev[idx] }));
+                          }}
+                          disabled={isRunning}
+                        />
+                        <span className="checkbox-label" title={proc.name}>
+                          {proc.name}
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            PID: {proc.pid} — {proc.mb} MB
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {riskyProcesses.length > 0 && (
+                <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                  <label className="form-label" style={{ color: 'var(--danger, #e05a5a)' }}>
+                    No recomendado (editores/navegadores/sync/chat):
+                  </label>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                    Cerrarlos sin guardar pierde tu trabajo o sesión. Nunca se incluyen en "Seleccionar todos" ni se
+                    preseleccionan — marca abajo solo si reconoces el proceso y estás seguro de cerrarlo.
+                  </p>
+                  <label className="checkbox-item" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={riskyAck}
+                      onChange={() => setRiskyAck(prev => !prev)}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" style={{ color: 'var(--danger, #e05a5a)' }}>
+                      Entiendo el riesgo y quiero poder cerrar procesos de esta lista
+                    </span>
+                  </label>
+                  <div className="checkbox-list">
+                    {riskyProcesses.map((proc, idx) => (
+                      <label key={idx} className="checkbox-item" style={{ opacity: riskyAck ? 1 : 0.5 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedRiskyProcesses[idx] || false}
+                          onChange={() => {
+                            setSelectedRiskyProcesses(prev => ({ ...prev, [idx]: !prev[idx] }));
+                          }}
+                          disabled={isRunning || !riskyAck}
+                        />
+                        <span className="checkbox-label" title={proc.name}>
+                          {proc.name}
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            PID: {proc.pid} — {proc.mb} MB
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
             </>

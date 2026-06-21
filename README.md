@@ -13,6 +13,7 @@ Conjunto de herramientas de mantenimiento local para Windows: scripts automatiza
 | **Update Checker** | Detecta actualizaciones pendientes de winget (apps/drivers), pip, paquetes globales de npm y Chocolatey |
 | **Disk Cleanup** | Encuentra espacio recuperable: temporales de Windows, caché de navegadores, descargas viejas, papelera de reciclaje |
 | **Startup Optimizer** | Audita programas de inicio (registro + carpeta Startup), servicios auto-start y tareas programadas de logon. Deshabilitar es reversible — reactiva cualquier cosa desde el dashboard |
+| **RAM Optimizer** | Escanea el uso de memoria, clasifica procesos por riesgo (seguro/riesgoso/desconocido) y libera RAM cerrando los que elijas. Nunca toca procesos críticos del sistema |
 
 Cada módulo sigue el mismo patrón:
 - **Scan** — lee el sistema, genera un reporte en Markdown + JSON estructurado. No modifica nada.
@@ -28,7 +29,8 @@ Optimizador/
 ├── update-checker/          # Scripts de deteccion e instalacion de actualizaciones
 ├── disk-cleanup/            # Scripts de escaneo y limpieza de espacio en disco
 ├── startup-optimizer/       # Scripts de auditoria y optimizacion de inicio
-├── server/                  # Backend Node.js REST + SSE (Express)
+├── ram-optimizer/           # Scripts de escaneo y liberacion de memoria RAM
+├── server/                  # Backend Node.js REST + SSE (Express), logica por modulo en server/lib/
 └── frontend/                # Dashboard web en React + Vite
 ```
 
@@ -101,6 +103,9 @@ powershell -ExecutionPolicy Bypass -File disk-cleanup\Scan-Cleanup.ps1
 
 # Auditar la configuracion de inicio
 powershell -ExecutionPolicy Bypass -File startup-optimizer\Scan-Startup.ps1
+
+# Escanear uso de RAM y procesos candidatos a liberar
+powershell -ExecutionPolicy Bypass -File ram-optimizer\Scan-RAM.ps1
 ```
 
 Los reportes se guardan en la carpeta `reports/` de cada módulo.
@@ -116,6 +121,9 @@ powershell -ExecutionPolicy Bypass -File disk-cleanup\Clean-Disk.ps1
 
 # Deshabilitar programas de inicio / tareas de logon (lista numerada, tu eliges)
 powershell -ExecutionPolicy Bypass -File startup-optimizer\Optimize-Startup.ps1
+
+# Liberar RAM cerrando procesos candidatos (lista numerada, tu eliges)
+powershell -ExecutionPolicy Bypass -File ram-optimizer\Free-RAM.ps1
 ```
 
 ---
@@ -133,6 +141,9 @@ schtasks /Create /TN "DiskCleanup_Weekly" /TR "powershell.exe -ExecutionPolicy B
 
 # Startup Optimizer — todos los viernes a las 9:00 AM
 schtasks /Create /TN "StartupOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1`"" /SC WEEKLY /D FRI /ST 09:00 /RL LIMITED /F
+
+# RAM Optimizer — todos los sabados a las 10:00 AM
+schtasks /Create /TN "RAMOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\ram-optimizer\Notify-RAM.ps1`"" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F
 ```
 
 Cada tarea programada muestra una notificación popup. Aceptar el popup lanza el script de acción interactivo.
@@ -157,6 +168,7 @@ Agrega estas funciones a tu perfil de PowerShell (`notepad $PROFILE`) para acces
 function Update-Check    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\update-checker\Notify-Updates.ps1" }
 function Disk-Cleanup    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\disk-cleanup\Notify-Cleanup.ps1" }
 function Startup-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1" }
+function RAM-Optimize    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\ram-optimizer\Notify-RAM.ps1" }
 ```
 
 Recarga tu perfil después de editarlo: `. $PROFILE`
@@ -242,7 +254,7 @@ Lo único que necesitas actualizar después de clonar es el placeholder `<RUTA_C
 
 ## Limitaciones conocidas
 
-- `winget upgrade` no tiene salida JSON oficial (verificado en v1.28). La salida se parsea de la tabla de texto por posición de columna. Si Microsoft cambia el formato, los resultados de winget pueden aparecer vacíos — revisa la lógica de parsing de winget en `server/server.js` (o `update-checker/Check-Updates.ps1` para la vía de solo-scripts) si eso pasa.
+- `winget upgrade` no tiene salida JSON oficial (verificado en v1.28). La salida se parsea de la tabla de texto por posición de columna. Si Microsoft cambia el formato, los resultados de winget pueden aparecer vacíos — revisa la lógica de parsing de winget en `server/lib/updates.js` (o `update-checker/Check-Updates.ps1` para la vía de solo-scripts) si eso pasa.
 - El rendimiento de arranque (EventLog de Rendimiento de Windows, ID 100) **no está disponible desde el dashboard web**. La única forma confiable de leerlo sin permisos de administrador es `Get-WinEvent` de PowerShell — `wevtutil` devuelve "Access is denied" para un usuario no-admin aunque `Get-WinEvent` sí funcione. Como el backend del dashboard evita deliberadamente invocar PowerShell (ver la nota de arquitectura arriba), esta métrica se reporta como no disponible en vez de reintroducirla a costa de la estabilidad. Sigue siendo visible corriendo `startup-optimizer/Scan-Startup.ps1` directamente.
 - Los accesos directos (`.lnk`) de la carpeta Startup se listan solo por nombre de archivo desde el dashboard web — resolver su destino real normalmente requiere `WScript.Shell` (COM/PowerShell), que no se usa aquí por la misma razón.
 - Los servicios auto-start se listan solo informativamente y nunca se modifican — deshabilitar servicios auto-start sin saber cuáles son críticos puede dejar el sistema inestable.

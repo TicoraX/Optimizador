@@ -350,17 +350,18 @@ body {
 .report-container {
   display: grid;
   grid-template-columns: 1fr 380px;
+  /* Filas explicitas (reporte / terminal / log) - necesario para que
+     .options-panel pueda abarcarlas con "grid-row: 1 / 4" de forma fiable.
+     Sin filas explicitas, "-1" no tiene una linea de referencia clara y el
+     navegador puede reordenar columnas de forma inesperada. */
+  grid-template-rows: auto auto auto;
   gap: 2rem;
   align-items: start;
 }
 
-@media (max-width: 1024px) {
-  .report-container {
-    grid-template-columns: 1fr;
-  }
-}
-
 .markdown-body {
+  grid-column: 1;
+  grid-row: 1;
   padding: 2.5rem;
 }
 
@@ -426,6 +427,12 @@ body {
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   align-self: start;
+  grid-column: 2;
+  /* Abarca las 3 filas explicitas del grid (reporte + terminal + log), no
+     solo la primera - si solo abarcara la fila del reporte, position:sticky
+     no podria "pegarse" mas alla de esa altura, y en la transicion se veria
+     superponer con la terminal/log al hacer scroll mas abajo. */
+  grid-row: 1 / 4;
 }
 
 .panel-title {
@@ -519,11 +526,11 @@ body {
 /* Terminal logs styles */
 .terminal-container {
   margin-top: 2rem;
-  grid-column: 1 / -1;
-  /* Sin esto, el sidebar (.options-panel, position:sticky) se pinta encima
-     de este panel donde se superponen al hacer scroll: los elementos con
-     position distinto de static siempre se dibujan sobre los static,
-     sin importar el orden en el HTML. */
+  /* Solo columna izquierda, fila 2 - la columna derecha la ocupa
+     .options-panel, que abarca las 3 filas (ver comentario ahi) para poder
+     quedar pegado durante todo el scroll, no solo el de la primera fila. */
+  grid-column: 1;
+  grid-row: 2;
   position: relative;
   z-index: 1;
 }
@@ -618,9 +625,30 @@ body {
 /* Log Viewer Panel */
 .log-viewer-panel {
   margin-top: 2rem;
-  grid-column: 1 / -1;
+  grid-column: 1;
+  grid-row: 3;
   position: relative;
   z-index: 1;
+}
+
+/* Debe ir despues de las reglas .markdown-body/.options-panel/.terminal-container/
+   .log-viewer-panel - misma especificidad, y en cascada CSS la regla que
+   aparece despues en el archivo gana sin importar si esta dentro de un
+   @media; si este bloque quedara antes, las reglas base de mas abajo
+   pisarian este reset incluso en pantallas angostas. */
+@media (max-width: 1024px) {
+  .report-container {
+    grid-template-columns: 1fr;
+  }
+  /* En una sola columna no hay filas/columnas fijas que respetar - todo
+     vuelve al flujo normal y .options-panel ya no necesita abarcar nada. */
+  .markdown-body,
+  .options-panel,
+  .terminal-container,
+  .log-viewer-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
 }
 
 .log-viewer-header {
