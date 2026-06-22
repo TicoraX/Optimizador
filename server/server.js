@@ -14,6 +14,11 @@ import { runCleanupScanNative, runCleanupActionNative } from './lib/cleanup.js';
 import { runUpdatesScanNative, runUpdatesActionNative } from './lib/updates.js';
 import { runStartupScanNative, runStartupActionNative } from './lib/startup.js';
 import { runRamScanNative, runRamActionNative } from './lib/ram.js';
+import { runNetworkScanNative, runNetworkActionNative } from './lib/network.js';
+import { runServicesScanNative, runServicesActionNative } from './lib/services.js';
+import { runPowerScanNative, runPowerActionNative } from './lib/power.js';
+import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
+import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 
 const app = express();
 
@@ -92,6 +97,75 @@ app.get('/api/status', safeHandler((_req, res) => {
       topProcesses: Array.isArray(ramCounts.top_processes) ? ramCounts.top_processes : [],
       error: ramCounts.error,
     },
+    network: (() => {
+      const n = loadJsonSafe(
+        join(MODULES.network.dir, 'reports', MODULES.network.countsFile),
+        { date: null, dns_cache_entries: 0, avg_ping_ms: null, packet_loss: 0, active_adapters: 0, disconnected_adapters: 0, error: true },
+      );
+      return {
+        lastScan: n.date,
+        dnsCacheEntries: n.dns_cache_entries || 0,
+        avgPingMs: n.avg_ping_ms,
+        packetLoss: n.packet_loss || 0,
+        activeAdapters: n.active_adapters || 0,
+        disconnectedAdapters: n.disconnected_adapters || 0,
+        error: n.error,
+      };
+    })(),
+    services: (() => {
+      const s = loadJsonSafe(
+        join(MODULES.services.dir, 'reports', MODULES.services.countsFile),
+        { date: null, third_party_total: 0, third_party_running: 0, third_party_memory_mb: 0, system_total: 0, system_running: 0, error: true },
+      );
+      return {
+        lastScan: s.date,
+        thirdPartyTotal: s.third_party_total || 0,
+        thirdPartyRunning: s.third_party_running || 0,
+        thirdPartyMemoryMB: s.third_party_memory_mb || 0,
+        systemTotal: s.system_total || 0,
+        systemRunning: s.system_running || 0,
+        error: s.error,
+      };
+    })(),
+    power: (() => {
+      const p = loadJsonSafe(
+        join(MODULES.power.dir, 'reports', MODULES.power.countsFile),
+        { date: null, active_plan: 'N/A', battery_present: false, battery_pct: null, battery_status: null, runtime_min: null, power_watts: null, error: true },
+      );
+      return {
+        lastScan: p.date,
+        activePlan: p.active_plan || 'N/A',
+        batteryPresent: p.battery_present,
+        batteryPct: p.battery_pct,
+        batteryStatus: p.battery_status,
+        runtimeMin: p.runtime_min,
+        powerWatts: p.power_watts,
+        error: p.error,
+      };
+    })(),
+    apps: (() => {
+      const a = loadJsonSafe(
+        join(MODULES.apps.dir, 'reports', MODULES.apps.countsFile),
+        { date: null, apps_count: 0, error: true },
+      );
+      return {
+        lastScan: a.date,
+        appsCount: a.apps_count || 0,
+        error: a.error,
+      };
+    })(),
+    privacy: (() => {
+      const p = loadJsonSafe(
+        join(MODULES.privacy.dir, 'reports', MODULES.privacy.countsFile),
+        { date: null, total_settings: 8, hardened_count: 0, error: true },
+      );
+      return {
+        lastScan: p.date,
+        totalSettings: p.total_settings || 8,
+        hardenedCount: p.hardened_count || 0,
+        error: p.error,
+      };
+    })(),
   });
 }));
 
@@ -213,6 +287,31 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
     runNativeOverSSE(res, (onOutput) => runRamScanNative(cleanMode, minMB, onOutput));
     return;
   }
+
+  if (req.params.module === 'network') {
+    runNativeOverSSE(res, (onOutput) => runNetworkScanNative(onOutput));
+    return;
+  }
+
+  if (req.params.module === 'services') {
+    runNativeOverSSE(res, (onOutput) => runServicesScanNative(onOutput));
+    return;
+  }
+
+  if (req.params.module === 'power') {
+    runNativeOverSSE(res, (onOutput) => runPowerScanNative(onOutput));
+    return;
+  }
+
+  if (req.params.module === 'apps') {
+    runNativeOverSSE(res, (onOutput) => runAppsScanNative(onOutput));
+    return;
+  }
+
+  if (req.params.module === 'privacy') {
+    runNativeOverSSE(res, (onOutput) => runPrivacyScanNative(onOutput));
+    return;
+  }
 }));
 
 // ═══════════════════════════════════════════════════════
@@ -248,6 +347,41 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   if (req.body?.unknownProcesses !== undefined) {
     envVars.UNKNOWN_PROCESSES = validateIndexList(req.body.unknownProcesses, 'unknownProcesses');
+  }
+
+  // Services: indices de servicios de terceros a deshabilitar.
+  if (req.body?.services !== undefined) {
+    envVars.OPTIMIZE_SERVICES = validateIndexList(req.body.services, 'services');
+  }
+
+  // Power: indice del plan de energía a activar (1-based, entero).
+  if (req.params.module === 'power' && req.body?.planIndex !== undefined) {
+    const n = Number(req.body.planIndex);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 20) {
+      const err = new Error('planIndex debe ser entero entre 1 y 20');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.PLAN_INDEX = String(n);
+  }
+
+  // Apps: IDs de paquetes winget a desinstalar, separados por coma.
+  if (req.body?.apps !== undefined) {
+    const s = String(req.body.apps || '').trim();
+    if (s === '') {
+      envVars.OPTIMIZE_APPS = '';
+    } else if (/^[a-zA-Z\d._\-]+(,[a-zA-Z\d._\-]+)*$/.test(s)) {
+      envVars.OPTIMIZE_APPS = s;
+    } else {
+      const err = new Error('apps debe ser IDs de paquetes winget separados por coma');
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  // Privacy: indices de ajustes de privacidad a proteger.
+  if (req.body?.privacy !== undefined) {
+    envVars.OPTIMIZE_PRIVACY = validateIndexList(req.body.privacy, 'privacy');
   }
 
   // Procesos 'risky' (editores/navegadores/sync/chat) seleccionados a mano por
@@ -311,6 +445,31 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   if (req.params.module === 'ram') {
     runNativeOverSSE(res, (onOutput) => runRamActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
+    return;
+  }
+
+  if (req.params.module === 'network') {
+    runNativeOverSSE(res, (onOutput) => runNetworkActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
+    return;
+  }
+
+  if (req.params.module === 'services') {
+    runNativeOverSSE(res, (onOutput) => runServicesActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
+    return;
+  }
+
+  if (req.params.module === 'power') {
+    runNativeOverSSE(res, (onOutput) => runPowerActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
+    return;
+  }
+
+  if (req.params.module === 'apps') {
+    runNativeOverSSE(res, (onOutput) => runAppsActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
+    return;
+  }
+
+  if (req.params.module === 'privacy') {
+    runNativeOverSSE(res, (onOutput) => runPrivacyActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
     return;
   }
 }));

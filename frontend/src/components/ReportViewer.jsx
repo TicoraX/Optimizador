@@ -13,6 +13,11 @@ const MODULE_SCRIPTS = {
   cleanup: { scan: 'Scan-Cleanup.ps1', action: 'Clean-Disk.ps1' },
   startup: { scan: 'Scan-Startup.ps1', action: 'Optimize-Startup.ps1' },
   ram: { scan: 'Scan-RAM.ps1', action: 'Free-RAM.ps1' },
+  network: { scan: 'Scan-Network.ps1', action: 'Optimize-Network.ps1' },
+  services: { scan: 'Scan-Services.ps1', action: 'Optimize-Services.ps1' },
+  power: { scan: 'Scan-Power.ps1', action: 'Optimize-Power.ps1' },
+  apps: { scan: 'Scan-Apps.ps1', action: 'Optimize-Apps.ps1' },
+  privacy: { scan: 'Scan-Privacy.ps1', action: 'Optimize-Privacy.ps1' },
 };
 
 export default function ReportViewer() {
@@ -32,6 +37,22 @@ export default function ReportViewer() {
   const [selectedEnablePrograms, setSelectedEnablePrograms] = useState({});
   const [disabledTasks, setDisabledTasks] = useState([]);
   const [selectedEnableTasks, setSelectedEnableTasks] = useState({});
+
+  // Services Optimizer States
+  const [availableServices, setAvailableServices] = useState([]);
+  const [selectedServices, setSelectedServices] = useState({});
+
+  // Power Optimizer States
+  const [powerPlans, setPowerPlans] = useState([]);
+  const [switchingPlan, setSwitchingPlan] = useState(null);
+
+  // App Manager States
+  const [availableApps, setAvailableApps] = useState([]);
+  const [selectedApps, setSelectedApps] = useState({});
+
+  // Privacy States
+  const [privacySettings, setPrivacySettings] = useState([]);
+  const [selectedPrivacy, setSelectedPrivacy] = useState({});
 
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
@@ -67,6 +88,18 @@ export default function ReportViewer() {
       // Parse startup/RAM options (la misma funcion parsea ambos reportes)
       if ((module === 'startup' || module === 'ram') && data.content) {
         parseStartupItems(data.content);
+      }
+      if (module === 'services' && data.content) {
+        parseServicesItems(data.content);
+      }
+      if (module === 'power' && data.content) {
+        parsePowerPlans(data.content);
+      }
+      if (module === 'apps' && data.content) {
+        parseAppsItems(data.content);
+      }
+      if (module === 'privacy' && data.content) {
+        parsePrivacyItems(data.content);
       }
     } catch (err) {
       setError(err.message);
@@ -239,6 +272,85 @@ export default function ReportViewer() {
     setSelectedEnableTasks(initialEnableTaskState);
   };
 
+  const parseServicesItems = (markdown) => {
+    const services = [];
+    const match = markdown.match(/## Servicios de Terceros.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    if (match) {
+      const lines = match[1].split('\n');
+      for (const line of lines) {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+[—\-]\s+(.+?)\s+[—\-]\s+(.+)/);
+        if (m) {
+          services.push({
+            index: parseInt(m[1]),
+            name: m[2].trim(),
+            displayName: m[3].trim(),
+            status: m[4].trim(),
+          });
+        }
+      }
+    }
+    setAvailableServices(services);
+    const init = {};
+    services.forEach((_, idx) => { init[idx] = false; });
+    setSelectedServices(init);
+  };
+
+  const parsePowerPlans = (markdown) => {
+    const plans = [];
+    const match = markdown.match(/## Planes disponibles.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    if (match) {
+      for (const line of match[1].split('\n')) {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+--\s+(.+?)(?:\s*\(ACTIVO\))?\s*$/);
+        if (m) {
+          plans.push({ index: parseInt(m[1]), name: m[2].trim(), desc: m[3].trim(), active: line.includes('(ACTIVO)') });
+        }
+      }
+    }
+    setPowerPlans(plans);
+  };
+
+  const parseAppsItems = (markdown) => {
+    const apps = [];
+    const match = markdown.match(/## Aplicaciones Instaladas.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    if (match) {
+      for (const line of match[1].split('\n')) {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+--\s+(.+?)\s+--\s+(.+?)\s+--\s+(.+)/);
+        if (m) {
+          apps.push({ index: parseInt(m[1]), name: m[2].trim(), id: m[3].trim(), version: m[4].trim(), source: m[5].trim() });
+        }
+      }
+    }
+    setAvailableApps(apps);
+    const init = {};
+    apps.forEach((_, idx) => { init[idx] = false; });
+    setSelectedApps(init);
+  };
+
+  const parsePrivacyItems = (markdown) => {
+    const items = [];
+    let mode = 'searching';
+    for (const line of markdown.split('\n')) {
+      const t = line.trim();
+      if (mode === 'searching' && t.startsWith('## Configuraci')) { mode = 'prepare'; continue; }
+      if (mode === 'prepare' && t === '```') { mode = 'capturing'; continue; }
+      if (mode === 'capturing' && t === '```') break;
+      if (mode === 'capturing') {
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+[—–-]+\s+(.+?)\s+[—–-]+\s+(.+)/);
+        if (m) items.push({ index: parseInt(m[1]), name: m[2].trim(), desc: m[3].trim(), status: m[4].trim() });
+      }
+    }
+    setPrivacySettings(items);
+    const init = {};
+    items.forEach((_, idx) => { init[idx] = false; });
+    setSelectedPrivacy(init);
+  };
+
+  const switchToPlan = async (planIndex) => {
+    setSwitchingPlan(planIndex);
+    triggerExecution('/action/power', { autoConfirm: true, planIndex });
+    setSwitchingPlan(null);
+  };
+
   const handleCheckboxChange = (type, index) => {
     if (type === 'program') {
       setSelectedPrograms(prev => ({ ...prev, [index]: !prev[index] }));
@@ -279,6 +391,28 @@ export default function ReportViewer() {
       envLines.push(`$env:OPTIMIZE_TASKS = "${checkedTasks.length ? checkedTasks.join(',') : '(ninguno)'}"`);
       envLines.push(`$env:ENABLE_PROGRAMS = "${checkedEnableProgs.length ? checkedEnableProgs.join(',') : '(ninguno)'}"`);
       envLines.push(`$env:ENABLE_TASKS = "${checkedEnableTasks.length ? checkedEnableTasks.join(',') : '(ninguno)'}"`);
+    }
+    if (isAction && module === 'services') {
+      const checked = Object.keys(selectedServices)
+        .filter(k => selectedServices[k])
+        .map(k => parseInt(k) + 1);
+      envLines.push(`$env:OPTIMIZE_SERVICES = "${checked.length ? checked.join(',') : '(ninguno)'}"`);
+    }
+    if (isAction && module === 'power') {
+      envLines.push('$env:PLAN_INDEX = "<segun clic>"');
+    }
+    if (isAction && module === 'apps') {
+      const ids = Object.keys(selectedApps)
+        .filter(k => selectedApps[k])
+        .map(k => availableApps[parseInt(k)]?.id)
+        .filter(Boolean);
+      envLines.push(`$env:OPTIMIZE_APPS = "${ids.length ? ids.join(',') : '(ninguno)'}"`);
+    }
+    if (isAction && module === 'privacy') {
+      const checked = Object.keys(selectedPrivacy)
+        .filter(k => selectedPrivacy[k])
+        .map(k => parseInt(k) + 1);
+      envLines.push(`$env:OPTIMIZE_PRIVACY = "${checked.length ? checked.join(',') : '(ninguno)'}"`);
     }
     if (module === 'ram') {
       if (!isAction) {
@@ -350,6 +484,22 @@ export default function ReportViewer() {
 
       body.enablePrograms = checkedEnableProgs.length === 0 ? '' : checkedEnableProgs.join(',');
       body.enableTasks = checkedEnableTasks.length === 0 ? '' : checkedEnableTasks.join(',');
+    } else if (module === 'services') {
+      const checked = Object.keys(selectedServices)
+        .filter(k => selectedServices[k])
+        .map(k => parseInt(k) + 1);
+      body.services = checked.length === 0 ? '' : checked.join(',');
+    } else if (module === 'apps') {
+      const ids = Object.keys(selectedApps)
+        .filter(k => selectedApps[k])
+        .map(k => availableApps[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.apps = ids.join(',');
+    } else if (module === 'privacy') {
+      const checked = Object.keys(selectedPrivacy)
+        .filter(k => selectedPrivacy[k])
+        .map(k => parseInt(k) + 1);
+      body.privacy = checked.length === 0 ? '' : checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -474,6 +624,11 @@ export default function ReportViewer() {
       case 'cleanup': return 'Limpieza de disco';
       case 'startup': return 'Optimización de inicio';
       case 'ram': return 'Optimización de RAM';
+      case 'network': return 'Red y Conectividad';
+      case 'services': return 'Optimización de Servicios';
+      case 'power': return 'Plan de Energía';
+      case 'apps': return 'Administrador de Aplicaciones';
+      case 'privacy': return 'Privacidad';
       default: return 'Detalles del Módulo';
     }
   };
@@ -507,10 +662,25 @@ export default function ReportViewer() {
               <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>{error}</p>
             </div>
           ) : (
-            <div 
-              className="markdown-content" 
-              dangerouslySetInnerHTML={{ __html: marked.parse(report.content || '') }} 
-            />
+            <>
+              {report?.content && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '0 0 1rem 0', lineHeight: '1.4', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                  {module === 'updates' && 'Busca actualizaciones pendientes de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.'}
+                  {module === 'cleanup' && 'Mide espacio recuperable en archivos temporales, caché de navegadores, descargas antiguas y papelera de reciclaje.'}
+                  {module === 'startup' && 'Analiza programas, servicios y tareas programadas que se inician con tu sesión de Windows. Todo es reversible.'}
+                  {module === 'ram' && 'Escanea procesos por consumo de RAM y clasifica cada uno en 4 niveles de riesgo (crítico, riesgoso, seguro, desconocido). Permite liberar memoria de forma selectiva.'}
+                  {module === 'network' && 'Diagnostica conectividad de red: entradas DNS, latencia contra 8.8.8.8, adaptadores activos. Acción: limpia caché DNS y re-registra.'}
+                  {module === 'services' && 'Lista servicios con inicio automático separando Microsoft de terceros por ruta de archivo. Permite detener y deshabilitar servicios de terceros que no necesites.'}
+                  {module === 'power' && 'Muestra el plan de energía activo con su descripción, batería y consumo estimado en watts. Permite cambiar de plan al instante.'}
+                  {module === 'apps' && 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.'}
+                  {module === 'privacy' && 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.'}
+                </div>
+              )}
+              <div 
+                className="markdown-content" 
+                dangerouslySetInnerHTML={{ __html: marked.parse(report.content || '') }} 
+              />
+            </>
           )}
         </div>
 
@@ -522,6 +692,18 @@ export default function ReportViewer() {
             <button className="btn btn-secondary" onClick={runScan} disabled={isRunning}>
               Escanear módulo
             </button>
+          </div>
+
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0 0.75rem 0', lineHeight: '1.4' }}>
+            {module === 'updates' && 'Busca actualizaciones de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.'}
+            {module === 'cleanup' && 'Mide espacio recuperable en temporales, caché de navegadores, descargas y papelera. Solo lectura.'}
+            {module === 'startup' && 'Analiza programas, servicios y tareas que se inician con tu sesión. Deshabilitar es reversible.'}
+            {module === 'ram' && 'Escanea procesos por consumo de RAM, los clasifica por riesgo (seguro/riesgoso/crítico) y te permite liberar memoria de forma selectiva.'}
+            {module === 'network' && 'Diagnostica conectividad (DNS, ping, adaptadores) y permite limpiar la caché DNS.'}
+            {module === 'services' && 'Lista servicios con inicio automático, separa MS de terceros. Permite detener y deshabilitar servicios que no necesites.'}
+            {module === 'power' && 'Muestra el plan de energía activo, estado de batería y consumo estimado. Permite cambiar de plan al instante.'}
+            {module === 'apps' && 'Lista aplicaciones instaladas vía winget y permite desinstalar varias a la vez de forma silenciosa.'}
+            {module === 'privacy' && 'Revisa 8 ajustes de privacidad (telemetría, Cortana, ubicación, etc.) y los protege con un clic.'}
           </div>
 
           <CommandPreview lines={buildCommandPreview(false)} />
@@ -650,6 +832,108 @@ export default function ReportViewer() {
                 </div>
               )}
             </>
+          )}
+
+          {module === 'services' && availableServices.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Servicios de terceros a deshabilitar:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                Se detendrá el servicio y se cambiará su inicio a "Deshabilitado".
+              </p>
+              <div className="checkbox-list">
+                {availableServices.map((svc, idx) => (
+                  <label key={idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedServices[idx] || false}
+                      onChange={() => setSelectedServices(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={svc.name}>
+                      {svc.displayName || svc.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {svc.name} — {svc.status}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'power' && powerPlans.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Cambiar plan de energía:</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {powerPlans.map((plan) => (
+                  <button
+                    key={plan.index}
+                    className={`btn btn-sm${plan.active ? ' btn-primary' : ''}`}
+                    onClick={() => !plan.active && switchToPlan(plan.index)}
+                    disabled={isRunning || plan.active || switchingPlan === plan.index}
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', textAlign: 'left', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.15rem' }}
+                    title={plan.desc}
+                  >
+                    <span>{plan.active ? '✓ ' : ''}{plan.name} {plan.active ? '(activo)' : ''}</span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>{plan.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'apps' && availableApps.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Aplicaciones a desinstalar:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                Se desinstalarán las aplicaciones seleccionadas via winget.
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {availableApps.map((app, idx) => (
+                  <label key={idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedApps[idx] || false}
+                      onChange={() => setSelectedApps(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={app.name}>
+                      {app.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {app.id} — {app.version}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'privacy' && privacySettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Ajustes a proteger:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                Se aplicará la configuración recomendada de privacidad a los ajustes seleccionados.
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {privacySettings.map((item, idx) => (
+                  <label key={idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedPrivacy[idx] || false}
+                      onChange={() => setSelectedPrivacy(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {item.status}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
           )}
 
           {module === 'ram' && (

@@ -1,6 +1,6 @@
 # Optimizador — Automatizaciones de mantenimiento para Windows
 
-Conjunto de herramientas de mantenimiento local para Windows: scripts automatizados para actualizaciones de software, limpieza de disco y optimización de inicio — controlados desde un dashboard web moderno.
+Conjunto de herramientas de mantenimiento local para Windows: scripts automatizados para actualizaciones de software, limpieza de disco, optimización de inicio, administración de RAM, red, servicios, energía y aplicaciones — controlados desde un dashboard web moderno.
 
 > Todo corre **localmente en tu equipo**. Sin nube, sin telemetría, ningún dato sale de tu PC.
 
@@ -8,12 +8,17 @@ Conjunto de herramientas de mantenimiento local para Windows: scripts automatiza
 
 ## Qué hace
 
-| Módulo | Qué automatiza |
-|---|---|
-| **Update Checker** | Detecta actualizaciones pendientes de winget (apps/drivers), pip, paquetes globales de npm y Chocolatey |
-| **Disk Cleanup** | Encuentra espacio recuperable: temporales de Windows, caché de navegadores, descargas viejas, papelera de reciclaje |
-| **Startup Optimizer** | Audita programas de inicio (registro + carpeta Startup), servicios auto-start y tareas programadas de logon. Deshabilitar es reversible — reactiva cualquier cosa desde el dashboard |
-| **RAM Optimizer** | Escanea el uso de memoria, clasifica procesos por riesgo (seguro/riesgoso/desconocido) y libera RAM cerrando los que elijas. Nunca toca procesos críticos del sistema |
+| Módulo | Qué hace |
+|---|---|---|
+| **Update Checker** | Busca actualizaciones pendientes en winget (apps/drivers), pip, npm global y Chocolatey. No instala nada sin confirmación. |
+| **Disk Cleanup** | Escanea espacio recuperable: archivos temporales, caché de navegadores (Chrome/Edge/Firefox), descargas >30 días y papelera de reciclaje. Borra solo lo que elijas. |
+| **Startup Optimizer** | Audita y deshabilita programas, servicios auto-start y tareas que se lanzan al **iniciar sesión**. Deshabilitar es reversible desde el mismo dashboard. |
+| **RAM Optimizer** | Escanea procesos por consumo de memoria y los clasifica en 4 categorías de riesgo: seguro (se puede liberar automáticamente), riesgoso (editores/navegadores), desconocido (revisión manual) y crítico (nunca se toca). Libera RAM seleccionando qué cerrar. |
+| **Network Optimizer** | Diagnostica conectividad: cuenta entradas de caché DNS, mide latencia contra 8.8.8.8, enumera adaptadores activos/desconectados. Acción: vacía caché DNS y re-registra DNS. |
+| **Services Optimizer** | Lista servicios con inicio automático y separa los de Microsoft de los de terceros mirando su ruta de archivo (`PathName`). Permite **detener y deshabilitar** servicios de terceros que no necesites (Adobe, Steam, etc.). Difiere de Inicio: estos servicios corren en segundo plano aunque nadie haya iniciado sesión — no son programas que se abren al login. |
+| **Power Optimizer** | Muestra el plan de energía activo con su descripción, el estado de la batería (carga %, tiempo restante) y estima el consumo en watts. Permite cambiar de plan al instante. |
+| **App Manager** | Lista aplicaciones instaladas mediante winget con su ID, versión y origen. Permite desinstalar varias a la vez de forma silenciosa (`winget uninstall --silent`). |
+| **Privacy Optimizer** | Revisa 8 ajustes de privacidad de Windows (telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono, etc.) y los protege con un clic mediante `reg add`. |
 
 Cada módulo sigue el mismo patrón:
 - **Scan** — lee el sistema, genera un reporte en Markdown + JSON estructurado. No modifica nada.
@@ -30,6 +35,10 @@ Optimizador/
 ├── disk-cleanup/            # Scripts de escaneo y limpieza de espacio en disco
 ├── startup-optimizer/       # Scripts de auditoria y optimizacion de inicio
 ├── ram-optimizer/           # Scripts de escaneo y liberacion de memoria RAM
+├── network-optimizer/       # Scripts de diagnostico y optimizacion de red
+├── services-optimizer/      # Scripts de gestion de servicios del sistema
+├── power-optimizer/         # Scripts de administracion de planes de energia
+├── apps-manager/            # Scripts de gestion de aplicaciones instaladas
 ├── server/                  # Backend Node.js REST + SSE (Express), logica por modulo en server/lib/
 └── frontend/                # Dashboard web en React + Vite
 ```
@@ -106,6 +115,18 @@ powershell -ExecutionPolicy Bypass -File startup-optimizer\Scan-Startup.ps1
 
 # Escanear uso de RAM y procesos candidatos a liberar
 powershell -ExecutionPolicy Bypass -File ram-optimizer\Scan-RAM.ps1
+
+# Escanear conectividad de red (DNS, ping, adaptadores)
+powershell -ExecutionPolicy Bypass -File network-optimizer\Scan-Network.ps1
+
+# Escanear servicios del sistema con inicio automatico
+powershell -ExecutionPolicy Bypass -File services-optimizer\Scan-Services.ps1
+
+# Escanear plan de energia y bateria
+powershell -ExecutionPolicy Bypass -File power-optimizer\Scan-Power.ps1
+
+# Listar aplicaciones instaladas (winget)
+powershell -ExecutionPolicy Bypass -File apps-manager\Scan-Apps.ps1
 ```
 
 Los reportes se guardan en la carpeta `reports/` de cada módulo.
@@ -124,6 +145,18 @@ powershell -ExecutionPolicy Bypass -File startup-optimizer\Optimize-Startup.ps1
 
 # Liberar RAM cerrando procesos candidatos (lista numerada, tu eliges)
 powershell -ExecutionPolicy Bypass -File ram-optimizer\Free-RAM.ps1
+
+# Limpiar cache DNS y re-registrar
+powershell -ExecutionPolicy Bypass -File network-optimizer\Optimize-Network.ps1
+
+# Deshabilitar servicios de terceros seleccionados
+powershell -ExecutionPolicy Bypass -File services-optimizer\Optimize-Services.ps1
+
+# Cambiar a otro plan de energia
+powershell -ExecutionPolicy Bypass -File power-optimizer\Optimize-Power.ps1
+
+# Desinstalar aplicaciones seleccionadas
+powershell -ExecutionPolicy Bypass -File apps-manager\Optimize-Apps.ps1
 ```
 
 ---
@@ -144,6 +177,15 @@ schtasks /Create /TN "StartupOptimizer_Weekly" /TR "powershell.exe -ExecutionPol
 
 # RAM Optimizer — todos los sabados a las 10:00 AM
 schtasks /Create /TN "RAMOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\ram-optimizer\Notify-RAM.ps1`"" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F
+
+# Network Optimizer
+schtasks /Create /TN "NetworkOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\network-optimizer\Notify-Network.ps1`"" /SC WEEKLY /D MON /ST 11:00 /RL LIMITED /F
+
+# Services Optimizer
+schtasks /Create /TN "ServicesOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\services-optimizer\Notify-Services.ps1`"" /SC WEEKLY /D WED /ST 11:00 /RL LIMITED /F
+
+# Power Optimizer
+schtasks /Create /TN "PowerOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\power-optimizer\Notify-Power.ps1`"" /SC WEEKLY /D FRI /ST 11:00 /RL LIMITED /F
 ```
 
 Cada tarea programada muestra una notificación popup. Aceptar el popup lanza el script de acción interactivo.
@@ -169,6 +211,9 @@ function Update-Check    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPL
 function Disk-Cleanup    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\disk-cleanup\Notify-Cleanup.ps1" }
 function Startup-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1" }
 function RAM-Optimize    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\ram-optimizer\Notify-RAM.ps1" }
+function Network-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\network-optimizer\Notify-Network.ps1" }
+function Services-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\services-optimizer\Notify-Services.ps1" }
+function Power-Optimize  { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\power-optimizer\Notify-Power.ps1" }
 ```
 
 Recarga tu perfil después de editarlo: `. $PROFILE`

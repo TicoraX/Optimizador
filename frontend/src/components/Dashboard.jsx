@@ -64,7 +64,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
   if (loading) {
     return (
       <div className="dashboard-grid">
-        {[1, 2, 3, 4].map(i => (
+        {[1, 2, 3, 4, 5, 6].map(i => (
           <div key={i} className="glass-panel module-card" style={{ height: '350px' }}>
             <div className="skeleton" style={{ width: '40px', height: '40px', borderRadius: '12px', marginBottom: '1.5rem' }} />
             <div className="skeleton" style={{ width: '60%', height: '24px', marginBottom: '1rem' }} />
@@ -92,7 +92,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
     );
   }
 
-  const { updates, cleanup, startup, ram } = systemStatus || {};
+  const { updates, cleanup, startup, ram, network, services: svc, power, apps, privacy } = systemStatus || {};
 
   // Parse boot history for Recharts
   const chartData = (startup?.bootHistory || [])
@@ -142,6 +142,9 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
                 {updates?.choco?.count ?? 0} pendientes
               </span>
             </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Revisa actualizaciones pendientes de winget, pip, npm y Chocolatey.
+            </div>
           </div>
 
           <div className="card-footer">
@@ -182,6 +185,9 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
             <div className="metric-row">
               <span className="metric-label">Papelera de Reciclaje</span>
               <span className="metric-value">{formatSize(cleanup?.recycleBin?.total_mb)}</span>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Recupera espacio eliminando temporales, caché de navegadores, descargas viejas y papelera.
             </div>
           </div>
 
@@ -227,6 +233,9 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
               <span className="metric-value">
                 {startup?.bootPerformance?.boot_time_ms ? formatMs(startup.bootPerformance.boot_time_ms) : 'N/A'}
               </span>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Deshabilita programas, servicios y tareas que arrancan con tu sesión de Windows.
             </div>
           </div>
 
@@ -289,6 +298,9 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
                 transition: 'width 0.5s ease',
               }} />
             </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Libera memoria terminando procesos innecesarios. Clasifica por riesgo (seguro/riesgoso/crítico).
+            </div>
           </div>
 
           <div className="card-footer">
@@ -336,6 +348,213 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
             </div>
           </div>
         )}
+
+        {/* Module 5: Network Optimizer */}
+        <div className="glass-panel module-card">
+          <div className="card-header">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title">Red</span>
+              <span className="card-subtitle">Último escaneo: {network?.lastScan || 'Nunca'}</span>
+            </div>
+            <div className="card-icon" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9a16 16 0 0 1 16 0"/><path d="M6 12a12 12 0 0 1 12 0"/><path d="M8 15a8 8 0 0 1 8 0"/><path d="M10 18a4 4 0 0 1 4 0"/></svg>
+            </div>
+          </div>
+          
+          <div className="card-body">
+            <div className="metric-row">
+              <span className="metric-label">Caché DNS</span>
+              <span className="metric-value">{network?.dnsCacheEntries ?? 0} entradas</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Ping (8.8.8.8)</span>
+              <span className={`metric-value ${network?.packetLoss > 0 ? 'has-warning' : ''}`}>
+                {network?.avgPingMs != null ? `${network.avgPingMs} ms` : 'N/A'}
+                {network?.packetLoss > 0 ? ` (${network.packetLoss}% pérdida)` : ''}
+              </span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Adaptadores Activos</span>
+              <span className="metric-value">{network?.activeAdapters ?? 0}</span>
+            </div>
+            <div className="metric-row" style={{ borderBottom: 'none' }}>
+              <span className="metric-label">Desconectados</span>
+              <span className={`metric-value ${network?.disconnectedAdapters > 0 ? 'has-warning' : ''}`}>
+                {network?.disconnectedAdapters ?? 0}
+              </span>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Diagnostica conectividad y limpia caché DNS.
+            </div>
+          </div>
+
+          <div className="card-footer">
+            <button className="btn btn-secondary" onClick={() => handleScan('network')} disabled={scanning['network']}>
+              {scanning['network'] ? 'Escaneando...' : 'Escanear'}
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/report/network')}>
+              Ver Reporte
+            </button>
+          </div>
+        </div>
+
+        {/* Module 6: Services Optimizer */}
+        <div className="glass-panel module-card">
+          <div className="card-header">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title">Servicios</span>
+              <span className="card-subtitle">Último escaneo: {svc?.lastScan || 'Nunca'}</span>
+            </div>
+            <div className="card-icon" style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+          </div>
+          
+          <div className="card-body">
+            <div className="metric-row">
+              <span className="metric-label">Terceros (Auto)</span>
+              <span className="metric-value">{svc?.thirdPartyTotal ?? 0} ({svc?.thirdPartyRunning ?? 0} activos)</span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Consumo 3os</span>
+              <span className={`metric-value ${(svc?.thirdPartyMemoryMB ?? 0) > 500 ? 'has-warning' : ''}`}>
+                {svc?.thirdPartyMemoryMB ?? 0} MB
+              </span>
+            </div>
+            <div className="metric-row">
+              <span className="metric-label">Sistema (Auto)</span>
+              <span className="metric-value">{svc?.systemTotal ?? 0} ({svc?.systemRunning ?? 0} activos)</span>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Detiene servicios de terceros que corren en segundo plano (Adobe, Steam, etc.) independientemente de tu sesión.
+            </div>
+          </div>
+
+          <div className="card-footer">
+            <button className="btn btn-secondary" onClick={() => handleScan('services')} disabled={scanning['services']}>
+              {scanning['services'] ? 'Escaneando...' : 'Escanear'}
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/report/services')}>
+              Ver Reporte
+            </button>
+          </div>
+        </div>
+
+        {/* Module 7: Power */}
+        <div className="glass-panel module-card">
+          <div className="card-header">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title">Energía</span>
+              <span className="card-subtitle">Último escaneo: {power?.lastScan || 'Nunca'}</span>
+            </div>
+            <div className="card-icon" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+          </div>
+          
+          <div className="card-body">
+            <div className="metric-row">
+              <span className="metric-label">Plan activo</span>
+              <span className="metric-value">{power?.activePlan || 'N/A'}</span>
+            </div>
+            {power?.batteryPresent ? (
+              <>
+                <div className="metric-row">
+                  <span className="metric-label">Batería</span>
+                  <span className="metric-value">{power.batteryPct != null ? `${power.batteryPct}%` : 'N/A'}</span>
+                </div>
+                <div className="metric-row" style={{ borderBottom: 'none' }}>
+                  <span className="metric-label">Consumo</span>
+                  <span className="metric-value">{power.powerWatts != null ? `${power.powerWatts} W` : power.batteryStatus || 'N/A'}</span>
+                </div>
+              </>
+            ) : (
+              <div className="metric-row" style={{ borderBottom: 'none' }}>
+                <span className="metric-label">Batería</span>
+                <span className="metric-value" style={{ color: 'var(--text-muted)' }}>No detectada</span>
+              </div>
+            )}
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Cambia de plan de energía y ve el consumo estimado.
+            </div>
+          </div>
+
+          <div className="card-footer">
+            <button className="btn btn-secondary" onClick={() => handleScan('power')} disabled={scanning['power']}>
+              {scanning['power'] ? 'Escaneando...' : 'Escanear'}
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/report/power')}>
+              Ver Reporte
+            </button>
+          </div>
+        </div>
+
+        {/* Module 8: App Manager */}
+        <div className="glass-panel module-card">
+          <div className="card-header">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title">Aplicaciones</span>
+              <span className="card-subtitle">Último escaneo: {apps?.lastScan || 'Nunca'}</span>
+            </div>
+            <div className="card-icon" style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            </div>
+          </div>
+          
+          <div className="card-body">
+            <div className="metric-row" style={{ borderBottom: 'none' }}>
+              <span className="metric-label">Aplicaciones Instaladas</span>
+              <span className="metric-value">{apps?.appsCount ?? 0}</span>
+            </div>
+          </div>
+
+          <div className="card-footer">
+            <button className="btn btn-secondary" onClick={() => handleScan('apps')} disabled={scanning['apps']}>
+              {scanning['apps'] ? 'Escaneando...' : 'Escanear'}
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/report/apps')}>
+              Ver Reporte
+            </button>
+          </div>
+        </div>
+
+        {/* Module 9: Privacy */}
+        <div className="glass-panel module-card">
+          <div className="card-header">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="card-title">Privacidad</span>
+              <span className="card-subtitle">Último escaneo: {privacy?.lastScan || 'Nunca'}</span>
+            </div>
+            <div className="card-icon" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+          </div>
+          
+          <div className="card-body">
+            <div className="metric-row">
+              <span className="metric-label">Ajustes analizados</span>
+              <span className="metric-value">{privacy?.totalSettings ?? 0}</span>
+            </div>
+            <div className="metric-row" style={{ borderBottom: 'none' }}>
+              <span className="metric-label">Ya protegidos</span>
+              <span className={`metric-value ${(privacy?.hardenedCount ?? 0) < ((privacy?.totalSettings ?? 8) / 2) ? 'has-warning' : ''}`}>
+                {privacy?.hardenedCount ?? 0} / {privacy?.totalSettings ?? 8}
+              </span>
+            </div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Protege telemetría, Cortana, publicidad, ubicación y más.
+            </div>
+          </div>
+
+          <div className="card-footer">
+            <button className="btn btn-secondary" onClick={() => handleScan('privacy')} disabled={scanning['privacy']}>
+              {scanning['privacy'] ? 'Escaneando...' : 'Escanear'}
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/report/privacy')}>
+              Ver Reporte
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Boot Performance Chart */}
