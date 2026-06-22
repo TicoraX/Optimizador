@@ -297,12 +297,14 @@ export default function ReportViewer() {
 
   const parsePowerPlans = (markdown) => {
     const plans = [];
-    const match = markdown.match(/## Planes disponibles.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
+    const match = markdown.match(/## Planes disponibles\n\n```\n([\s\S]*?)```/);
     if (match) {
       for (const line of match[1].split('\n')) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+--\s+(.+?)(?:\s*\(ACTIVO\))?\s*$/);
+        const m = line.match(/\[\s*(\d+)\]\s+(.+?)(?:\s*\(ACTIVO\))?\s*$/);
         if (m) {
-          plans.push({ index: parseInt(m[1]), name: m[2].trim(), desc: m[3].trim(), active: line.includes('(ACTIVO)') });
+          const active = line.includes('(ACTIVO)');
+          const name = m[2].trim();
+          plans.push({ index: parseInt(m[1]), name, active });
         }
       }
     }

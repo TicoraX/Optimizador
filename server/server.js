@@ -130,7 +130,7 @@ app.get('/api/status', safeHandler((_req, res) => {
     power: (() => {
       const p = loadJsonSafe(
         join(MODULES.power.dir, 'reports', MODULES.power.countsFile),
-        { date: null, active_plan: 'N/A', battery_present: false, battery_pct: null, battery_status: null, runtime_min: null, power_watts: null, error: true },
+        { date: null, active_plan: 'N/A', battery_present: false, battery_pct: null, battery_status: null, runtime_min: null, power_watts: null, total_est_watts: null, wear_pct: null, capacity_full_mwh: null, capacity_design_mwh: null, cpu_load: null, cpu_name: null, cpu_tdp: null, cpu_est_watts: null, gpu_name: null, gpu_method: null, gpu_watts: null, gpu_est_watts: null, ram_gb: null, ram_sticks: null, ram_watts: null, disk_count: null, disk_watts: null, mobo_watts: null, other_watts: null, error: true },
       );
       return {
         lastScan: p.date,
@@ -140,6 +140,25 @@ app.get('/api/status', safeHandler((_req, res) => {
         batteryStatus: p.battery_status,
         runtimeMin: p.runtime_min,
         powerWatts: p.power_watts,
+        totalEstWatts: p.total_est_watts,
+        wearPct: p.wear_pct,
+        capacityFullMwh: p.capacity_full_mwh,
+        capacityDesignMwh: p.capacity_design_mwh,
+        cpuLoad: p.cpu_load,
+        cpuName: p.cpu_name,
+        cpuTdp: p.cpu_tdp,
+        cpuEstWatts: p.cpu_est_watts,
+        gpuName: p.gpu_name,
+        gpuMethod: p.gpu_method,
+        gpuWatts: p.gpu_watts,
+        gpuEstWatts: p.gpu_est_watts,
+        ramGb: p.ram_gb,
+        ramSticks: p.ram_sticks,
+        ramWatts: p.ram_watts,
+        diskCount: p.disk_count,
+        diskWatts: p.disk_watts,
+        moboWatts: p.mobo_watts,
+        otherWatts: p.other_watts,
         error: p.error,
       };
     })(),

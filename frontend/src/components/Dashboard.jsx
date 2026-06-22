@@ -463,9 +463,15 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
                   <span className="metric-label">Batería</span>
                   <span className="metric-value">{power.batteryPct != null ? `${power.batteryPct}%` : 'N/A'}</span>
                 </div>
+                <div className="metric-row">
+                  <span className="metric-label">Consumo bat.</span>
+                  <span className="metric-value">{power.powerWatts != null ? `${power.powerWatts} W` : (power.batteryStatus || 'N/A')}</span>
+                </div>
                 <div className="metric-row" style={{ borderBottom: 'none' }}>
-                  <span className="metric-label">Consumo</span>
-                  <span className="metric-value">{power.powerWatts != null ? `${power.powerWatts} W` : power.batteryStatus || 'N/A'}</span>
+                  <span className="metric-label">Desgaste</span>
+                  <span className="metric-value" style={{ color: (power.wearPct != null && power.wearPct > 30) ? 'var(--danger)' : '' }}>
+                    {power.wearPct != null ? `${power.wearPct}%` : 'N/A'}
+                  </span>
                 </div>
               </>
             ) : (
@@ -474,8 +480,14 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
                 <span className="metric-value" style={{ color: 'var(--text-muted)' }}>No detectada</span>
               </div>
             )}
-            <div style={{ marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              Cambia de plan de energía y ve el consumo estimado.
+            <div className="metric-row" style={{ borderBottom: 'none', borderTop: '1px solid var(--border-color)', marginTop: '0.3rem', paddingTop: '0.3rem' }}>
+              <span className="metric-label">Total estimado</span>
+              <span className="metric-value" style={{ color: 'var(--primary)' }}>{power?.totalEstWatts != null ? `~${power.totalEstWatts} W` : 'N/A'}</span>
+            </div>
+            <div style={{ marginTop: '0.3rem', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+              {power?.cpuLoad != null && <span>CPU: {power.cpuName ? power.cpuName.split('(')[0].trim() : 'N/A'} al {power.cpuLoad}%</span>}
+              {power?.gpuName && <span>GPU: {power.gpuName.split('(')[0].trim()}</span>}
+              {power?.totalEstWatts != null && <span>Componentes: CPU {power.cpuEstWatts}W + {power.gpuEstWatts ? `GPU ${power.gpuEstWatts}W` : ''} + RAM {power.ramWatts}W + {power.diskWatts}W discos</span>}
             </div>
           </div>
 
