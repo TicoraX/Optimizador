@@ -1,0 +1,34 @@
+{
+  "name": "optimizador",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build:frontend": "npm install --prefix frontend && npm run build --prefix frontend",
+    "dist": "npm run build:frontend && electron-builder",
+    "release": "npm run build:frontend && electron-builder --publish always"
+  },
+  "build": {
+    "appId": "com.ticorax.optimizador",
+    "productName": "Optimizador",
+    "files": [
+      "electron/**",
+      "server/lib/**",
+      "server/server.js",
+      "server/package.json",
+      "frontend/dist/**"
+    ],
+    "win": { "target": "nsis" },
+    "publish": { "provider": "github", "owner": "TicoraX", "repo": "Optimizador" }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.0",
+    "express": "^4.21.0",
+    "cors": "^2.8.5"
+  }
+}

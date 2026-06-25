@@ -74,7 +74,7 @@ export async function runAppsActionNative(envVars, onOutput) {
 
   const writeLog = (message) => {
     const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message}`;
+    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
     appendFileSync(logPath, line + '\n');
     onOutput(line);
   };

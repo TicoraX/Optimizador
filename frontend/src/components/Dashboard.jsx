@@ -3,9 +3,55 @@ import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { API_BASE } from '../config';
 
+const MODULE_LABELS = {
+  updates: 'Actualizaciones', cleanup: 'Limpieza de Disco', startup: 'Optimización de Inicio',
+  ram: 'Optimización de RAM', network: 'Red', services: 'Servicios', power: 'Energía',
+  apps: 'Aplicaciones', privacy: 'Privacidad',
+};
+const DEFAULT_ORDER = Object.keys(MODULE_LABELS);
+
+// ponytail: persistencia simple en localStorage, sin backend ni libreria de drag&drop
+function usePersistedModuleLayout() {
+  const [order, setOrder] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('moduleOrder'));
+      if (Array.isArray(saved)) {
+        const merged = saved.filter(id => DEFAULT_ORDER.includes(id));
+        DEFAULT_ORDER.forEach(id => { if (!merged.includes(id)) merged.push(id); });
+        return merged;
+      }
+    } catch {}
+    return DEFAULT_ORDER;
+  });
+  const [hidden, setHidden] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('hiddenModules')) || []; } catch { return []; }
+  });
+
+  useEffect(() => { localStorage.setItem('moduleOrder', JSON.stringify(order)); }, [order]);
+  useEffect(() => { localStorage.setItem('hiddenModules', JSON.stringify(hidden)); }, [hidden]);
+
+  const moveModule = (id, dir) => {
+    setOrder(prev => {
+      const i = prev.indexOf(id);
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  };
+  const toggleHidden = (id) => {
+    setHidden(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  return { order, hidden, moveModule, toggleHidden };
+}
+
 export default function Dashboard({ systemStatus, loading, error, onRefreshStatus }) {
   const navigate = useNavigate();
   const [scanning, setScanning] = useState({});
+  const [customizing, setCustomizing] = useState(false);
+  const { order, hidden, moveModule, toggleHidden } = usePersistedModuleLayout();
 
   const handleScan = async (module) => {
     if (scanning[module]) return;
@@ -102,11 +148,37 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
       tiempo: parseFloat((d.boot_time_ms / 1000).toFixed(2))
     }));
 
+  const cardStyle = (id) => ({
+    order: order.indexOf(id),
+    display: hidden.includes(id) ? 'none' : undefined,
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={() => setCustomizing(v => !v)}>
+          {customizing ? 'Listo' : 'Personalizar módulos'}
+        </button>
+      </div>
+
+      {customizing && (
+        <div className="glass-panel" style={{ padding: '1rem' }}>
+          {order.map((id, i) => (
+            <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.4rem 0', opacity: hidden.includes(id) ? 0.5 : 1 }}>
+              <button className="btn btn-secondary" style={{ width: '32px', padding: 0 }} disabled={i === 0} onClick={() => moveModule(id, -1)}>↑</button>
+              <button className="btn btn-secondary" style={{ width: '32px', padding: 0 }} disabled={i === order.length - 1} onClick={() => moveModule(id, 1)}>↓</button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!hidden.includes(id)} onChange={() => toggleHidden(id)} />
+                {MODULE_LABELS[id]}
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="dashboard-grid">
         {/* Module 1: Update Checker */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('updates')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Actualizaciones</span>
@@ -158,7 +230,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 2: Disk Cleanup */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('cleanup')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Limpieza de Disco</span>
@@ -202,7 +274,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 3: Startup Optimizer */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('startup')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Optimización de Inicio</span>
@@ -250,7 +322,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 4: RAM Optimizer */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('ram')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Optimización de RAM</span>
@@ -315,7 +387,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
 
         {/* RAM Process Breakdown */}
         {(ram?.lastScan) && (
-          <div className="glass-panel module-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/report/ram')}>
+          <div className="glass-panel module-card" style={{ ...cardStyle('ram'), cursor: 'pointer' }} onClick={() => navigate('/report/ram')}>
             <div className="card-header">
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="card-title">Desglose de Procesos</span>
@@ -350,7 +422,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         )}
 
         {/* Module 5: Network Optimizer */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('network')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Red</span>
@@ -399,7 +471,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 6: Services Optimizer */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('services')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Servicios</span>
@@ -441,7 +513,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 7: Power */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('power')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Energía</span>
@@ -502,7 +574,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 8: App Manager */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('apps')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Aplicaciones</span>
@@ -531,7 +603,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         </div>
 
         {/* Module 9: Privacy */}
-        <div className="glass-panel module-card">
+        <div className="glass-panel module-card" style={cardStyle('privacy')}>
           <div className="card-header">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="card-title">Privacidad</span>

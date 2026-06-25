@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ReportViewer from './components/ReportViewer';
 import Scheduler from './components/Scheduler';
+import ErrorBoundary from './components/ErrorBoundary';
 import { API_BASE } from './config';
 
 export default function App() {
@@ -71,21 +72,23 @@ export default function App() {
 
         {/* Central Router Container */}
         <main className="main-content">
-          <Routes>
-            <Route 
-              path="/" 
-              element={
-                <Dashboard 
-                  systemStatus={systemStatus} 
-                  loading={loading} 
-                  error={error} 
-                  onRefreshStatus={fetchStatus} 
-                />
-              } 
-            />
-            <Route path="/report/:module" element={<ReportViewer />} />
-            <Route path="/scheduler" element={<Scheduler />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route 
+                path="/" 
+                element={
+                  <Dashboard 
+                    systemStatus={systemStatus} 
+                    loading={loading} 
+                    error={error} 
+                    onRefreshStatus={fetchStatus} 
+                  />
+                } 
+              />
+              <Route path="/report/:module" element={<ReportViewer />} />
+              <Route path="/scheduler" element={<Scheduler />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
       </div>
     </BrowserRouter>

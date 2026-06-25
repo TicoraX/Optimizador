@@ -40,7 +40,8 @@ Optimizador/
 ├── power-optimizer/         # Scripts de administracion de planes de energia
 ├── apps-manager/            # Scripts de gestion de aplicaciones instaladas
 ├── server/                  # Backend Node.js REST + SSE (Express), logica por modulo en server/lib/
-└── frontend/                # Dashboard web en React + Vite
+├── frontend/                # Dashboard web en React + Vite
+└── electron/                # App de escritorio: empaqueta backend + frontend, con auto-update
 ```
 
 ---
@@ -58,9 +59,32 @@ Optimizador/
 
 ---
 
-## Inicio rápido — Dashboard web
+## Inicio rápido — App de escritorio (Electron)
 
-Esta es la forma recomendada de usar el proyecto. El dashboard te da una interfaz visual para escanear, revisar reportes, ejecutar acciones y administrar tareas programadas.
+La forma más simple de correr el proyecto: una sola app instalable que empaqueta el backend y el dashboard, con auto-actualización vía GitHub Releases.
+
+```powershell
+git clone https://github.com/TicoraX/Optimizador.git
+cd Optimizador
+npm install
+npm run build:frontend   # compila el frontend y las dependencias del server
+npx electron .            # abre la app
+```
+
+Para generar el instalador `.exe`:
+
+```powershell
+npm run dist       # genera el instalador en dist/, sin publicar
+npm run release    # genera y lo publica como GitHub Release (requiere GITHUB_TOKEN con permiso repo)
+```
+
+Los clientes que ya tengan la app instalada detectan releases nuevos automáticamente (`electron-updater`).
+
+---
+
+## Inicio rápido — Dashboard web (backend + frontend por separado)
+
+Alternativa para desarrollo: corre el backend y el frontend como dos procesos independientes en el navegador, en vez de la app Electron empaquetada.
 
 ### 1. Clonar el repositorio
 

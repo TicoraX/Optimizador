@@ -4,7 +4,9 @@ import { join, dirname, resolve, normalize } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-export const PROJECT_ROOT = resolve(__dirname, '..', '..');
+// ponytail: override solo para el empaquetado Electron, donde __dirname cae dentro
+// de app.asar (solo lectura) y no hay carpetas de modulo reales para escribir reportes.
+export const PROJECT_ROOT = process.env.OPTIMIZADOR_DATA_DIR || resolve(__dirname, '..', '..');
 
 // ── Resolver PATH completo del usuario ──
 // Cuando server.js arranca desde un proceso oculto, no hereda el PATH completo.
@@ -414,39 +416,67 @@ export function buildReportPath(moduleDir, prefix, date) {
 // espacios o comillas (ej. nombres de programas o valores de registro).
 // ═══════════════════════════════════════════════════════
 
-export function spawnCapture(cmd, args) {
+export function spawnCapture(cmd, args, timeoutMs = 120000) {
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
     let proc;
+    let timedOut = false;
+    let settled = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (proc) { try { proc.kill(); } catch {} }
+      resolve({ code: -1, stdout, stderr, timedOut: true });
+    }, timeoutMs);
     try {
       proc = spawn(cmd, args, { windowsHide: true, shell: false });
     } catch (err) {
+      clearTimeout(timer);
       resolve({ code: -1, stdout: '', stderr: err.message });
       return;
     }
+    const done = (code, errMsg) => {
+      if (timedOut || settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr: errMsg || stderr });
+    };
     proc.stdout?.on('data', (d) => { stdout += d; });
     proc.stderr?.on('data', (d) => { stderr += d; });
-    proc.on('close', (code) => resolve({ code, stdout, stderr }));
-    proc.on('error', (err) => resolve({ code: -1, stdout, stderr: err.message }));
+    proc.on('close', (code) => done(code));
+    proc.on('error', (err) => done(-1, err.message));
   });
 }
 
-export function spawnCaptureShell(cmd, args) {
+export function spawnCaptureShell(cmd, args, timeoutMs = 120000) {
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
     let proc;
+    let timedOut = false;
+    let settled = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (proc) { try { proc.kill(); } catch {} }
+      resolve({ code: -1, stdout, stderr, timedOut: true });
+    }, timeoutMs);
     try {
       proc = spawn(cmd, args, { windowsHide: true, shell: true });
     } catch (err) {
+      clearTimeout(timer);
       resolve({ code: -1, stdout: '', stderr: err.message });
       return;
     }
+    const done = (code, errMsg) => {
+      if (timedOut || settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ code, stdout, stderr: errMsg || stderr });
+    };
     proc.stdout?.on('data', (d) => { stdout += d; });
     proc.stderr?.on('data', (d) => { stderr += d; });
-    proc.on('close', (code) => resolve({ code, stdout, stderr }));
-    proc.on('error', (err) => resolve({ code: -1, stdout, stderr: err.message }));
+    proc.on('close', (code) => done(code));
+    proc.on('error', (err) => done(-1, err.message));
   });
 }
 

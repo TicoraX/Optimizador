@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { spawn } from 'child_process';
 import { readFileSync, existsSync, writeFileSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import {
   PROJECT_ROOT, MODULES, TASK_TO_MODULE, VALID_MODULES, VALID_TASKS,
   validateModule, validateDate, validateTask, validateTime, validateFrequency,
@@ -27,6 +28,37 @@ app.use(cors());
 
 // ── Limitar tamanio del body JSON para mitigar DoS ──
 app.use(express.json({ limit: '16kb' }));
+
+// ═══════════════════════════════════════════════════════
+// GET /api/health — health check rapido
+// ═══════════════════════════════════════════════════════
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
+// ═══════════════════════════════════════════════════════
+// MODULE_HANDLERS — mapa handlers scan/action
+// ═══════════════════════════════════════════════════════
+const SCAN_HANDLERS = {
+  cleanup: runCleanupScanNative,
+  updates: runUpdatesScanNative,
+  startup: runStartupScanNative,
+  ram: runRamScanNative,
+  network: runNetworkScanNative,
+  services: runServicesScanNative,
+  power: runPowerScanNative,
+  apps: runAppsScanNative,
+  privacy: runPrivacyScanNative,
+};
+const ACTION_HANDLERS = {
+  cleanup: runCleanupActionNative,
+  updates: runUpdatesActionNative,
+  startup: runStartupActionNative,
+  ram: runRamActionNative,
+  network: runNetworkActionNative,
+  services: runServicesActionNative,
+  power: runPowerActionNative,
+  apps: runAppsActionNative,
+  privacy: runPrivacyActionNative,
+};
 
 // ═══════════════════════════════════════════════════════
 // GET /api/status — estado consolidado (solo lectura)
@@ -274,63 +306,27 @@ function runNativeOverSSE(res, task, timeoutMs = 120000) {
 
 app.post('/api/scan/:module', safeHandler((req, res) => {
   const mod = validateModule(req.params.module);
+  const handler = SCAN_HANDLERS[req.params.module];
+  if (!handler) return res.status(400).json({ error: 'Modulo sin handler de escaneo' });
 
-  // cleanup y updates → escaneo nativo en Node (sin powershell.exe, ver
-  // seccion "Bug critico conocido" en PROJECT_CONTEXT.md)
+  let extraArgs = [];
+
   if (req.params.module === 'cleanup') {
     const ageDays = req.body?.downloadsAgeDays !== undefined
       ? validateDays(req.body.downloadsAgeDays)
       : 30;
-    runNativeOverSSE(res, (onOutput) => runCleanupScanNative(ageDays, onOutput));
-    return;
-  }
-
-  if (req.params.module === 'updates') {
-    runNativeOverSSE(res, (onOutput) => runUpdatesScanNative(onOutput));
-    return;
-  }
-
-  if (req.params.module === 'startup') {
-    runNativeOverSSE(res, (onOutput) => runStartupScanNative(onOutput));
-    return;
+    extraArgs = [ageDays];
   }
 
   if (req.params.module === 'ram') {
     const cleanMode = req.body?.cleanMode === 'deep' ? 'deep' : 'soft';
-    // Mismo umbral que /api/action/ram (ver validateMinRamMB) - si el scan y
-    // la accion calcularan el umbral por separado, los indices que el usuario
-    // marca en el reporte podrian referirse a un proceso distinto al ejecutar.
     const minMB = req.body?.minRamMB !== undefined
       ? validateMinRamMB(req.body.minRamMB)
       : (cleanMode === 'deep' ? 10 : 50);
-    runNativeOverSSE(res, (onOutput) => runRamScanNative(cleanMode, minMB, onOutput));
-    return;
+    extraArgs = [cleanMode, minMB];
   }
 
-  if (req.params.module === 'network') {
-    runNativeOverSSE(res, (onOutput) => runNetworkScanNative(onOutput));
-    return;
-  }
-
-  if (req.params.module === 'services') {
-    runNativeOverSSE(res, (onOutput) => runServicesScanNative(onOutput));
-    return;
-  }
-
-  if (req.params.module === 'power') {
-    runNativeOverSSE(res, (onOutput) => runPowerScanNative(onOutput));
-    return;
-  }
-
-  if (req.params.module === 'apps') {
-    runNativeOverSSE(res, (onOutput) => runAppsScanNative(onOutput));
-    return;
-  }
-
-  if (req.params.module === 'privacy') {
-    runNativeOverSSE(res, (onOutput) => runPrivacyScanNative(onOutput));
-    return;
-  }
+  runNativeOverSSE(res, (onOutput) => handler(...extraArgs, onOutput));
 }));
 
 // ═══════════════════════════════════════════════════════
@@ -447,50 +443,16 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // que el default de runNativeOverSSE (2 min, pensado para escaneos).
   const ACTION_TIMEOUT_MS = 600000;
 
-  if (req.params.module === 'cleanup') {
-    runNativeOverSSE(res, (onOutput) => runCleanupActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
+  const handler = ACTION_HANDLERS[req.params.module];
+  if (!handler) return res.status(400).json({ error: 'Modulo sin handler de accion' });
 
+  // updates no recibe envVars (no tiene params de seleccion)
   if (req.params.module === 'updates') {
-    runNativeOverSSE(res, (onOutput) => runUpdatesActionNative(onOutput), ACTION_TIMEOUT_MS);
+    runNativeOverSSE(res, (onOutput) => handler(onOutput), ACTION_TIMEOUT_MS);
     return;
   }
 
-  if (req.params.module === 'startup') {
-    runNativeOverSSE(res, (onOutput) => runStartupActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
-
-  if (req.params.module === 'ram') {
-    runNativeOverSSE(res, (onOutput) => runRamActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
-
-  if (req.params.module === 'network') {
-    runNativeOverSSE(res, (onOutput) => runNetworkActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
-
-  if (req.params.module === 'services') {
-    runNativeOverSSE(res, (onOutput) => runServicesActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
-
-  if (req.params.module === 'power') {
-    runNativeOverSSE(res, (onOutput) => runPowerActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
-
-  if (req.params.module === 'apps') {
-    runNativeOverSSE(res, (onOutput) => runAppsActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
-
-  if (req.params.module === 'privacy') {
-    runNativeOverSSE(res, (onOutput) => runPrivacyActionNative(envVars, onOutput), ACTION_TIMEOUT_MS);
-    return;
-  }
+  runNativeOverSSE(res, (onOutput) => handler(envVars, onOutput), ACTION_TIMEOUT_MS);
 }));
 
 // ═══════════════════════════════════════════════════════
@@ -684,6 +646,16 @@ app.delete('/api/logs/:module', safeHandler((req, res) => {
     res.json({ module: req.params.module, action: 'cleared' });
   }
 }));
+
+// ═══════════════════════════════════════════════════════
+// Frontend estatico (build de produccion, ej. dentro del .exe de Electron)
+// ponytail: solo se activa si frontend/dist existe; en dev se usa el proxy de Vite
+// ═══════════════════════════════════════════════════════
+const FRONTEND_DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'frontend', 'dist');
+if (existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+  app.get(/^\/(?!api).*/, (_req, res) => res.sendFile(join(FRONTEND_DIST, 'index.html')));
+}
 
 // ═══════════════════════════════════════════════════════
 // Global error handler — sin leak de informacion
