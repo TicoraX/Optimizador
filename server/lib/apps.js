@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, prepareReport, finishReport, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
 } from './shared.js';
 
 function parseWingetList(stdout) {
@@ -60,10 +60,35 @@ export async function runAppsScanNative(onOutput) {
   }, onOutput);
 }
 
+// Paquetes que NUNCA se desinstalan desde aca. Desinstalar un runtime o un
+// driver no rompe "una app": rompe todo lo que depende de el, y winget lo hace
+// en silencio con --silent. Se comparan en minusculas contra el ID de winget.
+//
+// La lista es deliberadamente conservadora: ante la duda, se omite. Desinstalar
+// esto sigue siendo posible desde el propio Windows, que si avisa.
+const PROTECTED_APP_PATTERNS = [
+  'microsoft.vclibs', 'microsoft.vcredist', 'microsoft.visualcpp',
+  'microsoft.dotnet', 'microsoft.netframework', 'microsoft.aspnetcore',
+  'microsoft.windowsappruntime', 'microsoft.ui.xaml', 'microsoft.winget',
+  'microsoft.desktopappinstaller', 'microsoft.edgewebview',
+  'microsoft.powershell', 'microsoft.windowsterminal',
+  'nvidia.', 'intel.', 'amd.', 'realtek.',
+  'microsoft.windows', 'microsoft.storeexperiencehost',
+];
+
+/** Un paquete esta protegido si su ID empieza con o contiene un patron de la lista. */
+export function isProtectedApp(id) {
+  const s = String(id || '').toLowerCase();
+  if (!s) return true;
+  return PROTECTED_APP_PATTERNS.some((p) => s.includes(p));
+}
+
 export async function runAppsActionNative(envVars, onOutput) {
   const writeLog = makeLogger('apps', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('apps', { dryRun, writeLog });
 
-  writeLog('=== Desinstalacion de aplicaciones - inicio ===');
+  writeLog(`=== Desinstalacion de aplicaciones - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   const selection = envVars.OPTIMIZE_APPS || '';
   const ids = selection.split(',').map((s) => s.trim()).filter(Boolean);
@@ -74,20 +99,36 @@ export async function runAppsActionNative(envVars, onOutput) {
     return;
   }
 
-  let uninstalled = 0, errors = 0;
+  let uninstalled = 0, errors = 0, skipped = 0;
 
   for (const id of ids) {
+    if (isProtectedApp(id)) {
+      skipped++;
+      writeLog(`OMITIDO (paquete protegido del sistema): ${id}`);
+      continue;
+    }
+
     writeLog(`Desinstalando: ${id}...`);
-    const ur = await spawnCapture('winget', ['uninstall', '--id', id, '--silent', '--accept-source-agreements']);
-    if (ur.code === 0) {
+    const r = await guard(
+      `Desinstalar ${id}`,
+      () => spawnCapture('winget', ['uninstall', '--id', id, '--silent', '--accept-source-agreements']),
+      // Sin previousValue: desinstalar no se puede deshacer desde la app.
+      { target: id },
+    );
+    if (r.simulated) continue;
+    if (r.ok) {
       uninstalled++;
       writeLog(`  Desinstalado: ${id}`);
     } else {
       errors++;
-      writeLog(`  ERROR desinstalando ${id}: ${errText(ur)}`);
+      writeLog(`  ERROR desinstalando ${id}: ${errText(r)}`);
     }
   }
 
-  writeLog(`Resumen: ${uninstalled} desinstalados, ${errors} errores`);
+  writeLog(
+    dryRun
+      ? `Simulacion: ${ids.length - skipped} se desinstalarian, ${skipped} omitidos por proteccion`
+      : `Resumen: ${uninstalled} desinstalados, ${skipped} omitidos por proteccion, ${errors} errores`,
+  );
   writeLog('=== Desinstalacion de aplicaciones - fin ===');
 }

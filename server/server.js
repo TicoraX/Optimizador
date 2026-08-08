@@ -433,6 +433,12 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // decorativa. El gate real es la seleccion explicita del usuario, validada
   // mas abajo: una accion destructiva sin nada seleccionado se rechaza.
 
+  // Simulacion: corre la accion sin tocar nada y reporta exactamente que
+  // HARIA. Alimenta la vista previa antes de confirmar.
+  if (validateBooleanField(req.body?.dryRun ?? false, 'dryRun')) {
+    envVars.DRY_RUN = 'true';
+  }
+
   // ── Validacion estricta de body params ──
   if (req.body?.programs !== undefined) {
     envVars.OPTIMIZE_PROGRAMS = validateIndexList(req.body.programs, 'programs');

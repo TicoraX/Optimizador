@@ -450,6 +450,60 @@ export function errText(r) {
 }
 
 // ═══════════════════════════════════════════════════════
+// Barrera para operaciones destructivas
+//
+// Todo lo que borra, mata, desinstala o pisa un valor del sistema pasa por
+// aca. Cumple tres funciones:
+//
+//   1. Simulacion: con dryRun no se ejecuta nada, solo se reporta que habria
+//      pasado. Es lo que alimenta la vista previa antes de confirmar.
+//   2. Diario: cada cambio aplicado queda registrado con su valor anterior,
+//      que es lo unico que permite revertir despues.
+//   3. Un solo lugar donde auditar que se toca el sistema.
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Anota un cambio aplicado en el diario del modulo.
+ *
+ * El valor anterior se COPIA a la fila, no se referencia: la fila describe lo
+ * que paso ese dia y nada que cambie despues puede reescribirla.
+ */
+export function appendChange(moduleKey, entry) {
+  const path = join(reportsDirOf(moduleKey), 'changes.json');
+  const journal = loadJsonSafe(path, []);
+  journal.push({ at: new Date().toISOString(), module: moduleKey, ...entry });
+  writeFileSync(path, JSON.stringify(journal, null, 2), 'utf-8');
+}
+
+/**
+ * Devuelve `guard(descripcion, fn, meta)`:
+ *   - en dryRun registra la descripcion y NO ejecuta fn
+ *   - si no, ejecuta fn y, cuando devuelve ok, anota el cambio en el diario
+ *
+ * `meta` describe el cambio para poder revertirlo: al menos { target } y,
+ * cuando exista, { previousValue }. Sin previousValue el cambio se marca
+ * como irreversible en vez de fingir que se puede deshacer.
+ */
+export function makeGuard(moduleKey, { dryRun, writeLog }) {
+  return async function guard(description, fn, meta = {}) {
+    if (dryRun) {
+      writeLog(`[SIMULACION] ${description}`);
+      return { simulated: true, ok: true };
+    }
+    const result = await fn();
+    const ok = result?.ok ?? (result?.code === 0);
+    if (ok) {
+      appendChange(moduleKey, {
+        action: description,
+        reversible: meta.previousValue !== undefined,
+        ...meta,
+      });
+    }
+    return { ...result, ok, simulated: false };
+  };
+}
+
+// ═══════════════════════════════════════════════════════
 // Proceso externo — spawn helpers compartidos por los 4 modulos
 //
 // Diagnostico (2026-06-19): spawn('powershell.exe', ['-File', scriptPath, ...])

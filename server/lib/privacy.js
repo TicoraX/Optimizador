@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, prepareReport, finishReport, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
 } from './shared.js';
 
 const PRIVACY_SETTINGS = [
@@ -110,8 +110,10 @@ export async function runPrivacyScanNative(onOutput) {
 
 export async function runPrivacyActionNative(envVars, onOutput) {
   const writeLog = makeLogger('privacy', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('privacy', { dryRun, writeLog });
 
-  writeLog('=== Protección de privacidad - inicio ===');
+  writeLog(`=== Protección de privacidad - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   const selection = envVars.OPTIMIZE_PRIVACY || '';
   const indices = selection.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1);
@@ -130,9 +132,28 @@ export async function runPrivacyActionNative(envVars, onOutput) {
       writeLog(`Índice ${idx} fuera de rango, ignorado.`);
       continue;
     }
-    writeLog(`Protegiendo: ${s.name} (${s.desc})...`);
-    const r = await spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.safeValue, '/f']);
-    if (r.code === 0) {
+
+    // `reg add /f` pisa el valor sin leerlo. Sin esta lectura previa no queda
+    // registro de como estaba, y desproteger (por ejemplo, volver a habilitar
+    // el microfono para Teams) es imposible desde la app.
+    const before = await readRegValue(s.key, s.value);
+    const previousValue = before.code === 0 ? parseRegValue(s, before.stdout) : null;
+
+    writeLog(`Protegiendo: ${s.name} (${s.desc})... [valor actual: ${previousValue ?? 'no definido'}]`);
+
+    const r = await guard(
+      `Proteger ${s.name}: ${s.key}\\${s.value} = ${s.safeValue}`,
+      () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.safeValue, '/f']),
+      {
+        target: `${s.key}\\${s.value}`,
+        settingId: s.id,
+        valueType: s.type,
+        newValue: s.safeValue,
+        previousValue,
+      },
+    );
+    if (r.simulated) continue;
+    if (r.ok) {
       hardened++;
       writeLog(`  Protegido: ${s.name}`);
     } else {
@@ -141,6 +162,10 @@ export async function runPrivacyActionNative(envVars, onOutput) {
     }
   }
 
-  writeLog(`Resumen: ${hardened} protegidos, ${errors} errores`);
+  writeLog(
+    dryRun
+      ? `Simulacion: ${indices.length} ajustes se protegerian`
+      : `Resumen: ${hardened} protegidos, ${errors} errores`,
+  );
   writeLog('=== Protección de privacidad - fin ===');
 }

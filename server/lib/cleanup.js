@@ -74,30 +74,64 @@ export async function emptyRecycleBinNative() {
   return { deleted, errors, ok: true };
 }
 
-/** Borra archivos de Descargas con LastWriteTime mas viejo que ageDays. */
-export async function deleteOldDownloads(ageDays) {
-  const downloadsPath = join(process.env.USERPROFILE, 'Downloads');
+/**
+ * Borra archivos de Descargas con LastWriteTime mas viejo que ageDays.
+ * Con dryRun no borra nada: devuelve la lista de lo que borraria.
+ */
+export async function deleteOldDownloads(ageDays, { dryRun = false } = {}) {
+  const home = process.env.USERPROFILE;
+  if (!home) return { deleted: 0, error: true, files: [] };
+  const downloadsPath = join(home, 'Downloads');
   let entries;
   try {
     entries = await readdir(downloadsPath);
   } catch {
-    return { deleted: 0, error: true };
+    return { deleted: 0, error: true, files: [] };
   }
   const cutoff = Date.now() - ageDays * 24 * 60 * 60 * 1000;
   let deleted = 0;
+  const files = [];
   for (const name of entries) {
     const filePath = join(downloadsPath, name);
     try {
       const info = await stat(filePath);
       if (info.isFile() && info.mtimeMs < cutoff) {
-        await unlink(filePath);
-        deleted++;
+        files.push({ name, mb: Math.round(info.size / (1024 * 1024) * 10) / 10 });
+        if (!dryRun) {
+          await unlink(filePath);
+          deleted++;
+        }
       }
     } catch {
       // bloqueado o ya no existe — se ignora
     }
   }
-  return { deleted, error: false };
+  return { deleted, error: false, files };
+}
+
+/** Cuenta y mide lo que hay en la papelera, sin tocarla. */
+export async function measureRecycleBin() {
+  const recycleRoot = 'C:\\$Recycle.Bin';
+  let sidDirs;
+  try {
+    sidDirs = await readdir(recycleRoot);
+  } catch {
+    return { count: 0, mb: 0, ok: false };
+  }
+  let count = 0, mb = 0;
+  for (const sid of sidDirs) {
+    try {
+      const entries = await readdir(join(recycleRoot, sid));
+      for (const e of entries) {
+        if (e.startsWith('$I')) continue; // metadatos, no el archivo
+        count++;
+        try { mb += (await stat(join(recycleRoot, sid, e))).size / (1024 * 1024); } catch { /* sin permiso */ }
+      }
+    } catch {
+      // sin acceso a ese SID — se ignora
+    }
+  }
+  return { count, mb: Math.round(mb), ok: true };
 }
 
 /**
@@ -107,6 +141,7 @@ export async function deleteOldDownloads(ageDays) {
  */
 export async function runCleanupActionNative(envVars, onOutput) {
   const writeLog = makeLogger('cleanup', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
 
   // Antes este modulo borraba las 4 categorias sin condicion: era el unico
   // endpoint destructivo sin seleccion del usuario, y el "autoConfirm" que
@@ -115,7 +150,34 @@ export async function runCleanupActionNative(envVars, onOutput) {
     String(envVars.CLEAN_CATEGORIES || '').split(',').map((s) => s.trim()).filter(Boolean),
   );
 
-  writeLog(`=== Limpieza de disco - inicio (categorias: ${[...selected].join(', ')}) ===`);
+  writeLog(`=== Limpieza de disco - inicio${dryRun ? ' (SIMULACION)' : ''} (categorias: ${[...selected].join(', ')}) ===`);
+
+  // En simulacion se mide y se lista, no se borra nada. Todo lo de este modulo
+  // es irreversible, asi que la vista previa es la unica red de contencion.
+  if (dryRun) {
+    if (selected.has('temp')) {
+      const tempMB = await getDirSizeMB(process.env.TEMP);
+      const winTempMB = await getDirSizeMB(join(WINDIR, 'Temp'));
+      const prefetchMB = await getDirSizeMB(join(WINDIR, 'Prefetch'));
+      writeLog(`[SIMULACION] Temporales: se borrarian ~${Math.round(tempMB + winTempMB + prefetchMB)} MB`);
+    }
+    if (selected.has('cache')) {
+      writeLog('[SIMULACION] Cache de navegadores: se borraria la cache de Chrome, Edge y Firefox');
+    }
+    if (selected.has('downloads')) {
+      const ageDays = envVars.DOWNLOADS_AGE_DAYS ? Number(envVars.DOWNLOADS_AGE_DAYS) : 30;
+      const r = await deleteOldDownloads(ageDays, { dryRun: true });
+      writeLog(`[SIMULACION] Descargas: se borrarian ${r.files.length} archivos de mas de ${ageDays} dias`);
+      for (const f of r.files.slice(0, 50)) writeLog(`  - ${f.name} (${f.mb} MB)`);
+      if (r.files.length > 50) writeLog(`  ... y ${r.files.length - 50} mas`);
+    }
+    if (selected.has('recycle')) {
+      const rb = await measureRecycleBin();
+      writeLog(`[SIMULACION] Papelera: se vaciarian ${rb.count} elementos (~${rb.mb} MB). ESTO NO SE PUEDE DESHACER.`);
+    }
+    writeLog('=== Limpieza de disco - fin (simulacion, no se borro nada) ===');
+    return;
+  }
 
   if (selected.has('temp')) {
     const tempResult = await removeDirContents(process.env.TEMP);
