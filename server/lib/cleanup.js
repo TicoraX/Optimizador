@@ -116,56 +116,71 @@ export async function runCleanupActionNative(envVars, onOutput) {
     onOutput(line);
   };
 
-  writeLog('=== Limpieza de disco - inicio ===');
-
-  const tempResult = await removeDirContents(process.env.TEMP);
-  const winTempResult = await removeDirContents(join(WINDIR, 'Temp'));
-  const prefetchResult = await removeDirContents(join(WINDIR, 'Prefetch'));
-  writeLog(
-    `Temporales de Windows: ${tempResult.deleted + winTempResult.deleted + prefetchResult.deleted} ` +
-    `elementos borrados, ${tempResult.errors + winTempResult.errors + prefetchResult.errors} omitidos (en uso o requieren admin).`,
+  // Antes este modulo borraba las 4 categorias sin condicion: era el unico
+  // endpoint destructivo sin seleccion del usuario, y el "autoConfirm" que
+  // supuestamente lo protegia nunca se leia. Ahora borra solo lo que se pidio.
+  const selected = new Set(
+    String(envVars.CLEAN_CATEGORIES || '').split(',').map((s) => s.trim()).filter(Boolean),
   );
 
-  let cacheDeleted = 0;
-  let cacheErrors = 0;
-  const cachePaths = [
-    join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'User Data', 'Default', 'Cache'),
-    join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'User Data', 'Default', 'Cache'),
-  ];
-  for (const p of cachePaths) {
-    const r = await removeDirContents(p);
-    cacheDeleted += r.deleted;
-    cacheErrors += r.errors;
+  writeLog(`=== Limpieza de disco - inicio (categorias: ${[...selected].join(', ')}) ===`);
+
+  if (selected.has('temp')) {
+    const tempResult = await removeDirContents(process.env.TEMP);
+    const winTempResult = await removeDirContents(join(WINDIR, 'Temp'));
+    const prefetchResult = await removeDirContents(join(WINDIR, 'Prefetch'));
+    writeLog(
+      `Temporales de Windows: ${tempResult.deleted + winTempResult.deleted + prefetchResult.deleted} ` +
+      `elementos borrados, ${tempResult.errors + winTempResult.errors + prefetchResult.errors} omitidos (en uso o requieren admin).`,
+    );
   }
-  try {
-    const ffRoot = join(process.env.APPDATA, 'Mozilla', 'Firefox', 'Profiles');
-    const profiles = await readdir(ffRoot);
-    for (const profile of profiles) {
-      for (const sub of ['cache2', 'startupCache']) {
-        const r = await removeDirContents(join(ffRoot, profile, sub));
-        cacheDeleted += r.deleted;
-        cacheErrors += r.errors;
-      }
+
+  if (selected.has('cache')) {
+    let cacheDeleted = 0;
+    let cacheErrors = 0;
+    const cachePaths = [
+      join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'User Data', 'Default', 'Cache'),
+      join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'User Data', 'Default', 'Cache'),
+    ];
+    for (const p of cachePaths) {
+      const r = await removeDirContents(p);
+      cacheDeleted += r.deleted;
+      cacheErrors += r.errors;
     }
-  } catch {
-    // sin perfiles de Firefox — se ignora
+    try {
+      const ffRoot = join(process.env.APPDATA, 'Mozilla', 'Firefox', 'Profiles');
+      const profiles = await readdir(ffRoot);
+      for (const profile of profiles) {
+        for (const sub of ['cache2', 'startupCache']) {
+          const r = await removeDirContents(join(ffRoot, profile, sub));
+          cacheDeleted += r.deleted;
+          cacheErrors += r.errors;
+        }
+      }
+    } catch {
+      // sin perfiles de Firefox — se ignora
+    }
+    writeLog(`Cache de navegadores: ${cacheDeleted} elementos borrados, ${cacheErrors} omitidos (cierra el navegador antes para mejores resultados).`);
   }
-  writeLog(`Cache de navegadores: ${cacheDeleted} elementos borrados, ${cacheErrors} omitidos (cierra el navegador antes para mejores resultados).`);
 
-  const ageDays = envVars.DOWNLOADS_AGE_DAYS ? Number(envVars.DOWNLOADS_AGE_DAYS) : 30;
-  const downloadsResult = await deleteOldDownloads(ageDays);
-  writeLog(
-    downloadsResult.error
-      ? 'Descargas: carpeta no encontrada.'
-      : `Descargas viejas borradas: ${downloadsResult.deleted} archivos.`,
-  );
+  if (selected.has('downloads')) {
+    const ageDays = envVars.DOWNLOADS_AGE_DAYS ? Number(envVars.DOWNLOADS_AGE_DAYS) : 30;
+    const downloadsResult = await deleteOldDownloads(ageDays);
+    writeLog(
+      downloadsResult.error
+        ? 'Descargas: carpeta no encontrada.'
+        : `Descargas viejas borradas: ${downloadsResult.deleted} archivos.`,
+    );
+  }
 
-  const recycleResult = await emptyRecycleBinNative();
-  writeLog(
-    recycleResult.ok
-      ? `Papelera vaciada: ${recycleResult.deleted} elementos borrados, ${recycleResult.errors} omitidos.`
-      : 'No se pudo acceder a la papelera de reciclaje.',
-  );
+  if (selected.has('recycle')) {
+    const recycleResult = await emptyRecycleBinNative();
+    writeLog(
+      recycleResult.ok
+        ? `Papelera vaciada: ${recycleResult.deleted} elementos borrados, ${recycleResult.errors} omitidos.`
+        : 'No se pudo acceder a la papelera de reciclaje.',
+    );
+  }
 
   writeLog('=== Limpieza de disco - fin ===');
 }

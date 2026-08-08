@@ -1,5 +1,7 @@
 import express from 'express';
-import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { readFileSync, existsSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
@@ -22,9 +24,94 @@ import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 
 const app = express();
+app.disable('x-powered-by');
 
-// ── CORS: restringir origen en produccion si se desea ──
-app.use(cors());
+const PORT = process.env.PORT || 3001;
+
+// ═══════════════════════════════════════════════════════
+// Seguridad
+// ═══════════════════════════════════════════════════════
+// El backend escucha en 127.0.0.1, pero eso NO es una frontera de seguridad:
+// cualquier pagina abierta en el navegador del usuario puede hacer fetch a
+// localhost. Sin esta defensa, una web arbitraria dispara POST /api/action/*
+// y mata procesos, desinstala apps o borra archivos.
+//
+// Se corto la dependencia `cors` a proposito: la app se sirve del mismo origen
+// que su API, asi que no necesita headers CORS. Y `cors()` sin opciones emitia
+// Access-Control-Allow-Origin: * en todas las rutas, incluidas las destructivas.
+//
+// La defensa son dos headers que el JS de una pagina NO puede falsificar ni
+// omitir: `Origin` y `Sec-Fetch-Site`. Un token de sesion no agregaria nada
+// contra este atacante, y solo cubriria a un proceso local que ya corre con
+// los privilegios del usuario.
+const ALLOWED_ORIGINS = new Set([
+  `http://127.0.0.1:${PORT}`,
+  `http://localhost:${PORT}`,
+  'http://127.0.0.1:5173', // vite dev
+  'http://localhost:5173',
+]);
+
+app.use((req, res, next) => {
+  // Los GET de solo lectura no cambian estado; el navegador ya impide leer la
+  // respuesta cross-origin sin CORS, que es justamente lo que ya no emitimos.
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+
+  const site = req.get('sec-fetch-site');
+  const origin = req.get('origin');
+  const crossSite = site && site !== 'same-origin' && site !== 'none';
+  const badOrigin = origin && !ALLOWED_ORIGINS.has(origin);
+
+  if (crossSite || badOrigin) {
+    console.warn(`[seguridad] ${req.method} ${req.path} rechazado (origin=${origin || '-'} sec-fetch-site=${site || '-'})`);
+    return res.status(403).json({ error: 'Origen no permitido' });
+  }
+  next();
+});
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      // Vite inyecta el CSS del bundle como <style>; los reportes no aportan CSS.
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      fontSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'none'"],
+      // La app se sirve por http://127.0.0.1; forzar el upgrade a https no
+      // aporta nada aca y solo puede romper la carga.
+      upgradeInsecureRequests: null,
+    },
+  },
+  // La app es local y se sirve por http; HSTS forzaria https y la romperia.
+  hsts: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+// ── Rate limiting ──
+// El frontend dispara varios requests por vista, de ahi el global holgado.
+// Los escaneos spawnean winget/pip/npm/choco; las acciones modifican el sistema.
+const limiterMsg = (retryMin) => ({
+  error: `Demasiadas peticiones. Espera ${retryMin} minutos e intenta de nuevo.`,
+});
+const onLimit = (req, res, _next, options) => {
+  console.warn(`[seguridad] rate limit excedido: ${req.method} ${req.originalUrl}`);
+  res.status(options.statusCode).json(options.message);
+};
+
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 400, message: limiterMsg(15), handler: onLimit,
+}));
+app.use('/api/scan', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 30, message: limiterMsg(15), handler: onLimit,
+}));
+app.use('/api/action', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10, message: limiterMsg(15), handler: onLimit,
+}));
 
 // ── Limitar tamanio del body JSON para mitigar DoS ──
 app.use(express.json({ limit: '16kb' }));
@@ -341,13 +428,12 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   const envVars = {};
 
-  // ── Validacion estricta de body params ──
-  if (req.body?.autoConfirm !== undefined) {
-    if (validateBooleanField(req.body.autoConfirm, 'autoConfirm')) {
-      envVars.AUTO_CONFIRM = 'true';
-    }
-  }
+  // Se elimino `autoConfirm`: el backend lo validaba y lo traducia a
+  // AUTO_CONFIRM, pero ningun modulo lo leia nunca. Era una confirmacion
+  // decorativa. El gate real es la seleccion explicita del usuario, validada
+  // mas abajo: una accion destructiva sin nada seleccionado se rechaza.
 
+  // ── Validacion estricta de body params ──
   if (req.body?.programs !== undefined) {
     envVars.OPTIMIZE_PROGRAMS = validateIndexList(req.body.programs, 'programs');
   }
@@ -418,6 +504,22 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   // DownloadsAgeDays: solo aplica al modulo cleanup. Se pasa via env var
   // (el script lee $env:DOWNLOADS_AGE_DAYS como override de su parametro -DownloadsAgeDays)
+  // Cleanup: categorias a borrar. Sin esto el modulo borraba las 4 sin condicion.
+  if (req.params.module === 'cleanup' && req.body?.cleanCategories !== undefined) {
+    const VALID_CATEGORIES = ['temp', 'cache', 'downloads', 'recycle'];
+    const raw = Array.isArray(req.body.cleanCategories)
+      ? req.body.cleanCategories
+      : String(req.body.cleanCategories || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const invalid = picked.filter((c) => !VALID_CATEGORIES.includes(c));
+    if (invalid.length > 0) {
+      const err = new Error(`cleanCategories invalidas: ${invalid.join(', ')}. Validas: ${VALID_CATEGORIES.join(', ')}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.CLEAN_CATEGORIES = [...new Set(picked)].join(',');
+  }
+
   if (req.params.module === 'cleanup' && req.body?.downloadsAgeDays !== undefined) {
     const days = validateDays(req.body.downloadsAgeDays);
     envVars.DOWNLOADS_AGE_DAYS = String(days);
@@ -442,6 +544,25 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // "winget upgrade --all" tardo 3m28s en una prueba real. Timeout mas alto
   // que el default de runNativeOverSSE (2 min, pensado para escaneos).
   const ACTION_TIMEOUT_MS = 600000;
+
+  // Estos modulos solo actuan sobre lo que el usuario selecciono. Una peticion
+  // sin seleccion no es un no-op inofensivo: es la firma de una llamada que no
+  // vino del frontend. Se rechaza en vez de ejecutarse en vacio.
+  const SELECTION_FIELDS = {
+    cleanup: ['CLEAN_CATEGORIES'],
+    startup: ['OPTIMIZE_PROGRAMS', 'OPTIMIZE_TASKS', 'ENABLE_PROGRAMS', 'ENABLE_TASKS'],
+    ram: ['OPTIMIZE_PROCESSES', 'UNKNOWN_PROCESSES', 'RISKY_PROCESSES'],
+    services: ['OPTIMIZE_SERVICES'],
+    apps: ['OPTIMIZE_APPS'],
+    privacy: ['OPTIMIZE_PRIVACY'],
+    power: ['PLAN_INDEX'],
+  };
+  const required = SELECTION_FIELDS[req.params.module];
+  if (required && !required.some((k) => envVars[k])) {
+    const err = new Error('La accion requiere al menos un elemento seleccionado');
+    err.statusCode = 400;
+    throw err;
+  }
 
   const handler = ACTION_HANDLERS[req.params.module];
   if (!handler) return res.status(400).json({ error: 'Modulo sin handler de accion' });
@@ -673,12 +794,22 @@ app.use((err, _req, res, _next) => {
 // ═══════════════════════════════════════════════════════
 // Start — BIND SOLO A LOCALHOST
 // ═══════════════════════════════════════════════════════
-const PORT = process.env.PORT || 3001;
 const HOST = '127.0.0.1'; // Previene exposicion a LAN / internet
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`D1 Automation Server en http://${HOST}:${PORT}`);
   console.log(`Root: ${PROJECT_ROOT}`);
   console.log(`Modulos: ${VALID_MODULES.join(', ')}`);
   console.log('Aceptando conexiones solo de localhost');
+});
+
+// Sin esto, una segunda instancia lanza un 'error' no manejado y la ventana
+// queda en ERR_CONNECTION_REFUSED sin explicacion.
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`El puerto ${PORT} ya esta en uso: probablemente Optimizador ya esta abierto.`);
+  } else {
+    console.error(`Error del servidor: ${err.message}`);
+  }
+  process.exit(1);
 });

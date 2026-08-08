@@ -19,8 +19,14 @@
       "server/package.json",
       "frontend/dist/**"
     ],
-    "win": { "target": "nsis" },
-    "publish": { "provider": "github", "owner": "TicoraX", "repo": "Optimizador" }
+    "win": {
+      "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "TicoraX",
+      "repo": "Optimizador"
+    }
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -29,6 +35,7 @@
   "dependencies": {
     "electron-updater": "^6.3.0",
     "express": "^4.21.0",
-    "cors": "^2.8.5"
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0"
   }
 }

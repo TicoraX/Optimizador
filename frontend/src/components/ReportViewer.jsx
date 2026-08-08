@@ -1,12 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { Marked } from 'marked';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
 import CommandPreview from './CommandPreview';
 import { API_BASE } from '../config';
-const marked = new Marked();
+import { renderReport } from '../lib/markdown';
+
+// Las 4 categorias que borra el modulo cleanup. Antes se borraban todas sin
+// que el usuario pudiera elegir.
+const CLEAN_CATEGORIES = [
+  { key: 'temp', label: 'Archivos temporales', hint: '%TEMP%, Windows\\Temp y Prefetch' },
+  { key: 'cache', label: 'Caché de navegadores', hint: 'Chrome, Edge y Firefox' },
+  { key: 'downloads', label: 'Descargas antiguas', hint: 'según la antigüedad de abajo' },
+  { key: 'recycle', label: 'Papelera de reciclaje', hint: 'vacía la papelera' },
+];
 
 const MODULE_SCRIPTS = {
   updates: { scan: 'Check-Updates.ps1', action: 'Apply-Updates.ps1' },
@@ -24,11 +32,16 @@ export default function ReportViewer() {
   const { module } = useParams();
   const navigate = useNavigate();
   const [report, setReport] = useState(null);
+  // Sin memo, marked re-parseaba el reporte entero en cada setLogs del SSE,
+  // o sea decenas de veces por segundo mientras corre una accion.
+  const reportHtml = useMemo(() => renderReport(report?.content), [report?.content]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Configuration States
   const [downloadsAgeDays, setDownloadsAgeDays] = useState(30);
+  // Nada tildado por defecto: borrar es irreversible, el usuario elige.
+  const [selectedCategories, setSelectedCategories] = useState({});
   const [availablePrograms, setAvailablePrograms] = useState([]);
   const [selectedPrograms, setSelectedPrograms] = useState({});
   const [availableTasks, setAvailableTasks] = useState([]);
@@ -460,9 +473,12 @@ export default function ReportViewer() {
   };
 
   const runAction = () => {
-    const body = { autoConfirm: true };
+    const body = {};
     if (module === 'cleanup') {
       body.downloadsAgeDays = downloadsAgeDays;
+      body.cleanCategories = CLEAN_CATEGORIES
+        .filter((c) => selectedCategories[c.key])
+        .map((c) => c.key);
     } else if (module === 'startup') {
       // Collect 1-based indices for checked items
       const checkedProgs = Object.keys(selectedPrograms)
@@ -678,9 +694,9 @@ export default function ReportViewer() {
                   {module === 'privacy' && 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.'}
                 </div>
               )}
-              <div 
-                className="markdown-content" 
-                dangerouslySetInnerHTML={{ __html: marked.parse(report.content || '') }} 
+              <div
+                className="markdown-content"
+                dangerouslySetInnerHTML={{ __html: reportHtml }}
               />
             </>
           )}
@@ -713,6 +729,30 @@ export default function ReportViewer() {
           <div style={{ height: '1px', background: 'var(--border-color)', margin: '1.5rem 0' }} />
 
           <h3 style={{ fontSize: '1rem', marginBottom: '1rem', fontWeight: '600' }}>Configurar Ejecución</h3>
+
+          {module === 'cleanup' && (
+            <div className="form-group">
+              <label className="form-label">Qué borrar:</label>
+              <div className="checkbox-list">
+                {CLEAN_CATEGORIES.map((cat) => (
+                  <label key={cat.key} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories[cat.key] || false}
+                      onChange={() => setSelectedCategories((prev) => ({ ...prev, [cat.key]: !prev[cat.key] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label">
+                      {cat.label}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {cat.hint}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {module === 'cleanup' && (
             <div className="form-group">
