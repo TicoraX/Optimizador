@@ -1,6 +1,7 @@
-import { existsSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture, spawnCaptureShell, commandExists, padRight } from './shared.js';
+import {
+  spawnCapture, spawnCaptureShell, commandExists, padRight,
+  makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
 
 // ═══════════════════════════════════════════════════════
 // Escaneo de actualizaciones — ejecucion nativa en Node (sin powershell.exe)
@@ -84,12 +85,8 @@ async function checkChocoUpdates() {
 }
 
 export async function runUpdatesScanNative(onOutput) {
-  const reportsDir = join(MODULES.updates.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `update-report-${today}.md`);
-  const countsPath = join(reportsDir, 'update-counts.json');
+  const paths = prepareReport('updates');
+  const { today, reportPath } = paths;
 
   onOutput('Revisando winget...');
   const winget = await checkWingetUpdates();
@@ -112,32 +109,19 @@ export async function runUpdatesScanNative(onOutput) {
     '## Chocolatey', '', choco.block, '',
   ];
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today,
     reportPath,
     winget: { count: winget.count, error: winget.error },
     pip: { count: pip.count, error: pip.error },
     npm: { count: npm.count, error: npm.error },
     choco: { count: choco.count, error: choco.error },
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
-  onOutput(`Conteos generados en: ${countsPath}`);
+  }, onOutput);
 }
 
 /** Instala lo detectado por el scan: winget/pip/npm/choco directo, sin PowerShell. */
 export async function runUpdatesActionNative(onOutput) {
-  const logDir = join(MODULES.updates.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, MODULES.updates.logFile);
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('updates', onOutput);
 
   writeLog('=== Aplicar actualizaciones - inicio ===');
 

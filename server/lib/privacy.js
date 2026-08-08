@@ -1,6 +1,6 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture } from './shared.js';
+import {
+  spawnCapture, makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
 
 const PRIVACY_SETTINGS = [
   { id: 'telemetry', name: 'Telemetría', desc: 'Envío de datos de diagnóstico',
@@ -53,12 +53,8 @@ function statusLabel(setting, currentValue) {
 }
 
 export async function runPrivacyScanNative(onOutput) {
-  const reportsDir = join(MODULES.privacy.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `privacy-report-${today}.md`);
-  const countsPath = join(reportsDir, 'privacy-counts.json');
+  const paths = prepareReport('privacy');
+  const { today, reportPath } = paths;
 
   let scanError = false, hardenedCount = 0;
   const results = [];
@@ -67,7 +63,15 @@ export async function runPrivacyScanNative(onOutput) {
   for (const setting of PRIVACY_SETTINGS) {
     const r = await readRegValue(setting.key, setting.value);
     let currentValue = null;
-    if (r.code === 0) currentValue = parseRegValue(setting, r.stdout);
+    if (r.code === 0) {
+      currentValue = parseRegValue(setting, r.stdout);
+    } else if (!/no se encuentra|cannot find|unable to find/i.test(r.stderr || '')) {
+      // Una clave ausente es un estado legitimo (el ajuste nunca se toco).
+      // Cualquier otro fallo de `reg query` si es un error real de escaneo.
+      // Antes scanError se declaraba y nunca se asignaba: el JSON reportaba
+      // error:false aunque los 8 reg query hubieran fallado.
+      scanError = true;
+    }
 
     const safe = isSafe(setting, currentValue);
     if (safe) hardenedCount++;
@@ -96,28 +100,16 @@ export async function runPrivacyScanNative(onOutput) {
   lines.push(`- Pendientes: ${PRIVACY_SETTINGS.length - hardenedCount}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     total_settings: PRIVACY_SETTINGS.length,
     hardened_count: hardenedCount,
     error: scanError,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput);
 }
 
 export async function runPrivacyActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.privacy.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('privacy', onOutput);
 
   writeLog('=== Protección de privacidad - inicio ===');
 
@@ -145,7 +137,7 @@ export async function runPrivacyActionNative(envVars, onOutput) {
       writeLog(`  Protegido: ${s.name}`);
     } else {
       errors++;
-      writeLog(`  ERROR protegiendo ${s.name}: ${(r.stderr || r.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`  ERROR protegiendo ${s.name}: ${errText(r)}`);
     }
   }
 

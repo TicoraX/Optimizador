@@ -1,6 +1,6 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture } from './shared.js';
+import {
+  spawnCapture, makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
 
 function parseWingetList(stdout) {
   const apps = [];
@@ -24,12 +24,8 @@ function parseWingetList(stdout) {
 }
 
 export async function runAppsScanNative(onOutput) {
-  const reportsDir = join(MODULES.apps.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `apps-report-${today}.md`);
-  const countsPath = join(reportsDir, 'apps-counts.json');
+  const paths = prepareReport('apps');
+  const { today, reportPath } = paths;
 
   let scanError = false;
   onOutput('Listando aplicaciones instaladas (winget)...');
@@ -57,27 +53,15 @@ export async function runAppsScanNative(onOutput) {
   lines.push(`- Total: ${apps.length}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     apps_count: apps.length,
     error: scanError,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput);
 }
 
 export async function runAppsActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.apps.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('apps', onOutput);
 
   writeLog('=== Desinstalacion de aplicaciones - inicio ===');
 
@@ -100,7 +84,7 @@ export async function runAppsActionNative(envVars, onOutput) {
       writeLog(`  Desinstalado: ${id}`);
     } else {
       errors++;
-      writeLog(`  ERROR desinstalando ${id}: ${(ur.stderr || ur.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`  ERROR desinstalando ${id}: ${errText(ur)}`);
     }
   }
 

@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { join, dirname, resolve, normalize } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -396,6 +396,60 @@ export function buildReportPath(moduleDir, prefix, date) {
 }
 
 // ═══════════════════════════════════════════════════════
+// Ciclo de vida de scan y accion
+//
+// Estos cuatro helpers reemplazan bloques que estaban copiados byte a byte en
+// los 9 modulos. Ademas de la duplicacion, esas copias habian divergido: cinco
+// modulos hardcodeaban 'optimize-log.txt' en vez de leer MODULES[x].logFile, asi
+// que GET /api/logs/:module podia leer un archivo distinto al que se escribia.
+// ═══════════════════════════════════════════════════════
+
+/** Directorio de reportes de un modulo, creandolo si falta. */
+function reportsDirOf(moduleKey) {
+  const dir = join(MODULES[moduleKey].dir, 'reports');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Logger de accion: escribe al log del modulo y lo emite por SSE.
+ * El nombre del log sale siempre de la whitelist, nunca hardcodeado.
+ */
+export function makeLogger(moduleKey, onOutput) {
+  const logPath = join(reportsDirOf(moduleKey), MODULES[moduleKey].logFile);
+  return (message) => {
+    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const line = `[${stamp}] ${String(message).replace(/[\r\n]/g, ' ')}`;
+    appendFileSync(logPath, line + '\n');
+    onOutput(line);
+  };
+}
+
+/** Rutas y fecha de un scan. */
+export function prepareReport(moduleKey) {
+  const dir = reportsDirOf(moduleKey);
+  const mod = MODULES[moduleKey];
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    today,
+    reportPath: join(dir, `${mod.reportPrefix}-${today}.md`),
+    countsPath: join(dir, mod.countsFile),
+  };
+}
+
+/** Escribe el reporte Markdown y su JSON de conteos. */
+export function finishReport({ reportPath, countsPath }, lines, counts, onOutput) {
+  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
+  writeFileSync(countsPath, JSON.stringify(counts, null, 2), 'utf-8');
+  onOutput(`Reporte generado en: ${reportPath}`);
+}
+
+/** Mensaje de error acotado a partir del resultado de spawnCapture. */
+export function errText(r) {
+  return (r?.stderr || r?.stdout || '').trim().slice(0, 200);
+}
+
+// ═══════════════════════════════════════════════════════
 // Proceso externo — spawn helpers compartidos por los 4 modulos
 //
 // Diagnostico (2026-06-19): spawn('powershell.exe', ['-File', scriptPath, ...])
@@ -416,6 +470,24 @@ export function buildReportPath(moduleDir, prefix, date) {
 // espacios o comillas (ej. nombres de programas o valores de registro).
 // ═══════════════════════════════════════════════════════
 
+/**
+ * Mata el arbol completo de un proceso.
+ *
+ * proc.kill() manda SIGTERM solo al proceso directo. En Windows eso no toca a
+ * los hijos: winget, choco y npm dejan nietos corriendo despues del timeout,
+ * potencialmente a mitad de una instalacion. taskkill /T recorre el arbol.
+ */
+function killTree(proc) {
+  if (!proc?.pid) return;
+  try {
+    spawn('taskkill', ['/T', '/F', '/PID', String(proc.pid)], {
+      windowsHide: true, shell: false, stdio: 'ignore',
+    });
+  } catch {
+    try { proc.kill(); } catch { /* ya murio */ }
+  }
+}
+
 export function spawnCapture(cmd, args, timeoutMs = 120000) {
   return new Promise((resolve) => {
     let stdout = '';
@@ -425,7 +497,11 @@ export function spawnCapture(cmd, args, timeoutMs = 120000) {
     let settled = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      if (proc) { try { proc.kill(); } catch {} }
+      killTree(proc);
+      // Sin esto los listeners siguen acumulando salida de un proceso que ya
+      // nadie espera.
+      proc?.stdout?.removeAllListeners('data');
+      proc?.stderr?.removeAllListeners('data');
       resolve({ code: -1, stdout, stderr, timedOut: true });
     }, timeoutMs);
     try {

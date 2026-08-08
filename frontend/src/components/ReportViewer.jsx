@@ -503,10 +503,13 @@ export default function ReportViewer() {
       body.enablePrograms = checkedEnableProgs.length === 0 ? '' : checkedEnableProgs.join(',');
       body.enableTasks = checkedEnableTasks.length === 0 ? '' : checkedEnableTasks.join(',');
     } else if (module === 'services') {
-      const checked = Object.keys(selectedServices)
+      // Por nombre, no por indice: el indice del reporte no coincidia con el
+      // orden que usaba la accion y se deshabilitaba el servicio equivocado.
+      const names = Object.keys(selectedServices)
         .filter(k => selectedServices[k])
-        .map(k => parseInt(k) + 1);
-      body.services = checked.length === 0 ? '' : checked.join(',');
+        .map(k => availableServices[parseInt(k)]?.name)
+        .filter(Boolean);
+      body.services = names;
     } else if (module === 'apps') {
       const ids = Object.keys(selectedApps)
         .filter(k => selectedApps[k])

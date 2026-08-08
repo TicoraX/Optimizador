@@ -1,8 +1,9 @@
-import { existsSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
+import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { readdir, rename } from 'fs/promises';
 import { join, dirname } from 'path';
 import {
   MODULES, spawnCapture, isAdminWindows, parseCsvLine, parseIndexSelection,
+  makeLogger, prepareReport, finishReport, errText,
   loadJsonSafe, normalizeSchTaskStatus,
 } from './shared.js';
 
@@ -214,12 +215,8 @@ async function getLogonScheduledTasks() {
 }
 
 export async function runStartupScanNative(onOutput) {
-  const reportsDir = join(MODULES.startup.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `startup-report-${today}.md`);
-  const countsPath = join(reportsDir, 'startup-counts.json');
+  const paths = prepareReport('startup');
+  const { today, reportPath } = paths;
 
   onOutput('Revisando programas de inicio (registro)...');
   const regEntries = await getRegistryStartupEntries();
@@ -313,8 +310,7 @@ export async function runStartupScanNative(onOutput) {
   }
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today,
     reportPath,
     startup_programs: { count: allEntries.length, error: false },
@@ -322,24 +318,12 @@ export async function runStartupScanNative(onOutput) {
     boot_performance: { boot_time_ms: 0, trend: 'unknown', error: true },
     auto_services: { count: services.length, nonMicrosoft: nonMsServices.length, error: servicesError },
     logon_tasks: { count: logonTasks.length, enabled: enabledTasks.length, disabled: disabledTasks.length, error: tasksError },
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
-  onOutput(`Conteos generados en: ${countsPath}`);
+  }, onOutput);
 }
 
 /** Deshabilita programas de inicio (registro/accesos directos) y tareas de logon seleccionadas. */
 export async function runStartupActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.startup.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, MODULES.startup.logFile);
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('startup', onOutput);
 
   writeLog('=== Optimizacion de inicio - inicio ===');
 
@@ -364,7 +348,7 @@ export async function runStartupActionNative(envVars, onOutput) {
           if (i >= 0) manifest.splice(i, 1);
           writeLog(`Reactivado (registry): ${e.name} en ${e.keyPath}`);
         } else {
-          writeLog(`ERROR reactivando ${e.name}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+          writeLog(`ERROR reactivando ${e.name}: ${errText(r)}`);
         }
       } else {
         try {
@@ -388,7 +372,7 @@ export async function runStartupActionNative(envVars, onOutput) {
     const r = await spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Enable']);
     writeLog(r.code === 0
       ? `Tarea reactivada: ${t.taskName}`
-      : `ERROR reactivando ${t.taskName}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+      : `ERROR reactivando ${t.taskName}: ${errText(r)}`);
   }
 
   // ── Deshabilitar programas seleccionados ──
@@ -412,7 +396,7 @@ export async function runStartupActionNative(envVars, onOutput) {
           manifest.push({ name: e.name, command: e.command, keyPath: e.keyPath, source: e.source });
           writeLog(`Deshabilitado (registry): ${e.name} desde ${e.keyPath}`);
         } else {
-          writeLog(`ERROR deshabilitando ${e.name}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+          writeLog(`ERROR deshabilitando ${e.name}: ${errText(r)}`);
         }
       } else {
         try {
@@ -438,7 +422,7 @@ export async function runStartupActionNative(envVars, onOutput) {
     const r = await spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Disable']);
     writeLog(r.code === 0
       ? `Tarea deshabilitada: ${t.taskName}`
-      : `ERROR deshabilitando ${t.taskName}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);
+      : `ERROR deshabilitando ${t.taskName}: ${errText(r)}`);
   }
 
   writeLog('=== Optimizacion de inicio - fin ===');

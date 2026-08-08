@@ -1,7 +1,8 @@
-import { existsSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
 import { rm, readdir, stat, unlink, realpath } from 'fs/promises';
 import { join } from 'path';
-import { MODULES, WINDIR } from './shared.js';
+import {
+  WINDIR, makeLogger, prepareReport, finishReport,
+} from './shared.js';
 
 // ═══════════════════════════════════════════════════════
 // Limpieza de disco — ejecucion nativa en Node (sin powershell.exe)
@@ -105,16 +106,7 @@ export async function deleteOldDownloads(ageDays) {
  * lo hacia Clean-Disk.ps1.
  */
 export async function runCleanupActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.cleanup.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, MODULES.cleanup.logFile);
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('cleanup', onOutput);
 
   // Antes este modulo borraba las 4 categorias sin condicion: era el unico
   // endpoint destructivo sin seleccion del usuario, y el "autoConfirm" que
@@ -213,12 +205,8 @@ export async function getDirSizeMB(dirPath) {
 }
 
 export async function runCleanupScanNative(ageDays, onOutput) {
-  const reportsDir = join(MODULES.cleanup.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `cleanup-report-${today}.md`);
-  const countsPath = join(reportsDir, `cleanup-counts.json`);
+  const paths = prepareReport('cleanup');
+  const { today, reportPath } = paths;
 
   const line = (s) => { onOutput(s); return s; };
   const lines = [];
@@ -354,18 +342,12 @@ export async function runCleanupScanNative(ageDays, onOutput) {
   lines.push(line(''));
 
   // ── Escribir archivos ──
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-
-  const counts = {
+  finishReport(paths, lines, {
     date: today,
     reportPath,
     temp: { total_mb: tempTotalMB, error: false },
     browser_cache: { total_mb: cacheTotalMB, error: false },
     downloads: { total_mb: downloadsTotalMB, count: downloadsCount, error: downloadsError },
     recycle_bin: { total_mb: recycleTotalMB, count: recycleCount, error: recycleError },
-  };
-  writeFileSync(countsPath, JSON.stringify(counts, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
-  onOutput(`Conteos generados en: ${countsPath}`);
+  }, onOutput);
 }

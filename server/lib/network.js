@@ -1,14 +1,10 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture, isAdminWindows } from './shared.js';
+import {
+  spawnCapture, isAdminWindows, makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
 
 export async function runNetworkScanNative(onOutput) {
-  const reportsDir = join(MODULES.network.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `network-report-${today}.md`);
-  const countsPath = join(reportsDir, 'network-counts.json');
+  const paths = prepareReport('network');
+  const { today, reportPath } = paths;
 
   let scanError = false;
   onOutput('Obteniendo cache DNS...');
@@ -68,9 +64,7 @@ export async function runNetworkScanNative(onOutput) {
     `- Total: ${activeAdapters + disconnectedAdapters}`, '',
   ];
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-
-  const counts = {
+  finishReport(paths, lines, {
     date: today, reportPath,
     dns_cache_entries: dnsEntries,
     avg_ping_ms: avgPingMs,
@@ -78,23 +72,11 @@ export async function runNetworkScanNative(onOutput) {
     active_adapters: activeAdapters,
     disconnected_adapters: disconnectedAdapters,
     error: scanError,
-  };
-  writeFileSync(countsPath, JSON.stringify(counts, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput);
 }
 
-export async function runNetworkActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.network.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+export async function runNetworkActionNative(_envVars, onOutput) {
+  const writeLog = makeLogger('network', onOutput);
 
   writeLog('=== Optimizacion de Red - inicio ===');
 
@@ -103,7 +85,7 @@ export async function runNetworkActionNative(envVars, onOutput) {
   if (flushResult.code === 0) {
     writeLog('Cache DNS limpiada exitosamente.');
   } else {
-    writeLog(`ERROR limpiando cache DNS: ${(flushResult.stderr || flushResult.stdout || '').trim().slice(0, 200)}`);
+    writeLog(`ERROR limpiando cache DNS: ${errText(flushResult)}`);
   }
 
   const isAdmin = await isAdminWindows();
@@ -113,7 +95,7 @@ export async function runNetworkActionNative(envVars, onOutput) {
     if (regResult.code === 0) {
       writeLog('DNS re-registrado exitosamente.');
     } else {
-      writeLog(`ERROR re-registrando DNS: ${(regResult.stderr || regResult.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`ERROR re-registrando DNS: ${errText(regResult)}`);
     }
   } else {
     writeLog('Omitiendo re-registro DNS (requiere administrador).');

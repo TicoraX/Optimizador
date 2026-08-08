@@ -1,14 +1,13 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { join } from 'path';
-import { MODULES, spawnCapture } from './shared.js';
+import {
+  MODULES, spawnCapture, loadJsonSafe, parseCsvLine,
+  makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
 
 export async function runServicesScanNative(onOutput) {
-  const reportsDir = join(MODULES.services.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `services-report-${today}.md`);
-  const countsPath = join(reportsDir, 'services-counts.json');
+  const paths = prepareReport('services');
+  const { today, reportPath } = paths;
 
   let scanError = false;
   onOutput('Obteniendo servicios...');
@@ -39,22 +38,19 @@ export async function runServicesScanNative(onOutput) {
   }
 
   onOutput('Obteniendo consumo de memoria...');
+  // Antes esto usaba `wmic`, que Windows 11 24H2+ ya no instala: en esas
+  // maquinas fallaba en silencio y todos los servicios quedaban con 0 MB.
+  // `tasklist /FO CSV` es nativo, sigue presente y cuesta lo mismo.
   const pidMem = new Map();
-  const memResult = await spawnCapture('wmic', ['process', 'get', 'ProcessId,WorkingSetSize', '/FORMAT:CSV']);
+  const memResult = await spawnCapture('tasklist', ['/FO', 'CSV', '/NH']);
   if (memResult.code === 0) {
     for (const line of memResult.stdout.trim().split(/\r?\n/)) {
-      const cols = [];
-      let cur = '', inQuotes = false;
-      for (const ch of line) {
-        if (ch === '"') { inQuotes = !inQuotes; continue; }
-        if (ch === ',' && !inQuotes) { cols.push(cur); cur = ''; }
-        else cur += ch;
-      }
-      cols.push(cur);
+      // "imagen","PID","sesion","num","1.234 KB"
+      const cols = parseCsvLine(line).map((c) => c.replace(/^"|"$/g, ''));
       const pid = parseInt(cols[1], 10);
-      const wsBytes = parseInt(cols[2], 10);
-      if (pid > 0 && Number.isFinite(wsBytes)) {
-        pidMem.set(pid, Math.round(wsBytes / (1024 * 1024)));
+      const memKB = parseInt(String(cols[4] || '').replace(/[^\d]/g, ''), 10);
+      if (pid > 0 && Number.isFinite(memKB)) {
+        pidMem.set(pid, Math.round(memKB / 1024));
       }
     }
   } else { scanError = true; }
@@ -107,9 +103,7 @@ export async function runServicesScanNative(onOutput) {
   lines.push(`- Servicios del sistema (Auto): ${system.length} (${runningSys.length} ejecutandose)`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     third_party_total: thirdParty.length,
     third_party_running: running3rd.length,
@@ -117,88 +111,121 @@ export async function runServicesScanNative(onOutput) {
     system_total: system.length,
     system_running: runningSys.length,
     error: scanError,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput);
 }
 
-export async function runServicesActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.services.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
+/** Parsea la salida de `sc qc <nombre>`. Devuelve null si el servicio no existe. */
+export function parseScQc(stdout) {
+  const field = (label) => {
+    const m = stdout.match(new RegExp(`${label}\\s*:\\s*(.+)`));
+    return m ? m[1].trim() : null;
   };
+  const name = field('SERVICE_NAME');
+  if (!name) return null;
+  const rawStart = field('START_TYPE'); // ej. "2   AUTO_START"
+  return {
+    name,
+    displayName: field('DISPLAY_NAME') || name,
+    binaryPath: field('BINARY_PATH_NAME') || '',
+    startTypeCode: rawStart ? parseInt(rawStart, 10) : null,
+    startTypeLabel: rawStart || '',
+  };
+}
+
+/** Un servicio cuyo binario vive en el arbol de Windows se trata como del sistema. */
+export function isSystemServicePath(binaryPath) {
+  const p = String(binaryPath || '').toLowerCase();
+  if (p === '') return true;
+  return p.includes('\\windows\\') || p.includes('\\system32\\') || p.includes('\\winsxs\\');
+}
+
+// `sc config start=` acepta estos; el codigo numerico viene de `sc qc`.
+const START_TYPE_BY_CODE = { 2: 'auto', 3: 'demand', 4: 'disabled' };
+
+export async function runServicesActionNative(envVars, onOutput) {
+  const writeLog = makeLogger('services', onOutput);
 
   writeLog('=== Optimizacion de Servicios - inicio ===');
 
-  const selection = envVars.OPTIMIZE_SERVICES || '';
-  const indices = selection.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1);
+  // Antes la seleccion venia por indice sobre la lista del reporte. El scan la
+  // ordena por estado y memoria (arriba), la accion re-escaneaba SIN ordenar, y
+  // el indice N terminaba apuntando a otro servicio: el usuario marcaba uno y se
+  // deshabilitaba otro, de forma irreversible. Ahora se selecciona por nombre,
+  // que es estable entre scan y accion.
+  const names = String(envVars.OPTIMIZE_SERVICES || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
 
-  if (indices.length === 0) {
+  if (names.length === 0) {
     writeLog('No se seleccionaron servicios para optimizar.');
     writeLog('=== Optimizacion de Servicios - fin ===');
     return;
   }
 
-  // Re-scan para obtener la misma lista de terceros
-  const psResult = await spawnCapture('powershell', [
-    '-NoProfile', '-NonInteractive',
-    '-Command',
-    'Get-CimInstance Win32_Service | Where-Object { $_.StartMode -eq "Auto" } | Select-Object Name,DisplayName,State,ProcessId,PathName | ConvertTo-Json -Compress',
-  ]);
+  // Manifiesto para poder revertir. `sc config start= disabled` no guarda el
+  // valor previo en ningun lado, asi que sin esto deshabilitar es irreversible.
+  const manifestPath = join(MODULES.services.dir, 'reports', 'disabled-services.json');
+  const manifest = loadJsonSafe(manifestPath, []);
 
-  let thirdParty = [];
-  if (psResult.code === 0 && psResult.stdout.trim()) {
-    try {
-      const raw = JSON.parse(psResult.stdout.trim());
-      const services = Array.isArray(raw) ? raw : [raw];
-      for (const s of services) {
-        const path = (s.PathName || '').toLowerCase();
-        const isMs = path.includes('\\windows\\') || path.includes('\\system32\\') || path.includes('\\winsxs\\') || path === '';
-        if (!isMs) thirdParty.push(s);
-      }
-    } catch (e) {
-      writeLog(`Error re-escaneando servicios: ${e.message}`);
-    }
-  }
+  let stopped = 0, disabled = 0, errors = 0, skipped = 0;
 
-  let stopped = 0, disabled = 0, errors = 0;
+  for (const name of names) {
+    // `sc qc` cuesta ~25 ms y devuelve START_TYPE, la ruta del binario y el
+    // display name. Reemplaza el re-escaneo con Get-CimInstance, que costaba
+    // ~1588 ms para toda la maquina.
+    const qc = await spawnCapture('sc.exe', ['qc', name]);
+    const info = qc.code === 0 ? parseScQc(qc.stdout) : null;
 
-  for (const idx of indices) {
-    const s = thirdParty[idx - 1];
-    if (!s) {
-      writeLog(`Indice ${idx} fuera de rango, ignorado.`);
+    if (!info) {
+      skipped++;
+      writeLog(`Servicio no encontrado, ignorado: ${name}`);
       continue;
     }
-    writeLog(`Procesando: ${s.Name} (${s.DisplayName})`);
 
-    if (s.State === 'Running') {
-      const stopResult = await spawnCapture('sc', ['stop', s.Name]);
-      if (stopResult.code === 0) {
-        stopped++;
-        writeLog(`  Detenido: ${s.Name}`);
-      } else {
-        errors++;
-        writeLog(`  ERROR deteniendo ${s.Name}: ${(stopResult.stderr || stopResult.stdout || '').trim().slice(0, 200)}`);
-        continue;
-      }
+    // Salvaguarda: el scan clasifica por ruta, pero la accion se vuelve a
+    // asegurar antes de tocar nada. Deshabilitar un servicio de Windows por un
+    // payload manipulado no deberia ser posible.
+    if (isSystemServicePath(info.binaryPath)) {
+      skipped++;
+      writeLog(`Omitido (servicio del sistema): ${info.name} — ${info.binaryPath}`);
+      continue;
     }
 
-    const configResult = await spawnCapture('sc', ['config', s.Name, 'start=', 'disabled']);
-    if (configResult.code === 0) {
-      disabled++;
-      writeLog(`  Deshabilitado: ${s.Name}`);
+    writeLog(`Procesando: ${info.name} (${info.displayName})`);
+
+    const stopResult = await spawnCapture('sc.exe', ['stop', info.name]);
+    if (stopResult.code === 0) {
+      stopped++;
+      writeLog(`  Detenido: ${info.name}`);
+    } else if (/1062|no se ha iniciado|not been started/i.test(errText(stopResult))) {
+      writeLog(`  Ya estaba detenido: ${info.name}`);
     } else {
       errors++;
-      writeLog(`  ERROR deshabilitando ${s.Name}: ${(configResult.stderr || configResult.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`  ERROR deteniendo ${info.name}: ${errText(stopResult)}`);
+      continue;
+    }
+
+    const configResult = await spawnCapture('sc.exe', ['config', info.name, 'start=', 'disabled']);
+    if (configResult.code === 0) {
+      disabled++;
+      writeLog(`  Deshabilitado: ${info.name}`);
+      // El valor previo se copia a la fila, no se referencia: si el servicio
+      // cambia despues, el manifiesto sigue diciendo como estaba al momento.
+      manifest.push({
+        name: info.name,
+        displayName: info.displayName,
+        binaryPath: info.binaryPath,
+        previousStartType: START_TYPE_BY_CODE[info.startTypeCode] || 'auto',
+        previousStartTypeLabel: info.startTypeLabel,
+        disabledAt: new Date().toISOString(),
+      });
+    } else {
+      errors++;
+      writeLog(`  ERROR deshabilitando ${info.name}: ${errText(configResult)}`);
     }
   }
 
-  writeLog(`Resumen: ${stopped} detenidos, ${disabled} deshabilitados, ${errors} errores`);
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+  writeLog(`Resumen: ${stopped} detenidos, ${disabled} deshabilitados, ${skipped} omitidos, ${errors} errores`);
   writeLog('=== Optimizacion de Servicios - fin ===');
 }

@@ -1,6 +1,7 @@
-import { existsSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture, isAdminWindows, parseCsvLine } from './shared.js';
+import {
+  spawnCapture, isAdminWindows, parseCsvLine,
+  makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
 
 // ═══════════════════════════════════════════════════════
 // RAM optimizer — ejecucion nativa en Node (sin powershell.exe)
@@ -214,12 +215,8 @@ function classifyProcessTier(name, hasWindow) {
 }
 
 export async function runRamScanNative(cleanMode, minMB, onOutput) {
-  const reportsDir = join(MODULES.ram.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `ram-report-${today}.md`);
-  const countsPath = join(reportsDir, 'ram-counts.json');
+  const paths = prepareReport('ram');
+  const { today, reportPath } = paths;
 
   onOutput('Obteniendo memoria del sistema...');
 
@@ -348,10 +345,8 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
   lines.push(`- Procesos criticos (no tocar): ${criticalProcs.length}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-
   const top5 = topCandidates.slice(0, 5).map((p) => ({ name: p.name, pid: p.pid, mb: p.memMB, desc: p.knownDesc }));
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     total_mb: totalRamMB, used_mb: usedRamMB, free_mb: freeRamMB,
     usage_percent: usagePercent,
@@ -360,25 +355,16 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
     unknown_processes: unknownProcs.length,
     risky_processes: riskyProcs.length,
     critical_processes: criticalProcs.length,
-    top_processes: top5, error: false,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
-  onOutput(`Conteos generados en: ${countsPath}`);
+    top_processes: top5,
+    // Antes esto era `false` fijo: el dashboard no podia distinguir "no hay
+    // procesos" de "el escaneo fallo".
+    error: processes.length === 0,
+  }, onOutput);
 }
 
 /** Termina procesos seleccionados por el usuario (via taskkill). */
 export async function runRamActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.ram.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, MODULES.ram.logFile);
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('ram', onOutput);
 
   writeLog('=== Liberacion de RAM - inicio ===');
 
@@ -454,7 +440,7 @@ export async function runRamActionNative(envVars, onOutput) {
       writeLog(`Liberado${label}: ${p.name} (PID: ${pid}) - ${p.memMB} MB`);
     } else {
       errors++;
-      writeLog(`ERROR liberando ${p.name} (PID: ${pid}): ${(r.stderr || r.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`ERROR liberando ${p.name} (PID: ${pid}): ${errText(r)}`);
     }
   }
 

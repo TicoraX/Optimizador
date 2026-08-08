@@ -450,9 +450,23 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     envVars.UNKNOWN_PROCESSES = validateIndexList(req.body.unknownProcesses, 'unknownProcesses');
   }
 
-  // Services: indices de servicios de terceros a deshabilitar.
+  // Services: NOMBRES de servicios de terceros a deshabilitar.
+  // Antes eran indices sobre la lista del reporte, pero el scan la ordenaba por
+  // memoria y la accion no: el indice apuntaba a otro servicio. El nombre es
+  // estable entre scan y accion.
   if (req.body?.services !== undefined) {
-    envVars.OPTIMIZE_SERVICES = validateIndexList(req.body.services, 'services');
+    const raw = Array.isArray(req.body.services)
+      ? req.body.services
+      : String(req.body.services || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    // Los nombres de servicio de Windows no llevan coma ni comillas.
+    const bad = picked.filter((n) => !/^[A-Za-z0-9_.\-$ ]{1,256}$/.test(n));
+    if (bad.length > 0) {
+      const err = new Error(`Nombres de servicio invalidos: ${bad.slice(0, 3).join(', ')}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.OPTIMIZE_SERVICES = [...new Set(picked)].join(',');
   }
 
   // Power: indice del plan de energía a activar (1-based, entero).
