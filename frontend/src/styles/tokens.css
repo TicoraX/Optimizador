@@ -64,6 +64,7 @@
   --color-success: var(--green-dark);
   --color-warning: var(--amber-dark);
   --color-danger: var(--rose-dark);
+  --color-success-soft: oklch(72% 0.15 155 / 0.14);
 }
 
 [data-theme='light'] {
@@ -88,6 +89,7 @@
   --color-success: var(--green-light);
   --color-warning: var(--amber-light);
   --color-danger: var(--rose-light);
+  --color-success-soft: oklch(48% 0.14 155 / 0.10);
 }
 
 /* ── Tipografia ───────────────────────────────────────────

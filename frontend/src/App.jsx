@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import ReportViewer from './components/ReportViewer';
 import Scheduler from './components/Scheduler';
+import History from './components/History';
 import ErrorBoundary from './components/ErrorBoundary';
 import { MODULES, MODULE_KEYS } from './modules';
 import { ModuleIcon } from './components/ModuleIcon';
@@ -31,17 +32,19 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchStatus();
-    
-    // Set up polling interval every 30 seconds
-    const interval = setInterval(fetchStatus, 30000);
+    // `alive` evita setear estado si el componente se desmonta antes de que
+    // responda el primer fetch.
+    let alive = true;
+    const tick = async () => { if (alive) await fetchStatus(); };
 
-    // Expose immediate refresh callback to the global window
-    window.onDoneRefreshStatus = () => {
-      fetchStatus();
-    };
+    tick();
+    const interval = setInterval(tick, 30000);
+
+    // Canal para que ReportViewer pida un refresco al terminar una accion.
+    window.onDoneRefreshStatus = tick;
 
     return () => {
+      alive = false;
       clearInterval(interval);
       delete window.onDoneRefreshStatus;
     };
@@ -74,6 +77,10 @@ export default function App() {
                 {MODULES[key].label}
               </NavLink>
             ))}
+            <NavLink to="/historial" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <ModuleIcon path="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2" size={16} />
+              Historial
+            </NavLink>
             <NavLink to="/scheduler" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <ModuleIcon path="M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" size={16} />
               Programador
@@ -104,6 +111,7 @@ export default function App() {
                 } 
               />
               <Route path="/report/:module" element={<ReportViewer />} />
+              <Route path="/historial" element={<History />} />
               <Route path="/scheduler" element={<Scheduler />} />
             </Routes>
           </ErrorBoundary>

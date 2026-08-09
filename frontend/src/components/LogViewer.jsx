@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../config';
 
 function classifyLine(line) {
@@ -15,10 +15,10 @@ export default function LogViewer({ module }) {
   const [error, setError]       = useState(null);
   const [clearing, setClearing] = useState(false);
 
+  // Sin setLoading/setError sincronos al entrar: se llama directo desde un
+  // efecto y disparaba un render en cascada. El estado inicial ya es el correcto.
   const fetchLogs = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
       const res = await fetch(`${API_BASE}/logs/${module}`);
       if (res.status === 404) { setLines([]); setSize(0); return; }
       if (!res.ok) throw new Error('No se pudo leer el log');
@@ -32,7 +32,11 @@ export default function LogViewer({ module }) {
     }
   }, [module]);
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    let alive = true;
+    (async () => { await fetchLogs(); if (alive) setLoading(false); })();
+    return () => { alive = false; };
+  }, [fetchLogs]);
 
   const handleClear = async (rotate = false) => {
     if (!confirm(rotate ? '¿Rotar y vaciar el log? Se guardará una copia .bak' : '¿Vaciar el log de acciones?')) return;
@@ -57,7 +61,7 @@ export default function LogViewer({ module }) {
       <div className="log-viewer-header">
         <span className="log-viewer-title">
           ACTION LOG — {module.toUpperCase()}
-          {size > 0 && <span style={{ color: 'rgba(255,255,255,0.25)', marginLeft: '1rem', fontWeight: 400 }}>{(size / 1024).toFixed(1)} KB</span>}
+          {size > 0 && <span style={{ color: 'var(--color-ink-3)', marginLeft: '1rem', fontWeight: 400 }}>{(size / 1024).toFixed(1)} KB</span>}
         </span>
         <div style={{ display: 'flex', gap: '0.6rem' }}>
           <button
@@ -89,11 +93,11 @@ export default function LogViewer({ module }) {
 
       <div className="log-viewer-body">
         {loading ? (
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>Cargando...</span>
+          <span style={{ color: 'var(--color-ink-3)' }}>Cargando...</span>
         ) : error ? (
           <span className="log-line-err">[ERROR] {error}</span>
         ) : lines.length === 0 ? (
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>Sin entradas en el log.</span>
+          <span style={{ color: 'var(--color-ink-3)' }}>Sin entradas en el log.</span>
         ) : (
           lines.map((line, i) => {
             const cls = classifyLine(line);

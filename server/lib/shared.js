@@ -464,11 +464,34 @@ export function errText(r) {
  * El valor anterior se COPIA a la fila, no se referencia: la fila describe lo
  * que paso ese dia y nada que cambie despues puede reescribirla.
  */
+export function changesPath(moduleKey) {
+  return join(reportsDirOf(moduleKey), 'changes.json');
+}
+
+/** Diario de cambios de un modulo, mas viejo primero. */
+export function readChanges(moduleKey) {
+  return loadJsonSafe(changesPath(moduleKey), []);
+}
+
+export function writeChanges(moduleKey, journal) {
+  writeFileSync(changesPath(moduleKey), JSON.stringify(journal, null, 2), 'utf-8');
+}
+
 export function appendChange(moduleKey, entry) {
-  const path = join(reportsDirOf(moduleKey), 'changes.json');
-  const journal = loadJsonSafe(path, []);
-  journal.push({ at: new Date().toISOString(), module: moduleKey, ...entry });
-  writeFileSync(path, JSON.stringify(journal, null, 2), 'utf-8');
+  const journal = readChanges(moduleKey);
+  journal.push({
+    // `id` es el indice al momento de escribir. El diario es append-only:
+    // revertir marca la fila, no la borra, asi que el id no se corre nunca.
+    id: journal.length,
+    at: new Date().toISOString(),
+    module: moduleKey,
+    ...entry,
+    // Se calcula aca y no en el llamador: si dependiera de que cada modulo se
+    // acuerde de pasarlo, alcanzaria con un olvido para ofrecer un "deshacer"
+    // que no tiene con que.
+    reversible: entry.previousValue !== undefined,
+  });
+  writeChanges(moduleKey, journal);
 }
 
 /**
@@ -489,11 +512,7 @@ export function makeGuard(moduleKey, { dryRun, writeLog }) {
     const result = await fn();
     const ok = result?.ok ?? (result?.code === 0);
     if (ok) {
-      appendChange(moduleKey, {
-        action: description,
-        reversible: meta.previousValue !== undefined,
-        ...meta,
-      });
+      appendChange(moduleKey, { action: description, ...meta });
     }
     return { ...result, ok, simulated: false };
   };

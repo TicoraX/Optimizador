@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function Terminal({ logs, isRunning, onAbort, progress }) {
   const terminalEndRef = useRef(null);

@@ -13,6 +13,7 @@ import {
   validateDays, validateMinRamMB, normalizeSchTaskStatus, loadJsonSafe,
   findLatestReport, buildReportPath, safeHandler, loadItems,
 } from './lib/shared.js';
+import { listAllChanges, undoChange } from './lib/changes.js';
 import { runCleanupScanNative, runCleanupActionNative } from './lib/cleanup.js';
 import { runUpdatesScanNative, runUpdatesActionNative } from './lib/updates.js';
 import { runStartupScanNative, runStartupActionNative } from './lib/startup.js';
@@ -319,6 +320,27 @@ app.get('/api/reports/:module/latest', safeHandler((req, res) => {
   const content = readFileSync(reportPath, 'utf-8');
   const dateMatch = reportPath.match(/(\d{4}-\d{2}-\d{2})/);
   res.json({ module: req.params.module, date: dateMatch ? dateMatch[0] : null, content });
+}));
+
+// ═══════════════════════════════════════════════════════
+// GET  /api/changes            — diario de todo lo que la app cambio
+// POST /api/changes/:module/:id/undo — revertir un cambio
+// ═══════════════════════════════════════════════════════
+app.get('/api/changes', safeHandler((_req, res) => {
+  res.json({ changes: listAllChanges() });
+}));
+
+app.post('/api/changes/:module/:id/undo', safeHandler(async (req, res) => {
+  validateModule(req.params.module);
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 0) {
+    const err = new Error('id de cambio invalido');
+    err.statusCode = 400;
+    throw err;
+  }
+  const result = await undoChange(req.params.module, id);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true, change: result.change });
 }));
 
 // Elementos seleccionables del ultimo escaneo, ya estructurados.

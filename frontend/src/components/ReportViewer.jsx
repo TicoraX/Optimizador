@@ -389,14 +389,14 @@ export default function ReportViewer() {
             </div>
           ) : error ? (
             <div className="error-wrapper" style={{ padding: 0 }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--warning)', marginBottom: '1rem'}}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--color-warning)', marginBottom: '1rem'}}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               <h3>No hay reporte disponible</h3>
-              <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>{error}</p>
+              <p style={{ color: 'var(--color-ink-3)', marginTop: '0.5rem' }}>{error}</p>
             </div>
           ) : (
             <>
               {report?.content && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '0 0 1rem 0', lineHeight: '1.4', borderBottom: '1px solid var(--border-color)', marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-3)', padding: '0 0 1rem 0', lineHeight: '1.4', borderBottom: '1px solid var(--color-rule)', marginBottom: '1rem' }}>
                   {module === 'updates' && 'Busca actualizaciones pendientes de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.'}
                   {module === 'cleanup' && 'Mide espacio recuperable en archivos temporales, caché de navegadores, descargas antiguas y papelera de reciclaje.'}
                   {module === 'startup' && 'Analiza programas, servicios y tareas programadas que se inician con tu sesión de Windows. Todo es reversible.'}
@@ -426,7 +426,7 @@ export default function ReportViewer() {
             </button>
           </div>
 
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0 0.75rem 0', lineHeight: '1.4' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', padding: '0 0 0.75rem 0', lineHeight: '1.4' }}>
             {module === 'updates' && 'Busca actualizaciones de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.'}
             {module === 'cleanup' && 'Mide espacio recuperable en temporales, caché de navegadores, descargas y papelera. Solo lectura.'}
             {module === 'startup' && 'Analiza programas, servicios y tareas que se inician con tu sesión. Deshabilitar es reversible.'}
@@ -438,7 +438,7 @@ export default function ReportViewer() {
             {module === 'privacy' && 'Revisa 8 ajustes de privacidad (telemetría, Cortana, ubicación, etc.) y los protege con un clic.'}
           </div>
 
-          <div style={{ height: '1px', background: 'var(--border-color)', margin: '1.5rem 0' }} />
+          <div style={{ height: '1px', background: 'var(--color-rule)', margin: '1.5rem 0' }} />
 
           <h3 style={{ fontSize: '1rem', marginBottom: '1rem', fontWeight: '600' }}>Configurar Ejecución</h3>
 
@@ -456,7 +456,7 @@ export default function ReportViewer() {
                     />
                     <span className="checkbox-label">
                       {cat.label}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {cat.hint}
                       </span>
                     </span>
@@ -498,7 +498,7 @@ export default function ReportViewer() {
                         />
                         <span className="checkbox-label" title={prog.name}>
                           {prog.name}
-                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                             {prog.source}
                           </span>
                         </span>
@@ -531,11 +531,11 @@ export default function ReportViewer() {
 
               {(disabledPrograms.length > 0 || disabledTasks.length > 0) && (
                 <div className="disabled-items-section">
-                  <div style={{ height: '1px', background: 'var(--border-color)', margin: '1.5rem 0' }} />
+                  <div style={{ height: '1px', background: 'var(--color-rule)', margin: '1.5rem 0' }} />
                   <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', fontWeight: '600' }}>
                     Deshabilitados
                   </h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                  <p style={{ color: 'var(--color-ink-3)', fontSize: '0.8rem', marginBottom: '1rem' }}>
                     Marca lo que quieras reactivar.
                   </p>
 
@@ -553,7 +553,7 @@ export default function ReportViewer() {
                             />
                             <span className="checkbox-label" title={prog.name}>
                               {prog.name}
-                              <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                                 {prog.source}
                               </span>
                             </span>
@@ -591,7 +591,7 @@ export default function ReportViewer() {
           {module === 'services' && availableServices.length > 0 && (
             <div className="form-group">
               <label className="form-label">Servicios de terceros a deshabilitar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
                 Se detendrá el servicio y se cambiará su inicio a "Deshabilitado".
               </p>
               <div className="checkbox-list">
@@ -605,7 +605,7 @@ export default function ReportViewer() {
                     />
                     <span className="checkbox-label" title={svc.name}>
                       {svc.displayName || svc.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {svc.name} — {svc.status}
                       </span>
                     </span>
@@ -639,7 +639,7 @@ export default function ReportViewer() {
           {module === 'apps' && availableApps.length > 0 && (
             <div className="form-group">
               <label className="form-label">Aplicaciones a desinstalar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
                 Se desinstalarán las aplicaciones seleccionadas via winget.
               </p>
               <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -653,7 +653,7 @@ export default function ReportViewer() {
                     />
                     <span className="checkbox-label" title={app.name}>
                       {app.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {app.id} — {app.version}
                       </span>
                     </span>
@@ -666,7 +666,7 @@ export default function ReportViewer() {
           {module === 'privacy' && privacySettings.length > 0 && (
             <div className="form-group">
               <label className="form-label">Ajustes a proteger:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
                 Se aplicará la configuración recomendada de privacidad a los ajustes seleccionados.
               </p>
               <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -680,7 +680,7 @@ export default function ReportViewer() {
                     />
                     <span className="checkbox-label" title={item.name}>
                       {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {item.status}
                       </span>
                     </span>
@@ -712,7 +712,7 @@ export default function ReportViewer() {
                     Profundo
                   </button>
                 </div>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                <p style={{ fontSize: '0.7rem', color: 'var(--color-ink-3)', marginTop: '0.25rem' }}>
                   {cleanMode === 'soft'
                     ? 'Solo procesos identificados seguros (>= umbral).'
                     : 'Incluye procesos no identificados sin ventana visible (>= 10 MB).'}
@@ -776,7 +776,7 @@ export default function ReportViewer() {
                         />
                         <span className="checkbox-label" title={proc.name}>
                           {proc.name}
-                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                             PID: {proc.pid} — {proc.mb} MB
                           </span>
                         </span>
@@ -787,11 +787,11 @@ export default function ReportViewer() {
               )}
 
               {unknownProcesses.length > 0 && (
-                <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                  <label className="form-label" style={{ color: 'var(--warning-color, #e0a32a)' }}>
+                <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--color-rule)', paddingTop: '1rem' }}>
+                  <label className="form-label" style={{ color: 'var(--color-warning, #e0a32a)' }}>
                     Procesos no identificados:
                   </label>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', marginBottom: '0.75rem' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginTop: '0.25rem', marginBottom: '0.75rem' }}>
                     Procesos en segundo plano sin descripcion conocida. No se incluyen en "Seleccionar todos".
                     Revise antes de liberar, bajo su responsabilidad.
                   </p>
@@ -808,7 +808,7 @@ export default function ReportViewer() {
                         />
                         <span className="checkbox-label" title={proc.name}>
                           {proc.name}
-                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                             PID: {proc.pid} — {proc.mb} MB
                           </span>
                         </span>
@@ -819,11 +819,11 @@ export default function ReportViewer() {
               )}
 
               {riskyProcesses.length > 0 && (
-                <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                  <label className="form-label" style={{ color: 'var(--danger, #e05a5a)' }}>
+                <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--color-rule)', paddingTop: '1rem' }}>
+                  <label className="form-label" style={{ color: 'var(--color-danger, #e05a5a)' }}>
                     No recomendado (editores/navegadores/sync/chat):
                   </label>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginTop: '0.25rem' }}>
                     Cerrarlos sin guardar pierde tu trabajo o sesión. Nunca se incluyen en "Seleccionar todos" ni se
                     preseleccionan — marca abajo solo si reconoces el proceso y estás seguro de cerrarlo.
                   </p>
@@ -834,7 +834,7 @@ export default function ReportViewer() {
                       onChange={() => setRiskyAck(prev => !prev)}
                       disabled={isRunning}
                     />
-                    <span className="checkbox-label" style={{ color: 'var(--danger, #e05a5a)' }}>
+                    <span className="checkbox-label" style={{ color: 'var(--color-danger, #e05a5a)' }}>
                       Entiendo el riesgo y quiero poder cerrar procesos de esta lista
                     </span>
                   </label>
@@ -851,7 +851,7 @@ export default function ReportViewer() {
                         />
                         <span className="checkbox-label" title={proc.name}>
                           {proc.name}
-                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                             PID: {proc.pid} — {proc.mb} MB
                           </span>
                         </span>
