@@ -11,7 +11,7 @@ import {
   validateModule, validateDate, validateTask, validateTime, validateFrequency,
   validateWeekdays, validateIntervalDays, validateBooleanField, validateIndexList,
   validateDays, validateMinRamMB, normalizeSchTaskStatus, loadJsonSafe,
-  findLatestReport, buildReportPath, safeHandler,
+  findLatestReport, buildReportPath, safeHandler, loadItems,
 } from './lib/shared.js';
 import { runCleanupScanNative, runCleanupActionNative } from './lib/cleanup.js';
 import { runUpdatesScanNative, runUpdatesActionNative } from './lib/updates.js';
@@ -321,6 +321,19 @@ app.get('/api/reports/:module/latest', safeHandler((req, res) => {
   res.json({ module: req.params.module, date: dateMatch ? dateMatch[0] : null, content });
 }));
 
+// Elementos seleccionables del ultimo escaneo, ya estructurados.
+//
+// Va ANTES de /:date a proposito: Express matchea en orden y 'items' seria
+// capturado como fecha (y rechazado por validateDate) si fuera despues.
+app.get('/api/reports/:module/items', safeHandler((req, res) => {
+  validateModule(req.params.module);
+  const items = loadItems(req.params.module);
+  if (!items) {
+    return res.status(404).json({ error: 'Este modulo no tiene elementos seleccionables o no se ha escaneado' });
+  }
+  res.json({ module: req.params.module, items });
+}));
+
 app.get('/api/reports/:module/:date', safeHandler((req, res) => {
   const mod = validateModule(req.params.module);
   const date = validateDate(req.params.date);
@@ -489,10 +502,12 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     const raw = Array.isArray(req.body.apps) ? req.body.apps : String(req.body.apps || '').split(',');
     const picked = raw.map((s) => String(s).trim()).filter(Boolean);
     // El charset anterior no admitia `+`, asi que IDs reales de winget como
-    // `Notepad++.Notepad++` daban 400. Se agregan `+`, `&` y espacio, que
-    // aparecen en IDs publicados (ej. `Microsoft.VCRedist.2015+.x64`).
+    // `Notepad++.Notepad++` daban 400. Tampoco `\`, que llevan los IDs MSIX
+    // (`MSIX\Microsoft.Microsoft3DViewer_1.0.125.0_x64__8wekyb3d8bbwe`), ni el
+    // espacio ni `&`, que aparecen en IDs publicados. Nada de esto es riesgoso:
+    // spawn corre con shell:false y los argumentos van como array.
     // La coma queda fuera a proposito: es el separador.
-    const bad = picked.filter((id) => !/^[A-Za-z0-9._+&\- ]{1,200}$/.test(id));
+    const bad = picked.filter((id) => !/^[A-Za-z0-9._+&\-\\ ]{1,200}$/.test(id));
     if (bad.length > 0) {
       const err = new Error(`IDs de paquete invalidos: ${bad.slice(0, 3).join(', ')}`);
       err.statusCode = 400;

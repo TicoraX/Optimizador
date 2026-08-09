@@ -414,13 +414,29 @@ export function prepareReport(moduleKey) {
     today,
     reportPath: join(dir, `${mod.reportPrefix}-${today}.md`),
     countsPath: join(dir, mod.countsFile),
+    itemsPath: join(dir, `${moduleKey}-items.json`),
   };
 }
 
-/** Escribe el reporte Markdown y su JSON de conteos. */
-export function finishReport({ reportPath, countsPath }, lines, counts, onOutput) {
+/** Lee el JSON de items de un modulo. Devuelve null si el scan no lo escribio. */
+export function loadItems(moduleKey) {
+  return loadJsonSafe(join(MODULES[moduleKey].dir, 'reports', `${moduleKey}-items.json`), null);
+}
+
+/**
+ * Escribe el reporte Markdown, su JSON de conteos y, si el modulo tiene
+ * elementos seleccionables, el JSON de items.
+ *
+ * `items` existe porque el frontend reconstruia la lista de opciones con
+ * regex sobre el Markdown del reporte: cambiar la redaccion de una linea
+ * rompia los checkboxes en silencio, y el indice del texto no siempre
+ * coincidia con lo que la accion iba a tocar. El scan ya tiene estos arrays
+ * en memoria; escribirlos cuesta nada y convierte el contrato en explicito.
+ */
+export function finishReport({ reportPath, countsPath, itemsPath }, lines, counts, onOutput, items = null) {
   writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
   writeFileSync(countsPath, JSON.stringify(counts, null, 2), 'utf-8');
+  if (items) writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf-8');
   onOutput(`Reporte generado en: ${reportPath}`);
 }
 

@@ -105,7 +105,12 @@ export async function runPrivacyScanNative(onOutput) {
     total_settings: PRIVACY_SETTINGS.length,
     hardened_count: hardenedCount,
     error: scanError,
-  }, onOutput);
+  }, onOutput,
+  // `index` es 1-based y es exactamente lo que espera la accion.
+  results.map((s, i) => ({
+    index: i + 1, id: s.id, name: s.name, desc: s.desc,
+    currentValue: s.currentValue, safe: s.safe,
+  })));
 }
 
 export async function runPrivacyActionNative(envVars, onOutput) {

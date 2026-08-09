@@ -409,7 +409,9 @@ export async function runPowerScanNative(onOutput) {
     plan_cooling: null,
     plan_sleep_standby: null,
     error: scanError,
-  }, onOutput);
+  }, onOutput,
+  // `index` es 1-based: es el PLAN_INDEX que espera la accion.
+  plans.map((p, i) => ({ index: i + 1, guid: p.guid, name: p.name, active: p.active })));
 }
 
 export async function runPowerActionNative(envVars, onOutput) {

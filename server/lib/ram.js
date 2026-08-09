@@ -359,7 +359,14 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
     // Antes esto era `false` fijo: el dashboard no podia distinguir "no hay
     // procesos" de "el escaneo fallo".
     error: processes.length === 0,
-  }, onOutput);
+  }, onOutput,
+  // Por PID, no por indice: la accion re-valida el tier del PID en vivo antes
+  // de matar nada. Los criticos no viajan, no son seleccionables.
+  {
+    known: knownProcs.map((p) => ({ pid: p.pid, name: p.name, memMB: p.memMB, desc: p.knownDesc })),
+    unknown: unknownProcs.map((p) => ({ pid: p.pid, name: p.name, memMB: p.memMB })),
+    risky: riskyProcs.map((p) => ({ pid: p.pid, name: p.name, memMB: p.memMB })),
+  });
 }
 
 /** Termina procesos seleccionados por el usuario (via taskkill). */

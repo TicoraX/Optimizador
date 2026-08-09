@@ -324,7 +324,20 @@ export async function runStartupScanNative(onOutput) {
     boot_performance: { boot_time_ms: 0, trend: 'unknown', error: true },
     auto_services: { count: services.length, nonMicrosoft: nonMsServices.length, error: servicesError },
     logon_tasks: { count: logonTasks.length, enabled: enabledTasks.length, disabled: disabledTasks.length, error: tasksError },
-  }, onOutput);
+  }, onOutput,
+  // Cuatro listas con indice 1-based, cada una en el mismo orden que usa la
+  // accion: programs/tasks para deshabilitar, disabled*/ para reactivar.
+  {
+    programs: allEntries.map((e, i) => ({
+      index: i + 1, name: e.name, source: e.source, type: e.type,
+      command: e.command, requiresAdmin: String(e.keyPath || '').startsWith('HKLM'),
+    })),
+    tasks: enabledTasks.map((t, i) => ({ index: i + 1, taskName: t.taskName, state: t.state })),
+    disabledPrograms: disabledEntries.map((e, i) => ({
+      index: i + 1, name: e.name, source: e.source, type: e.type,
+    })),
+    disabledTasks: disabledTasks.map((t, i) => ({ index: i + 1, taskName: t.taskName, state: t.state })),
+  });
 }
 
 /** Deshabilita programas de inicio (registro/accesos directos) y tareas de logon seleccionadas. */

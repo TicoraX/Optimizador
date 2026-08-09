@@ -23,10 +23,10 @@ export async function runServicesScanNative(onOutput) {
       const raw = JSON.parse(psResult.stdout.trim());
       const services = Array.isArray(raw) ? raw : [raw];
       for (const s of services) {
-        const path = (s.PathName || '').toLowerCase();
-        const isMs = path.includes('\\windows\\') || path.includes('\\system32\\') || path.includes('\\winsxs\\') || path === '';
+        // Misma funcion que usa la accion: si el scan y la accion clasificaran
+        // distinto, el reporte volveria a ofrecer algo que la accion rechaza.
         const entry = { name: s.Name, displayName: s.DisplayName || s.Name, state: s.State, pid: s.ProcessId };
-        if (isMs) system.push(entry);
+        if (isSystemServicePath(s.PathName, s.Name)) system.push(entry);
         else thirdParty.push(entry);
       }
     } catch (e) {
@@ -111,7 +111,11 @@ export async function runServicesScanNative(onOutput) {
     system_total: system.length,
     system_running: runningSys.length,
     error: scanError,
-  }, onOutput);
+  }, onOutput,
+  // La accion selecciona por nombre, asi que el nombre es lo que viaja.
+  thirdParty.map((s) => ({
+    name: s.name, displayName: s.displayName, state: s.state, memMB: s.memMB,
+  })));
 }
 
 /** Parsea la salida de `sc qc <nombre>`. Devuelve null si el servicio no existe. */
@@ -132,11 +136,38 @@ export function parseScQc(stdout) {
   };
 }
 
-/** Un servicio cuyo binario vive en el arbol de Windows se trata como del sistema. */
-export function isSystemServicePath(binaryPath) {
+// Servicios que NUNCA se ofrecen ni se tocan, por nombre.
+//
+// La clasificacion por ruta no alcanza: Windows Defender vive en
+// C:\ProgramData\Microsoft\Windows Defender\, que no contiene ninguno de los
+// fragmentos de abajo, asi que aparecia listado como "de terceros" y quedaba a
+// un clic de deshabilitarse. Una heuristica de rutas siempre va a tener huecos;
+// para lo critico hace falta una lista por nombre.
+const PROTECTED_SERVICES = new Set([
+  // Defender y seguridad
+  'windefend', 'wdnissvc', 'wdfilter', 'wdboot', 'sense', 'securityhealthservice',
+  'wscsvc', 'mpssvc', 'bfe', 'sgrmbroker',
+  // Actualizaciones
+  'wuauserv', 'usosvc', 'waasmedicsvc', 'trustedinstaller', 'bits', 'dosvc',
+  // Nucleo del sistema
+  'rpcss', 'dcomlaunch', 'lsm', 'plugplay', 'power', 'profsvc', 'themes',
+  'audiosrv', 'audioendpointbuilder', 'eventlog', 'schedule', 'cryptsvc',
+  'dhcp', 'dnscache', 'nsi', 'winmgmt', 'lanmanworkstation', 'lanmanserver',
+]);
+
+/**
+ * Un servicio se considera intocable si esta en la lista de protegidos o si su
+ * binario vive en el arbol de Windows. Ante la duda (ruta vacia), protege.
+ */
+export function isSystemServicePath(binaryPath, serviceName = '') {
+  if (PROTECTED_SERVICES.has(String(serviceName).toLowerCase())) return true;
   const p = String(binaryPath || '').toLowerCase();
   if (p === '') return true;
-  return p.includes('\\windows\\') || p.includes('\\system32\\') || p.includes('\\winsxs\\');
+  return p.includes('\\windows\\')
+    || p.includes('\\system32\\')
+    || p.includes('\\winsxs\\')
+    || p.includes('\\windows defender\\')
+    || p.includes('\\windowsapps\\');
 }
 
 // `sc config start=` acepta estos; el codigo numerico viene de `sc qc`.
@@ -186,7 +217,7 @@ export async function runServicesActionNative(envVars, onOutput) {
     // Salvaguarda: el scan clasifica por ruta, pero la accion se vuelve a
     // asegurar antes de tocar nada. Deshabilitar un servicio de Windows por un
     // payload manipulado no deberia ser posible.
-    if (isSystemServicePath(info.binaryPath)) {
+    if (isSystemServicePath(info.binaryPath, info.name)) {
       skipped++;
       writeLog(`Omitido (servicio del sistema): ${info.name} — ${info.binaryPath}`);
       continue;

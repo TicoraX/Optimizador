@@ -57,7 +57,13 @@ export async function runAppsScanNative(onOutput) {
     date: today, reportPath,
     apps_count: apps.length,
     error: scanError,
-  }, onOutput);
+  }, onOutput,
+  // `protected` viaja calculado: el frontend no deberia reimplementar la
+  // lista de paquetes criticos para poder deshabilitar el checkbox.
+  apps.map((a) => ({
+    id: a.id, name: a.name, version: a.version, source: a.source,
+    protected: isProtectedApp(a.id),
+  })));
 }
 
 // Paquetes que NUNCA se desinstalan desde aca. Desinstalar un runtime o un

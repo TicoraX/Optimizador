@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
-import CommandPreview from './CommandPreview';
 import { API_BASE } from '../config';
 import { renderReport } from '../lib/markdown';
 
@@ -15,18 +14,6 @@ const CLEAN_CATEGORIES = [
   { key: 'downloads', label: 'Descargas antiguas', hint: 'según la antigüedad de abajo' },
   { key: 'recycle', label: 'Papelera de reciclaje', hint: 'vacía la papelera' },
 ];
-
-const MODULE_SCRIPTS = {
-  updates: { scan: 'Check-Updates.ps1', action: 'Apply-Updates.ps1' },
-  cleanup: { scan: 'Scan-Cleanup.ps1', action: 'Clean-Disk.ps1' },
-  startup: { scan: 'Scan-Startup.ps1', action: 'Optimize-Startup.ps1' },
-  ram: { scan: 'Scan-RAM.ps1', action: 'Free-RAM.ps1' },
-  network: { scan: 'Scan-Network.ps1', action: 'Optimize-Network.ps1' },
-  services: { scan: 'Scan-Services.ps1', action: 'Optimize-Services.ps1' },
-  power: { scan: 'Scan-Power.ps1', action: 'Optimize-Power.ps1' },
-  apps: { scan: 'Scan-Apps.ps1', action: 'Optimize-Apps.ps1' },
-  privacy: { scan: 'Scan-Privacy.ps1', action: 'Optimize-Privacy.ps1' },
-};
 
 export default function ReportViewer() {
   const { module } = useParams();
@@ -57,7 +44,6 @@ export default function ReportViewer() {
 
   // Power Optimizer States
   const [powerPlans, setPowerPlans] = useState([]);
-  const [switchingPlan, setSwitchingPlan] = useState(null);
 
   // App Manager States
   const [availableApps, setAvailableApps] = useState([]);
@@ -98,22 +84,11 @@ export default function ReportViewer() {
       const data = await res.json();
       setReport(data);
 
-      // Parse startup/RAM options (la misma funcion parsea ambos reportes)
-      if ((module === 'startup' || module === 'ram') && data.content) {
-        parseStartupItems(data.content);
-      }
-      if (module === 'services' && data.content) {
-        parseServicesItems(data.content);
-      }
-      if (module === 'power' && data.content) {
-        parsePowerPlans(data.content);
-      }
-      if (module === 'apps' && data.content) {
-        parseAppsItems(data.content);
-      }
-      if (module === 'privacy' && data.content) {
-        parsePrivacyItems(data.content);
-      }
+      // Los elementos seleccionables vienen ya estructurados del backend.
+      // Antes se reconstruian con 5 parsers de regex sobre el Markdown del
+      // reporte: cambiar la redaccion de una linea rompia los checkboxes en
+      // silencio, y el indice del texto no siempre era el que usaba la accion.
+      await loadItems();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -133,237 +108,50 @@ export default function ReportViewer() {
     };
   }, [module]);
 
-  // Parse programs and tasks from markdown report
-  const parseStartupItems = (markdown) => {
-    const programs = [];
-    const tasks = [];
+  // Carga los elementos seleccionables del ultimo escaneo.
+  const loadItems = async () => {
+    const res = await fetch(`${API_BASE}/reports/${module}/items`);
+    // 404 es legitimo: el modulo no tiene seleccion (network, updates, cleanup)
+    // o todavia no se escaneo.
+    if (!res.ok) return;
+    const { items } = await res.json();
 
-    // Extract registry / folder startup programs
-    const progMatch = markdown.match(/## Programas de inicio \(\d+\)\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (progMatch) {
-      const lines = progMatch[1].split('\n');
-      let currentSource = null;
-      for (let line of lines) {
-        line = line.trim();
-        if (line.startsWith('[') && line.includes(']')) {
-          const parts = line.split(']');
-          currentSource = parts[0].substring(1).trim();
-          const currentName = parts.slice(1).join(']').trim();
-          if (currentName) {
-            programs.push({ name: currentName, source: currentSource });
-          }
-        }
-      }
+    const noneChecked = (list) => Object.fromEntries(list.map((_, i) => [i, false]));
+
+    if (module === 'startup') {
+      setAvailablePrograms(items.programs || []);
+      setSelectedPrograms(noneChecked(items.programs || []));
+      setAvailableTasks(items.tasks || []);
+      setSelectedTasks(noneChecked(items.tasks || []));
+      setDisabledPrograms(items.disabledPrograms || []);
+      setSelectedEnablePrograms(noneChecked(items.disabledPrograms || []));
+      setDisabledTasks(items.disabledTasks || []);
+      setSelectedEnableTasks(noneChecked(items.disabledTasks || []));
+    } else if (module === 'ram') {
+      setAvailableProcesses(items.known || []);
+      setSelectedProcesses(noneChecked(items.known || []));
+      setUnknownProcesses(items.unknown || []);
+      setSelectedUnknownProcesses(noneChecked(items.unknown || []));
+      setRiskyProcesses(items.risky || []);
+      setSelectedRiskyProcesses(noneChecked(items.risky || []));
+    } else if (module === 'services') {
+      setAvailableServices(items);
+      setSelectedServices(noneChecked(items));
+    } else if (module === 'apps') {
+      setAvailableApps(items);
+      setSelectedApps(noneChecked(items));
+    } else if (module === 'privacy') {
+      setPrivacySettings(items);
+      setSelectedPrivacy(noneChecked(items));
+    } else if (module === 'power') {
+      setPowerPlans(items);
     }
-
-    // Extract enabled scheduled tasks
-    const tasksMatch = markdown.match(/### Habilitadas \(\d+\)\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (tasksMatch) {
-      const lines = tasksMatch[1].split('\n');
-      for (let line of lines) {
-        line = line.trim();
-        if (line && !line.startsWith('###') && !line.startsWith('`')) {
-          const parts = line.split('  ');
-          const taskPathName = parts[0].trim();
-          if (taskPathName) {
-            const idx = taskPathName.lastIndexOf('\\');
-            const name = idx >= 0 ? taskPathName.substring(idx + 1) : taskPathName;
-            tasks.push({ fullName: taskPathName, name: name });
-          }
-        }
-      }
-    }
-
-    // Extract disabled startup programs (separate section, separate list)
-    const disabledProgs = [];
-    const disabledProgMatch = markdown.match(/## Programas deshabilitados \(\d+\)\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (disabledProgMatch) {
-      const lines = disabledProgMatch[1].split('\n');
-      for (let line of lines) {
-        line = line.trim();
-        if (line.startsWith('[') && line.includes(']')) {
-          const parts = line.split(']');
-          const source = parts[0].substring(1).trim();
-          const name = parts.slice(1).join(']').trim();
-          if (name) disabledProgs.push({ name, source });
-        }
-      }
-    }
-
-    // Extract disabled scheduled tasks
-    const disabledTasksList = [];
-    const disabledTasksMatch = markdown.match(/### Deshabilitadas \(\d+\)\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (disabledTasksMatch) {
-      const lines = disabledTasksMatch[1].split('\n');
-      for (let line of lines) {
-        line = line.trim();
-        if (line && !line.startsWith('###') && !line.startsWith('`')) {
-          const parts = line.split('  ');
-          const taskPathName = parts[0].trim();
-          if (taskPathName) {
-            const idx = taskPathName.lastIndexOf('\\');
-            const name = idx >= 0 ? taskPathName.substring(idx + 1) : taskPathName;
-            disabledTasksList.push({ fullName: taskPathName, name: name });
-          }
-        }
-      }
-    }
-
-    setAvailablePrograms(programs);
-    setAvailableTasks(tasks);
-    setDisabledPrograms(disabledProgs);
-    setDisabledTasks(disabledTasksList);
-
-    // Parse RAM identified processes (safe_known)
-    const processes = [];
-    const procMatch = markdown.match(/## Procesos identificados.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (procMatch) {
-      const lines = procMatch[1].split('\n');
-      for (const line of lines) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+(\d+)\s+MB/);
-        if (m) {
-          processes.push({ pid: parseInt(m[1]), name: m[2].trim(), mb: parseInt(m[3]) });
-        }
-      }
-    }
-    setAvailableProcesses(processes);
-    const initialProcState = {};
-    processes.forEach((_, idx) => { initialProcState[idx] = false; });
-    setSelectedProcesses(initialProcState);
-
-    // Parse RAM unknown processes
-    const unknown = [];
-    const unknownMatch = markdown.match(/## Procesos no identificados.*?\r?\n\r?\n.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (unknownMatch) {
-      const lines = unknownMatch[1].split('\n');
-      for (const line of lines) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+(\d+)\s+MB/);
-        if (m) {
-          unknown.push({ pid: parseInt(m[1]), name: m[2].trim(), mb: parseInt(m[3]) });
-        }
-      }
-    }
-    setUnknownProcesses(unknown);
-    const initialUnknownState = {};
-    unknown.forEach((_, idx) => { initialUnknownState[idx] = false; });
-    setSelectedUnknownProcesses(initialUnknownState);
-
-    // Parse RAM "no recomendados" processes - seleccionables a mano, bajo
-    // confirmacion explicita del usuario (ver riskyAck), nunca via "todos".
-    const riskyProcesses = [];
-    const riskyMatch = markdown.match(/## Procesos no recomendados.*?\r?\n\r?\n.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (riskyMatch) {
-      const lines = riskyMatch[1].split('\n');
-      for (const line of lines) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+(\d+)\s+MB/);
-        if (m) {
-          riskyProcesses.push({ pid: parseInt(m[1]), name: m[2].trim(), mb: parseInt(m[3]) });
-        }
-      }
-    }
-    setRiskyProcesses(riskyProcesses);
-    const initialRiskyState = {};
-    riskyProcesses.forEach((_, idx) => { initialRiskyState[idx] = false; });
-    setSelectedRiskyProcesses(initialRiskyState);
-    setRiskyAck(false);
-
-    // Initialize all checkboxes to false
-    const initialProgState = {};
-    programs.forEach((_, idx) => { initialProgState[idx] = false; });
-    setSelectedPrograms(initialProgState);
-
-    const initialTaskState = {};
-    tasks.forEach((_, idx) => { initialTaskState[idx] = false; });
-    setSelectedTasks(initialTaskState);
-
-    const initialEnableProgState = {};
-    disabledProgs.forEach((_, idx) => { initialEnableProgState[idx] = false; });
-    setSelectedEnablePrograms(initialEnableProgState);
-
-    const initialEnableTaskState = {};
-    disabledTasksList.forEach((_, idx) => { initialEnableTaskState[idx] = false; });
-    setSelectedEnableTasks(initialEnableTaskState);
   };
 
-  const parseServicesItems = (markdown) => {
-    const services = [];
-    const match = markdown.match(/## Servicios de Terceros.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (match) {
-      const lines = match[1].split('\n');
-      for (const line of lines) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+[—\-]\s+(.+?)\s+[—\-]\s+(.+)/);
-        if (m) {
-          services.push({
-            index: parseInt(m[1]),
-            name: m[2].trim(),
-            displayName: m[3].trim(),
-            status: m[4].trim(),
-          });
-        }
-      }
-    }
-    setAvailableServices(services);
-    const init = {};
-    services.forEach((_, idx) => { init[idx] = false; });
-    setSelectedServices(init);
-  };
-
-  const parsePowerPlans = (markdown) => {
-    const plans = [];
-    const match = markdown.match(/## Planes disponibles\n\n```\n([\s\S]*?)```/);
-    if (match) {
-      for (const line of match[1].split('\n')) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)(?:\s*\(ACTIVO\))?\s*$/);
-        if (m) {
-          const active = line.includes('(ACTIVO)');
-          const name = m[2].trim();
-          plans.push({ index: parseInt(m[1]), name, active });
-        }
-      }
-    }
-    setPowerPlans(plans);
-  };
-
-  const parseAppsItems = (markdown) => {
-    const apps = [];
-    const match = markdown.match(/## Aplicaciones Instaladas.*?\r?\n\r?\n```\r?\n([\s\S]*?)```/);
-    if (match) {
-      for (const line of match[1].split('\n')) {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+--\s+(.+?)\s+--\s+(.+?)\s+--\s+(.+)/);
-        if (m) {
-          apps.push({ index: parseInt(m[1]), name: m[2].trim(), id: m[3].trim(), version: m[4].trim(), source: m[5].trim() });
-        }
-      }
-    }
-    setAvailableApps(apps);
-    const init = {};
-    apps.forEach((_, idx) => { init[idx] = false; });
-    setSelectedApps(init);
-  };
-
-  const parsePrivacyItems = (markdown) => {
-    const items = [];
-    let mode = 'searching';
-    for (const line of markdown.split('\n')) {
-      const t = line.trim();
-      if (mode === 'searching' && t.startsWith('## Configuraci')) { mode = 'prepare'; continue; }
-      if (mode === 'prepare' && t === '```') { mode = 'capturing'; continue; }
-      if (mode === 'capturing' && t === '```') break;
-      if (mode === 'capturing') {
-        const m = line.match(/\[\s*(\d+)\]\s+(.+?)\s+[—–-]+\s+(.+?)\s+[—–-]+\s+(.+)/);
-        if (m) items.push({ index: parseInt(m[1]), name: m[2].trim(), desc: m[3].trim(), status: m[4].trim() });
-      }
-    }
-    setPrivacySettings(items);
-    const init = {};
-    items.forEach((_, idx) => { init[idx] = false; });
-    setSelectedPrivacy(init);
-  };
-
-  const switchToPlan = async (planIndex) => {
-    setSwitchingPlan(planIndex);
-    triggerExecution('/action/power', { autoConfirm: true, planIndex });
-    setSwitchingPlan(null);
+  // `switchingPlan` se seteaba y se limpiaba en el mismo tick, asi que el
+  // `disabled` que dependia de el nunca se activaba. Estado muerto, eliminado.
+  const switchToPlan = (planIndex) => {
+    triggerExecution('/action/power', { planIndex });
   };
 
   const handleCheckboxChange = (type, index) => {
@@ -376,87 +164,6 @@ export default function ReportViewer() {
     } else if (type === 'enableTask') {
       setSelectedEnableTasks(prev => ({ ...prev, [index]: !prev[index] }));
     }
-  };
-
-  const buildCommandPreview = (isAction) => {
-    const scripts = MODULE_SCRIPTS[module];
-    if (!scripts) return [];
-
-    const envLines = [];
-    if (isAction) {
-      envLines.push('$env:AUTO_CONFIRM = "true"');
-    }
-    if (module === 'cleanup') {
-      envLines.push(`$env:DOWNLOADS_AGE_DAYS = "${downloadsAgeDays}"`);
-    }
-    if (isAction && module === 'startup') {
-      const checkedProgs = Object.keys(selectedPrograms)
-        .filter(k => selectedPrograms[k])
-        .map(k => parseInt(k) + 1);
-      const checkedTasks = Object.keys(selectedTasks)
-        .filter(k => selectedTasks[k])
-        .map(k => parseInt(k) + 1);
-      const checkedEnableProgs = Object.keys(selectedEnablePrograms)
-        .filter(k => selectedEnablePrograms[k])
-        .map(k => parseInt(k) + 1);
-      const checkedEnableTasks = Object.keys(selectedEnableTasks)
-        .filter(k => selectedEnableTasks[k])
-        .map(k => parseInt(k) + 1);
-      envLines.push(`$env:OPTIMIZE_PROGRAMS = "${checkedProgs.length ? checkedProgs.join(',') : '(ninguno)'}"`);
-      envLines.push(`$env:OPTIMIZE_TASKS = "${checkedTasks.length ? checkedTasks.join(',') : '(ninguno)'}"`);
-      envLines.push(`$env:ENABLE_PROGRAMS = "${checkedEnableProgs.length ? checkedEnableProgs.join(',') : '(ninguno)'}"`);
-      envLines.push(`$env:ENABLE_TASKS = "${checkedEnableTasks.length ? checkedEnableTasks.join(',') : '(ninguno)'}"`);
-    }
-    if (isAction && module === 'services') {
-      const checked = Object.keys(selectedServices)
-        .filter(k => selectedServices[k])
-        .map(k => parseInt(k) + 1);
-      envLines.push(`$env:OPTIMIZE_SERVICES = "${checked.length ? checked.join(',') : '(ninguno)'}"`);
-    }
-    if (isAction && module === 'power') {
-      envLines.push('$env:PLAN_INDEX = "<segun clic>"');
-    }
-    if (isAction && module === 'apps') {
-      const ids = Object.keys(selectedApps)
-        .filter(k => selectedApps[k])
-        .map(k => availableApps[parseInt(k)]?.id)
-        .filter(Boolean);
-      envLines.push(`$env:OPTIMIZE_APPS = "${ids.length ? ids.join(',') : '(ninguno)'}"`);
-    }
-    if (isAction && module === 'privacy') {
-      const checked = Object.keys(selectedPrivacy)
-        .filter(k => selectedPrivacy[k])
-        .map(k => parseInt(k) + 1);
-      envLines.push(`$env:OPTIMIZE_PRIVACY = "${checked.length ? checked.join(',') : '(ninguno)'}"`);
-    }
-    if (module === 'ram') {
-      if (!isAction) {
-        envLines.push(`$env:MIN_RAM_MB = "${minRamMB}"`);
-        envLines.push(`$env:CLEAN_MODE = "${cleanMode}"`);
-      }
-    }
-    if (isAction && module === 'ram') {
-      const checkedProcs = Object.keys(selectedProcesses)
-        .filter(k => selectedProcesses[k])
-        .map(k => availableProcesses[parseInt(k)]?.pid)
-        .filter(Boolean);
-      envLines.push(`$env:OPTIMIZE_PROCESSES = "${checkedProcs.length ? checkedProcs.join(',') : '(ninguno)'}"`);
-      const checkedUnknown = Object.keys(selectedUnknownProcesses)
-        .filter(k => selectedUnknownProcesses[k])
-        .map(k => unknownProcesses[parseInt(k)]?.pid)
-        .filter(Boolean);
-      envLines.push(`$env:UNKNOWN_PROCESSES = "${checkedUnknown.length ? checkedUnknown.join(',') : '(ninguno)'}"`);
-      const checkedRisky = riskyAck
-        ? Object.keys(selectedRiskyProcesses).filter(k => selectedRiskyProcesses[k]).map(k => riskyProcesses[parseInt(k)]?.pid).filter(Boolean)
-        : [];
-      envLines.push(`$env:RISKY_PROCESSES = "${checkedRisky.length ? checkedRisky.join(',') : '(ninguno)'}"`);
-      envLines.push(`$env:MIN_RAM_MB = "${minRamMB}"`);
-      envLines.push(`$env:CLEAN_MODE = "${cleanMode}"`);
-    }
-
-    const script = isAction ? scripts.action : scripts.scan;
-    const cmd = `powershell.exe -ExecutionPolicy Bypass -NoProfile -NonInteractive -File ${script}`;
-    return [...envLines, cmd];
   };
 
   const runScan = () => {
@@ -579,7 +286,7 @@ export default function ReportViewer() {
       openWhenHidden: true,
       onmessage(event) {
         if (event.event === 'progress') {
-          try { setProgress(JSON.parse(event.data)); } catch {}
+          try { setProgress(JSON.parse(event.data)); } catch { /* progreso mal formado: se ignora */ }
         } else if (event.event === 'output') {
           setLogs(prev => [...prev, { type: 'output', text: event.data }]);
         } else if (event.event === 'error') {
@@ -614,7 +321,9 @@ export default function ReportViewer() {
         clearTimeout(timeoutId);
         setIsRunning(false);
         setProgress(null);
-        setLogs(prev => [...prev, { type: 'system', text: '\n[SISTEMA] Conexion cerrada por el servidor.' }]);
+        // Sin mensaje: onclose corre tambien despues de un 'done' limpio, y
+        // anunciar "conexion cerrada por el servidor" ahi parecia un error al
+        // final de toda ejecucion exitosa.
         
         fetchReport();
         if (window.onDoneRefreshStatus) {
@@ -728,8 +437,6 @@ export default function ReportViewer() {
             {module === 'apps' && 'Lista aplicaciones instaladas vía winget y permite desinstalar varias a la vez de forma silenciosa.'}
             {module === 'privacy' && 'Revisa 8 ajustes de privacidad (telemetría, Cortana, ubicación, etc.) y los protege con un clic.'}
           </div>
-
-          <CommandPreview lines={buildCommandPreview(false)} />
 
           <div style={{ height: '1px', background: 'var(--border-color)', margin: '1.5rem 0' }} />
 
@@ -917,12 +624,12 @@ export default function ReportViewer() {
                     key={plan.index}
                     className={`btn btn-sm${plan.active ? ' btn-primary' : ''}`}
                     onClick={() => !plan.active && switchToPlan(plan.index)}
-                    disabled={isRunning || plan.active || switchingPlan === plan.index}
-                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.75rem', textAlign: 'left', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.15rem' }}
-                    title={plan.desc}
+                    disabled={isRunning || plan.active}
+                    style={{ textAlign: 'left', justifyContent: 'flex-start' }}
                   >
-                    <span>{plan.active ? '✓ ' : ''}{plan.name} {plan.active ? '(activo)' : ''}</span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>{plan.desc}</span>
+                    {/* `plan.desc` no existia: el parser producia solo
+                        index/name/active, asi que el subtitulo salia vacio. */}
+                    {plan.active ? '✓ ' : ''}{plan.name}{plan.active ? ' (activo)' : ''}
                   </button>
                 ))}
               </div>
@@ -1155,8 +862,6 @@ export default function ReportViewer() {
               )}
             </>
           )}
-
-          <CommandPreview lines={buildCommandPreview(true)} />
 
           <div className="form-group" style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {/* La simulacion va primero y a propósito: es el camino por defecto

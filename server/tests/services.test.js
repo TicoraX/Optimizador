@@ -61,4 +61,25 @@ describe('isSystemServicePath', () => {
   it('deja pasar servicios de terceros', () => {
     assert.equal(isSystemServicePath('C:\\Program Files (x86)\\Common Files\\Steam\\steamservice.exe'), false);
   });
+
+  // Caso real encontrado escaneando la maquina: WinDefend aparecia en la lista
+  // de terceros porque su binario no vive bajo \windows\.
+  it('protege Windows Defender pese a que su ruta no esta en el arbol de Windows', () => {
+    const defenderPath = 'C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.25\\MsMpEng.exe';
+    assert.equal(isSystemServicePath(defenderPath, 'WinDefend'), true, 'por nombre');
+    assert.equal(isSystemServicePath(defenderPath, ''), true, 'por ruta');
+  });
+
+  it('protege por nombre servicios criticos aunque la ruta parezca de terceros', () => {
+    for (const name of ['wuauserv', 'MpsSvc', 'BFE', 'RpcSs', 'Schedule']) {
+      assert.equal(
+        isSystemServicePath('C:\\Program Files\\Cualquiera\\svc.exe', name), true,
+        `deberia proteger ${name}`,
+      );
+    }
+  });
+
+  it('la proteccion por nombre no distingue mayusculas', () => {
+    assert.equal(isSystemServicePath('C:\\App\\x.exe', 'WINDEFEND'), true);
+  });
 });
