@@ -472,8 +472,10 @@ export default function ReportViewer() {
     triggerExecution(`/scan/${module}`, body);
   };
 
-  const runAction = () => {
-    const body = {};
+  // dryRun corre la accion completa sin tocar nada y reporta que HARIA. Es la
+  // unica red de contencion para lo irreversible (borrar archivos, desinstalar).
+  const runAction = ({ dryRun = false } = {}) => {
+    const body = dryRun ? { dryRun: true } : {};
     if (module === 'cleanup') {
       body.downloadsAgeDays = downloadsAgeDays;
       body.cleanCategories = CLEAN_CATEGORIES
@@ -1156,8 +1158,17 @@ export default function ReportViewer() {
 
           <CommandPreview lines={buildCommandPreview(true)} />
 
-          <div className="form-group" style={{ marginTop: '2rem' }}>
-            <button className="btn btn-primary" onClick={runAction} disabled={isRunning}>
+          <div className="form-group" style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* La simulacion va primero y a propósito: es el camino por defecto
+                para lo irreversible. */}
+            <button
+              className="btn btn-secondary"
+              onClick={() => runAction({ dryRun: true })}
+              disabled={isRunning}
+            >
+              Ver qué va a pasar (no toca nada)
+            </button>
+            <button className="btn btn-primary" onClick={() => runAction()} disabled={isRunning}>
               Ejecutar acciones
             </button>
           </div>

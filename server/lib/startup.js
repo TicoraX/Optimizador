@@ -3,7 +3,7 @@ import { readdir, rename } from 'fs/promises';
 import { join, dirname } from 'path';
 import {
   MODULES, spawnCapture, isAdminWindows, parseCsvLine, parseIndexSelection,
-  makeLogger, prepareReport, finishReport, errText,
+  makeLogger, makeGuard, prepareReport, finishReport, errText,
   loadJsonSafe, normalizeSchTaskStatus,
 } from './shared.js';
 
@@ -148,7 +148,13 @@ async function getRegistryStartupEntries() {
     if (r.code !== 0) continue;
     for (const line of r.stdout.split(/\r?\n/)) {
       const m = line.match(/^\s+(.+?)\s{2,}(REG_\w+)\s{2,}(.*)$/);
-      if (m) entries.push({ name: m[1].trim(), command: m[3].trim(), source: rp.label, keyPath: rp.hive, type: 'registry' });
+      // El tipo se conserva. Antes se descartaba y al reactivar se escribia
+      // siempre REG_SZ: una entrada REG_EXPAND_SZ (`%ProgramFiles%\App\app.exe`,
+      // muy comun) volvia sin expansion de variables y el programa no arrancaba.
+      if (m) entries.push({
+        name: m[1].trim(), valueType: m[2], command: m[3].trim(),
+        source: rp.label, keyPath: rp.hive, type: 'registry',
+      });
     }
   }
   return entries;
@@ -324,8 +330,10 @@ export async function runStartupScanNative(onOutput) {
 /** Deshabilita programas de inicio (registro/accesos directos) y tareas de logon seleccionadas. */
 export async function runStartupActionNative(envVars, onOutput) {
   const writeLog = makeLogger('startup', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('startup', { dryRun, writeLog });
 
-  writeLog('=== Optimizacion de inicio - inicio ===');
+  writeLog(`=== Optimizacion de inicio - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   const isAdmin = await isAdminWindows();
 
@@ -342,8 +350,16 @@ export async function runStartupActionNative(envVars, onOutput) {
           writeLog(`OMITIDO (admin requerido para reactivar): ${e.name} desde ${e.keyPath}`);
           continue;
         }
-        const r = await spawnCapture('reg', ['add', e.keyPath, '/v', e.name, '/t', 'REG_SZ', '/d', e.command, '/f']);
-        if (r.code === 0) {
+        // El tipo sale del manifiesto, que lo guardo al deshabilitar. Sin el,
+        // una entrada REG_EXPAND_SZ volvia como REG_SZ y el programa no arrancaba.
+        const valueType = e.valueType || 'REG_SZ';
+        const r = await guard(
+          `Reactivar ${e.name} en ${e.keyPath} (${valueType})`,
+          () => spawnCapture('reg', ['add', e.keyPath, '/v', e.name, '/t', valueType, '/d', e.command, '/f']),
+          { target: `${e.keyPath}\\${e.name}`, previousValue: null, newValue: e.command },
+        );
+        if (r.simulated) continue;
+        if (r.ok) {
           const i = manifest.findIndex((m) => m.keyPath === e.keyPath && m.name === e.name);
           if (i >= 0) manifest.splice(i, 1);
           writeLog(`Reactivado (registry): ${e.name} en ${e.keyPath}`);
@@ -351,12 +367,22 @@ export async function runStartupActionNative(envVars, onOutput) {
           writeLog(`ERROR reactivando ${e.name}: ${errText(r)}`);
         }
       } else {
-        try {
-          await rename(e.disabledPath, e.restorePath);
-          writeLog(`Reactivado (shortcut): ${e.name} -> ${e.restorePath}`);
-        } catch (err) {
-          writeLog(`ERROR reactivando ${e.name}: ${err.message}`);
-        }
+        const r = await guard(
+          `Reactivar acceso directo ${e.name} -> ${e.restorePath}`,
+          async () => {
+            try {
+              await rename(e.disabledPath, e.restorePath);
+              return { ok: true };
+            } catch (err) {
+              return { ok: false, stderr: err.message };
+            }
+          },
+          { target: e.restorePath, previousValue: e.disabledPath },
+        );
+        if (r.simulated) continue;
+        writeLog(r.ok
+          ? `Reactivado (shortcut): ${e.name} -> ${e.restorePath}`
+          : `ERROR reactivando ${e.name}: ${r.stderr}`);
       }
     }
     saveDisabledRegistryManifest(manifest);
@@ -369,8 +395,13 @@ export async function runStartupActionNative(envVars, onOutput) {
   for (const idx of enableTaskIndices) {
     const t = disabledTasksForEnable[idx];
     if (!t) continue;
-    const r = await spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Enable']);
-    writeLog(r.code === 0
+    const r = await guard(
+      `Reactivar tarea programada ${t.taskName}`,
+      () => spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Enable']),
+      { target: t.taskName, previousValue: 'Disabled', newValue: 'Ready' },
+    );
+    if (r.simulated) continue;
+    writeLog(r.ok
       ? `Tarea reactivada: ${t.taskName}`
       : `ERROR reactivando ${t.taskName}: ${errText(r)}`);
   }
@@ -391,23 +422,43 @@ export async function runStartupActionNative(envVars, onOutput) {
           writeLog(`OMITIDO (admin requerido): ${e.name} desde ${e.keyPath}`);
           continue;
         }
-        const r = await spawnCapture('reg', ['delete', e.keyPath, '/v', e.name, '/f']);
-        if (r.code === 0) {
-          manifest.push({ name: e.name, command: e.command, keyPath: e.keyPath, source: e.source });
+        const r = await guard(
+          `Deshabilitar ${e.name} en ${e.keyPath}`,
+          () => spawnCapture('reg', ['delete', e.keyPath, '/v', e.name, '/f']),
+          { target: `${e.keyPath}\\${e.name}`, previousValue: e.command, valueType: e.valueType },
+        );
+        if (r.simulated) continue;
+        if (r.ok) {
+          // valueType viaja al manifiesto: es lo que permite restaurar la
+          // entrada con su tipo original.
+          manifest.push({
+            name: e.name, command: e.command, valueType: e.valueType,
+            keyPath: e.keyPath, source: e.source,
+          });
           writeLog(`Deshabilitado (registry): ${e.name} desde ${e.keyPath}`);
         } else {
           writeLog(`ERROR deshabilitando ${e.name}: ${errText(r)}`);
         }
       } else {
-        try {
-          const disabledDir = join(dirname(e.keyPath), STARTUP_DISABLED_SUBDIR);
-          if (!existsSync(disabledDir)) mkdirSync(disabledDir, { recursive: true });
-          const dest = join(disabledDir, e.name + '.lnk');
-          await rename(e.keyPath, dest);
-          writeLog(`Deshabilitado (shortcut): ${e.name} -> ${dest}`);
-        } catch (err) {
-          writeLog(`ERROR deshabilitando ${e.name}: ${err.message}`);
-        }
+        const disabledDir = join(dirname(e.keyPath), STARTUP_DISABLED_SUBDIR);
+        const dest = join(disabledDir, e.name + '.lnk');
+        const r = await guard(
+          `Deshabilitar acceso directo ${e.name} -> ${dest}`,
+          async () => {
+            try {
+              if (!existsSync(disabledDir)) mkdirSync(disabledDir, { recursive: true });
+              await rename(e.keyPath, dest);
+              return { ok: true };
+            } catch (err) {
+              return { ok: false, stderr: err.message };
+            }
+          },
+          { target: dest, previousValue: e.keyPath },
+        );
+        if (r.simulated) continue;
+        writeLog(r.ok
+          ? `Deshabilitado (shortcut): ${e.name} -> ${dest}`
+          : `ERROR deshabilitando ${e.name}: ${r.stderr}`);
       }
     }
     saveDisabledRegistryManifest(manifest);
@@ -419,8 +470,13 @@ export async function runStartupActionNative(envVars, onOutput) {
   for (const idx of taskIndices) {
     const t = enabledTasks[idx];
     if (!t) continue;
-    const r = await spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Disable']);
-    writeLog(r.code === 0
+    const r = await guard(
+      `Deshabilitar tarea programada ${t.taskName}`,
+      () => spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Disable']),
+      { target: t.taskName, previousValue: t.state, newValue: 'Disabled' },
+    );
+    if (r.simulated) continue;
+    writeLog(r.ok
       ? `Tarea deshabilitada: ${t.taskName}`
       : `ERROR deshabilitando ${t.taskName}: ${errText(r)}`);
   }

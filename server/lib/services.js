@@ -2,7 +2,7 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import {
   MODULES, spawnCapture, loadJsonSafe, parseCsvLine,
-  makeLogger, prepareReport, finishReport, errText,
+  makeLogger, makeGuard, prepareReport, finishReport, errText,
 } from './shared.js';
 
 export async function runServicesScanNative(onOutput) {
@@ -144,8 +144,10 @@ const START_TYPE_BY_CODE = { 2: 'auto', 3: 'demand', 4: 'disabled' };
 
 export async function runServicesActionNative(envVars, onOutput) {
   const writeLog = makeLogger('services', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('services', { dryRun, writeLog });
 
-  writeLog('=== Optimizacion de Servicios - inicio ===');
+  writeLog(`=== Optimizacion de Servicios - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   // Antes la seleccion venia por indice sobre la lista del reporte. El scan la
   // ordena por estado y memoria (arriba), la accion re-escaneaba SIN ordenar, y
@@ -192,20 +194,32 @@ export async function runServicesActionNative(envVars, onOutput) {
 
     writeLog(`Procesando: ${info.name} (${info.displayName})`);
 
-    const stopResult = await spawnCapture('sc.exe', ['stop', info.name]);
-    if (stopResult.code === 0) {
-      stopped++;
-      writeLog(`  Detenido: ${info.name}`);
-    } else if (/1062|no se ha iniciado|not been started/i.test(errText(stopResult))) {
-      writeLog(`  Ya estaba detenido: ${info.name}`);
-    } else {
-      errors++;
-      writeLog(`  ERROR deteniendo ${info.name}: ${errText(stopResult)}`);
-      continue;
+    const stopResult = await guard(
+      `Detener servicio ${info.name}`,
+      () => spawnCapture('sc.exe', ['stop', info.name]),
+      { target: info.name, previousValue: 'Running', newValue: 'Stopped' },
+    );
+    if (!stopResult.simulated) {
+      if (stopResult.ok) {
+        stopped++;
+        writeLog(`  Detenido: ${info.name}`);
+      } else if (/1062|no se ha iniciado|not been started/i.test(errText(stopResult))) {
+        writeLog(`  Ya estaba detenido: ${info.name}`);
+      } else {
+        errors++;
+        writeLog(`  ERROR deteniendo ${info.name}: ${errText(stopResult)}`);
+        continue;
+      }
     }
 
-    const configResult = await spawnCapture('sc.exe', ['config', info.name, 'start=', 'disabled']);
-    if (configResult.code === 0) {
+    const previousStartType = START_TYPE_BY_CODE[info.startTypeCode] || 'auto';
+    const configResult = await guard(
+      `Deshabilitar servicio ${info.name} (era ${previousStartType})`,
+      () => spawnCapture('sc.exe', ['config', info.name, 'start=', 'disabled']),
+      { target: info.name, previousValue: previousStartType, newValue: 'disabled' },
+    );
+    if (configResult.simulated) continue;
+    if (configResult.ok) {
       disabled++;
       writeLog(`  Deshabilitado: ${info.name}`);
       // El valor previo se copia a la fila, no se referencia: si el servicio

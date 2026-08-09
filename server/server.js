@@ -488,16 +488,19 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   // Apps: IDs de paquetes winget a desinstalar, separados por coma.
   if (req.body?.apps !== undefined) {
-    const s = String(req.body.apps || '').trim();
-    if (s === '') {
-      envVars.OPTIMIZE_APPS = '';
-    } else if (/^[a-zA-Z\d._\-]+(,[a-zA-Z\d._\-]+)*$/.test(s)) {
-      envVars.OPTIMIZE_APPS = s;
-    } else {
-      const err = new Error('apps debe ser IDs de paquetes winget separados por coma');
+    const raw = Array.isArray(req.body.apps) ? req.body.apps : String(req.body.apps || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    // El charset anterior no admitia `+`, asi que IDs reales de winget como
+    // `Notepad++.Notepad++` daban 400. Se agregan `+`, `&` y espacio, que
+    // aparecen en IDs publicados (ej. `Microsoft.VCRedist.2015+.x64`).
+    // La coma queda fuera a proposito: es el separador.
+    const bad = picked.filter((id) => !/^[A-Za-z0-9._+&\- ]{1,200}$/.test(id));
+    if (bad.length > 0) {
+      const err = new Error(`IDs de paquete invalidos: ${bad.slice(0, 3).join(', ')}`);
       err.statusCode = 400;
       throw err;
     }
+    envVars.OPTIMIZE_APPS = [...new Set(picked)].join(',');
   }
 
   // Privacy: indices de ajustes de privacidad a proteger.
@@ -689,19 +692,27 @@ app.post('/api/scheduler/:task/toggle', safeHandler((req, res) => {
 //
 // schtasks /Change NO permite cambiar /SC, /D ni /MO (frecuencia/dias) —
 // solo /Create lo permite, por lo que esto recrea la tarea con /F (force
-// overwrite) preservando el mismo /TN y el mismo /TR (el Notify-*.ps1 de
-// cada modulo, fijo en MODULES — nunca viene de input del usuario).
+// overwrite) preservando el mismo /TN.
+//
+// El /TR apunta a un unico scripts/Notify.ps1 parametrizado por modulo. Antes
+// usaba mod.notifyScript, que solo estaba declarado para updates y cleanup:
+// para los otros 7 modulos join(dir, undefined) tiraba TypeError y la ruta
+// respondia 500. El modulo sale de la whitelist, nunca de input del usuario.
 // ═══════════════════════════════════════════════════════
 app.post('/api/scheduler/:task/reschedule', safeHandler((req, res) => {
   const task = validateTask(req.params.task);
-  const mod = TASK_TO_MODULE[task];
+  const moduleKey = VALID_MODULES.find((k) => MODULES[k].taskName === task);
   const frequency = validateFrequency(req.body?.frequency);
   const time = validateTime(req.body?.time);
 
+  // PROJECT_ROOT sale de OPTIMIZADOR_DATA_DIR, que en el paquete apunta a
+  // userData (ruta con espacios). Sin las comillas, schtasks corta el -File
+  // en el primer espacio.
+  const notifyPath = join(PROJECT_ROOT, 'scripts', 'Notify.ps1');
   const args = [
     '/Create', '/F',
     '/TN', task,
-    '/TR', `powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ${join(mod.dir, mod.notifyScript)}`,
+    '/TR', `powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "${notifyPath}" -Module ${moduleKey}`,
     '/SC', frequency === 'daily' ? 'DAILY' : 'WEEKLY',
     '/ST', time,
   ];

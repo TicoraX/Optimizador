@@ -1,6 +1,6 @@
 import {
   spawnCapture, isAdminWindows, parseCsvLine,
-  makeLogger, prepareReport, finishReport, errText,
+  makeLogger, makeGuard, prepareReport, finishReport, errText,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -365,8 +365,10 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
 /** Termina procesos seleccionados por el usuario (via taskkill). */
 export async function runRamActionNative(envVars, onOutput) {
   const writeLog = makeLogger('ram', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('ram', { dryRun, writeLog });
 
-  writeLog('=== Liberacion de RAM - inicio ===');
+  writeLog(`=== Liberacion de RAM - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   // Re-escanear procesos actuales (mismas columnas/criterio que el scan)
   const procResult = await spawnCapture('tasklist', ['/V', '/FO', 'CSV', '/NH']);
@@ -433,8 +435,14 @@ export async function runRamActionNative(envVars, onOutput) {
       writeLog(`OMITIDO (clasificacion cambio a '${p.tier}', ya no es seguro liberarlo automaticamente): ${p.name} (PID: ${pid})`);
       return;
     }
-    const r = await spawnCapture('taskkill', ['/PID', String(pid), '/F']);
-    if (r.code === 0) {
+    const r = await guard(
+      `Terminar ${p.name} (PID ${pid}, ${p.memMB} MB)`,
+      () => spawnCapture('taskkill', ['/PID', String(pid), '/F']),
+      // Sin previousValue: un proceso terminado no se puede restaurar.
+      { target: `${p.name} (PID ${pid})`, memMB: p.memMB, tier: p.tier },
+    );
+    if (r.simulated) return;
+    if (r.ok) {
       killed++;
       freedMB += p.memMB;
       writeLog(`Liberado${label}: ${p.name} (PID: ${pid}) - ${p.memMB} MB`);

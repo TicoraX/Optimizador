@@ -54,7 +54,6 @@ export const MODULES = Object.freeze({
     reportPrefix: 'update-report',
     taskName: 'UpdateChecker_Weekly',
     logFile: 'apply-log.txt',
-    notifyScript: 'Notify-Updates.ps1',
   }),
   cleanup: Object.freeze({
     dir: join(PROJECT_ROOT, 'disk-cleanup'),
@@ -64,7 +63,6 @@ export const MODULES = Object.freeze({
     reportPrefix: 'cleanup-report',
     taskName: 'DiskCleanup_Weekly',
     logFile: 'apply-log.txt',
-    notifyScript: 'Notify-Cleanup.ps1',
   }),
   startup: Object.freeze({
     dir: join(PROJECT_ROOT, 'startup-optimizer'),
