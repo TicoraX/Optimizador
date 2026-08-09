@@ -1,6 +1,6 @@
 # Optimizador — Automatizaciones de mantenimiento para Windows
 
-Conjunto de herramientas de mantenimiento local para Windows: scripts automatizados para actualizaciones de software, limpieza de disco, optimización de inicio, administración de RAM, red, servicios, energía y aplicaciones — controlados desde un dashboard web moderno.
+Conjunto de herramientas de mantenimiento local para Windows: actualizaciones de software, limpieza de disco, optimización de inicio, administración de RAM, red, servicios, energía y aplicaciones — controlados desde un dashboard web moderno.
 
 > Todo corre **localmente en tu equipo**. Sin nube, sin telemetría, ningún dato sale de tu PC.
 
@@ -9,21 +9,20 @@ Conjunto de herramientas de mantenimiento local para Windows: scripts automatiza
 ## Qué hace
 
 | Módulo | Qué hace |
-|---|---|---|
+|---|---|
 | **Update Checker** | Busca actualizaciones pendientes en winget (apps/drivers), pip, npm global y Chocolatey. No instala nada sin confirmación. |
 | **Disk Cleanup** | Escanea espacio recuperable: archivos temporales, caché de navegadores (Chrome/Edge/Firefox), descargas >30 días y papelera de reciclaje. Borra solo lo que elijas. |
 | **Startup Optimizer** | Audita y deshabilita programas, servicios auto-start y tareas que se lanzan al **iniciar sesión**. Deshabilitar es reversible desde el mismo dashboard. |
 | **RAM Optimizer** | Escanea procesos por consumo de memoria y los clasifica en 4 categorías de riesgo: seguro (se puede liberar automáticamente), riesgoso (editores/navegadores), desconocido (revisión manual) y crítico (nunca se toca). Libera RAM seleccionando qué cerrar. |
 | **Network Optimizer** | Diagnostica conectividad: cuenta entradas de caché DNS, mide latencia contra 8.8.8.8, enumera adaptadores activos/desconectados. Acción: vacía caché DNS y re-registra DNS. |
-| **Services Optimizer** | Lista servicios con inicio automático y separa los de Microsoft de los de terceros mirando su ruta de archivo (`PathName`). Permite **detener y deshabilitar** servicios de terceros que no necesites (Adobe, Steam, etc.). Difiere de Inicio: estos servicios corren en segundo plano aunque nadie haya iniciado sesión — no son programas que se abren al login. |
+| **Services Optimizer** | Lista servicios con inicio automático y separa los de Microsoft de los de terceros por ruta del binario y por una lista de servicios críticos protegidos (Defender, firewall, Windows Update). Permite **detener y deshabilitar** servicios de terceros que no necesites (Adobe, Steam, etc.). Difiere de Inicio: estos servicios corren en segundo plano aunque nadie haya iniciado sesión — no son programas que se abren al login. |
 | **Power Optimizer** | Muestra el plan de energía activo con su descripción, el estado de la batería (carga %, tiempo restante) y estima el consumo en watts. Permite cambiar de plan al instante. |
 | **App Manager** | Lista aplicaciones instaladas mediante winget con su ID, versión y origen. Permite desinstalar varias a la vez de forma silenciosa (`winget uninstall --silent`). |
 | **Privacy Optimizer** | Revisa 8 ajustes de privacidad de Windows (telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono, etc.) y los protege con un clic mediante `reg add`. |
 
 Cada módulo sigue el mismo patrón:
-- **Scan** — lee el sistema, genera un reporte en Markdown + JSON estructurado. No modifica nada.
-- **Action** — pide confirmación por categoría antes de hacer cualquier cosa. Registra cada acción en un log.
-- **Notify** — la tarea programada semanal de Windows muestra un popup con el resumen y opcionalmente lanza el script de acción.
+- **Scan** — lee el sistema y genera un reporte en Markdown, un JSON de conteos y un JSON de elementos seleccionables. No modifica nada.
+- **Acción** — toca solo lo que seleccionaste. Se puede simular antes de aplicar, y cada cambio queda en el diario con su valor anterior.
 
 ---
 
@@ -31,31 +30,28 @@ Cada módulo sigue el mismo patrón:
 
 ```
 Optimizador/
-├── update-checker/          # Scripts de deteccion e instalacion de actualizaciones
-├── disk-cleanup/            # Scripts de escaneo y limpieza de espacio en disco
-├── startup-optimizer/       # Scripts de auditoria y optimizacion de inicio
-├── ram-optimizer/           # Scripts de escaneo y liberacion de memoria RAM
-├── network-optimizer/       # Scripts de diagnostico y optimizacion de red
-├── services-optimizer/      # Scripts de gestion de servicios del sistema
-├── power-optimizer/         # Scripts de administracion de planes de energia
-├── apps-manager/            # Scripts de gestion de aplicaciones instaladas
-├── server/                  # Backend Node.js REST + SSE (Express), logica por modulo en server/lib/
-├── frontend/                # Dashboard web en React + Vite
-└── electron/                # App de escritorio: empaqueta backend + frontend, con auto-update
+├── server/
+│   ├── server.js            # Express: rutas, seguridad, SSE
+│   └── lib/                 # La logica de los 9 modulos, nativa en Node
+│       ├── shared.js        # Whitelist, validadores, spawn, barrera y diario
+│       ├── changes.js       # Deshacer un cambio aplicado
+│       └── <modulo>.js      # Un archivo por modulo: scan + accion
+├── frontend/                # React + Vite
+│   ├── src/modules.js       # Registro declarativo de los 9 modulos
+│   ├── src/styles/tokens.css# Sistema de diseno (color, espaciado, tipografia)
+│   └── src/components/
+├── electron/                # App de escritorio, con auto-update
+├── scripts/Notify.ps1       # Unico PowerShell: lo invocan las tareas programadas
+└── <modulo>/reports/        # Reportes, conteos, items, logs y diario de cambios
 ```
 
 ---
 
 ## Requisitos
 
-### Solo scripts (sin interfaz web)
 - Windows 10 u 11
-- PowerShell 5.1+ (incluido en Windows) o PowerShell Core (`pwsh`)
-- Al menos una de: `winget`, `pip`, `npm`, `choco` (las que falten se omiten sin error)
-
-### Dashboard web (backend + frontend)
-- [Node.js 18+](https://nodejs.org/) (se recomienda la versión LTS)
-- `npm` (incluido con Node.js)
+- [Node.js 18+](https://nodejs.org/) y `npm`
+- Opcionales, según el módulo: `winget`, `pip`, `npm`, `choco`. Los que falten se omiten sin error.
 
 ---
 
@@ -121,100 +117,24 @@ El indicador de estado en la esquina superior derecha se pondrá verde cuando el
 
 ---
 
-## Inicio rápido — Solo scripts (sin Node.js)
+## Automatización semanal
 
-Puedes usar los scripts de PowerShell directamente, sin el dashboard web.
+El programador vive en la app: entrá a **Programador**, elegí el módulo y la
+frecuencia. La app crea la tarea de Windows apuntando a `scripts/Notify.ps1`,
+que corre el escaneo y muestra un resumen.
 
-### Correr un escaneo
-
-```powershell
-# Revisar actualizaciones de software pendientes
-powershell -ExecutionPolicy Bypass -File update-checker\Check-Updates.ps1
-
-# Escanear espacio recuperable en disco
-powershell -ExecutionPolicy Bypass -File disk-cleanup\Scan-Cleanup.ps1
-
-# Auditar la configuracion de inicio
-powershell -ExecutionPolicy Bypass -File startup-optimizer\Scan-Startup.ps1
-
-# Escanear uso de RAM y procesos candidatos a liberar
-powershell -ExecutionPolicy Bypass -File ram-optimizer\Scan-RAM.ps1
-
-# Escanear conectividad de red (DNS, ping, adaptadores)
-powershell -ExecutionPolicy Bypass -File network-optimizer\Scan-Network.ps1
-
-# Escanear servicios del sistema con inicio automatico
-powershell -ExecutionPolicy Bypass -File services-optimizer\Scan-Services.ps1
-
-# Escanear plan de energia y bateria
-powershell -ExecutionPolicy Bypass -File power-optimizer\Scan-Power.ps1
-
-# Listar aplicaciones instaladas (winget)
-powershell -ExecutionPolicy Bypass -File apps-manager\Scan-Apps.ps1
-```
-
-Los reportes se guardan en la carpeta `reports/` de cada módulo.
-
-### Aplicar acciones interactivamente
+Si preferís crear la tarea a mano:
 
 ```powershell
-# Instalar actualizaciones pendientes (pregunta por categoria antes de hacer algo)
-powershell -ExecutionPolicy Bypass -File update-checker\Apply-Updates.ps1
-
-# Limpiar disco (pregunta por categoria antes de borrar)
-powershell -ExecutionPolicy Bypass -File disk-cleanup\Clean-Disk.ps1
-
-# Deshabilitar programas de inicio / tareas de logon (lista numerada, tu eliges)
-powershell -ExecutionPolicy Bypass -File startup-optimizer\Optimize-Startup.ps1
-
-# Liberar RAM cerrando procesos candidatos (lista numerada, tu eliges)
-powershell -ExecutionPolicy Bypass -File ram-optimizer\Free-RAM.ps1
-
-# Limpiar cache DNS y re-registrar
-powershell -ExecutionPolicy Bypass -File network-optimizer\Optimize-Network.ps1
-
-# Deshabilitar servicios de terceros seleccionados
-powershell -ExecutionPolicy Bypass -File services-optimizer\Optimize-Services.ps1
-
-# Cambiar a otro plan de energia
-powershell -ExecutionPolicy Bypass -File power-optimizer\Optimize-Power.ps1
-
-# Desinstalar aplicaciones seleccionadas
-powershell -ExecutionPolicy Bypass -File apps-manager\Optimize-Apps.ps1
+schtasks /Create /TN "RAMOptimizer_Weekly" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F ^
+  /TR "powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File \"<RUTA>\scripts\Notify.ps1\" -Module ram"
 ```
 
----
+`-Module` acepta: `updates`, `cleanup`, `startup`, `ram`, `network`, `services`,
+`power`, `apps`, `privacy`. El escaneo es de solo lectura: nunca modifica el
+sistema por su cuenta.
 
-## Configurar automatización semanal (opcional)
-
-Los scripts pueden correr automáticamente cada semana usando el Programador de Tareas de Windows. Reemplaza `<RUTA_COMPLETA>` con la ruta absoluta donde clonaste este repo.
-
-```powershell
-# Update Checker — todos los lunes a las 9:00 AM
-schtasks /Create /TN "UpdateChecker_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\update-checker\Notify-Updates.ps1`"" /SC WEEKLY /D MON /ST 09:00 /RL LIMITED /F
-
-# Disk Cleanup — todos los miercoles a las 9:00 AM
-schtasks /Create /TN "DiskCleanup_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\disk-cleanup\Notify-Cleanup.ps1`"" /SC WEEKLY /D WED /ST 09:00 /RL LIMITED /F
-
-# Startup Optimizer — todos los viernes a las 9:00 AM
-schtasks /Create /TN "StartupOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1`"" /SC WEEKLY /D FRI /ST 09:00 /RL LIMITED /F
-
-# RAM Optimizer — todos los sabados a las 10:00 AM
-schtasks /Create /TN "RAMOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\ram-optimizer\Notify-RAM.ps1`"" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F
-
-# Network Optimizer
-schtasks /Create /TN "NetworkOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\network-optimizer\Notify-Network.ps1`"" /SC WEEKLY /D MON /ST 11:00 /RL LIMITED /F
-
-# Services Optimizer
-schtasks /Create /TN "ServicesOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\services-optimizer\Notify-Services.ps1`"" /SC WEEKLY /D WED /ST 11:00 /RL LIMITED /F
-
-# Power Optimizer
-schtasks /Create /TN "PowerOptimizer_Weekly" /TR "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File `"<RUTA_COMPLETA>\power-optimizer\Notify-Power.ps1`"" /SC WEEKLY /D FRI /ST 11:00 /RL LIMITED /F
-```
-
-Cada tarea programada muestra una notificación popup. Aceptar el popup lanza el script de acción interactivo.
-
-También puedes habilitar, deshabilitar o correr las tareas manualmente:
+Y para habilitar, deshabilitar o correr una tarea a mano:
 
 ```powershell
 schtasks /Change /TN "UpdateChecker_Weekly" /ENABLE
@@ -222,7 +142,26 @@ schtasks /Change /TN "UpdateChecker_Weekly" /DISABLE
 schtasks /Run   /TN "UpdateChecker_Weekly"
 ```
 
-También puedes administrar todas las tareas desde la pestaña **Programador** del dashboard web — habilitar/deshabilitar, o hacer clic en "Configurar horario" para cambiar el día, hora y frecuencia (semanal en los días que elijas, o diaria / cada N días) sin tocar `schtasks` directamente.
+> Los scripts `Scan-*.ps1` y `Optimize-*.ps1` de cada carpeta se eliminaron. La
+> lógica de los 9 módulos vive en `server/lib/` y corre nativa en Node: mantener
+> dos implementaciones en paralelo hacía que divergieran. `scripts/Notify.ps1`
+> es el único PowerShell que queda, y solo llama al backend.
+
+---
+
+## Antes de que algo cambie
+
+Toda acción destructiva tiene tres capas de contención:
+
+1. **Simulación.** El botón *Ver qué va a pasar* corre la acción completa sin
+   tocar nada y lista exactamente qué haría: cuántos MB, qué archivos, qué
+   servicios.
+2. **Listas de protección.** No se desinstalan runtimes ni drivers (VC++, .NET,
+   WebView2, NVIDIA, Intel), no se deshabilitan servicios críticos (Defender,
+   firewall, Windows Update, RPC), y nunca se tocan procesos del sistema.
+3. **Historial con deshacer.** Cada cambio aplicado queda en **Historial** con el
+   valor que tenía antes. Lo reversible tiene botón; lo que no lo es (un archivo
+   borrado, una app desinstalada) se marca como tal en vez de mentir.
 
 ---
 
@@ -231,14 +170,15 @@ También puedes administrar todas las tareas desde la pestaña **Programador** d
 Agrega estas funciones a tu perfil de PowerShell (`notepad $PROFILE`) para acceso rápido desde cualquier terminal:
 
 ```powershell
-function Update-Check    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\update-checker\Notify-Updates.ps1" }
-function Disk-Cleanup    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\disk-cleanup\Notify-Cleanup.ps1" }
-function Startup-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\startup-optimizer\Notify-Startup.ps1" }
-function RAM-Optimize    { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\ram-optimizer\Notify-RAM.ps1" }
-function Network-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\network-optimizer\Notify-Network.ps1" }
-function Services-Optimize{ powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\services-optimizer\Notify-Services.ps1" }
-function Power-Optimize  { powershell -ExecutionPolicy Bypass -File "<RUTA_COMPLETA>\power-optimizer\Notify-Power.ps1" }
+function Optimizador {
+    param([ValidateSet('updates','cleanup','startup','ram','network','services','power','apps','privacy')]
+          [string]$Module)
+    powershell -ExecutionPolicy Bypass -NoProfile -File "<RUTA_COMPLETA>\scripts\Notify.ps1" -Module $Module
+}
 ```
+
+Después: `Optimizador ram`, `Optimizador cleanup`, etc. Requiere que la app esté
+abierta, porque el script llama al backend local.
 
 Recarga tu perfil después de editarlo: `. $PROFILE`
 
@@ -256,6 +196,9 @@ Navegador  http://localhost:5173
     ├── GET  /api/scheduler                  →  Estado de tareas programadas
     ├── POST /api/scheduler/:task/toggle     →  Habilitar / deshabilitar una tarea
     ├── POST /api/scheduler/:task/reschedule →  Cambiar dia/hora/frecuencia (diaria o semanal)
+    ├── GET  /api/reports/:module/items      →  Elementos seleccionables, ya estructurados
+    ├── GET  /api/changes                    →  Diario de todo lo que la app cambio
+    ├── POST /api/changes/:module/:id/undo   →  Revertir un cambio
     ├── GET  /api/logs/:module    →  Ultimas 100 lineas del log de accion
     └── DELETE /api/logs/:module  →  Limpiar o rotar el log de accion
                 │
@@ -274,16 +217,18 @@ Navegador  http://localhost:5173
 > exacto corría bien desde un proceso suelto. La causa raíz nunca se identificó con certeza,
 > así que en vez de seguir peleando con eso, la lógica de scan/action del dashboard se
 > reescribió para llamar directamente a las herramientas subyacentes (`reg`, `schtasks`,
-> `winget`, `pip`, `npm`, operaciones de filesystem). Los scripts `.ps1` de cada módulo
-> siguen siendo completamente funcionales y son los que corren las tareas programadas
-> semanales y los accesos rápidos de PowerShell — solo el backend del dashboard web evita
-> invocar PowerShell.
+> `winget`, `pip`, `npm`, operaciones de filesystem). Los `.ps1` de cada módulo quedaron
+> como una segunda implementación que nadie invocaba y terminaron eliminados: mantener dos
+> copias solo hacía que divergieran.
 
 ### Modelo de seguridad
 
 | Riesgo | Control |
 |---|---|
-| Inyección de comandos | Whitelist de módulos + `spawn()` con `shell: false` + argumentos como array — ningún input del usuario se concatena en un comando (la única excepción es `npm`, que necesita `shell: true` para resolver su wrapper `.cmd` en Windows — se usa exclusivamente con argumentos fijos, nunca con input del usuario) |
+| Inyección de comandos | Whitelist de módulos + `spawn()` con `shell: false` + argumentos como array — ningún input del usuario se concatena en un comando (la única excepción es `npm`, que necesita `shell: true` para resolver su wrapper `.cmd` en Windows — se usa exclusivamente con argumentos fijos) |
+| Web arbitraria disparando acciones | Escuchar en `127.0.0.1` **no** alcanza: cualquier página abierta en el navegador puede hacer `fetch` a localhost. Se validan `Origin` y `Sec-Fetch-Site`, headers que el JS de una página no puede falsificar ni omitir. Sin dependencia `cors`: la app se sirve del mismo origen que su API |
+| XSS vía nombres del sistema | Los reportes se arman con nombres de procesos y apps, o sea contenido que controla cualquier binario instalado. El Markdown se renderiza con el HTML crudo desactivado y los protocolos de link restringidos |
+| Cabeceras y abuso | `helmet` con CSP explícita + `express-rate-limit` (400/15min global, 30 en scan, 10 en acción) |
 | Exposición en red local | El servidor solo escucha en `127.0.0.1` — inaccesible desde otros equipos de la red |
 | Directory traversal | Validación de fecha con chequeo de calendario real + `normalize()` + verificación de límites en todas las rutas de archivo |
 | Filtración de stack trace | El manejador de errores global responde 500 genérico — no llegan detalles del sistema operativo al cliente |
@@ -302,42 +247,23 @@ El reporte y el dashboard muestran una sección separada de "Deshabilitados" (ap
 
 ---
 
-## Cómo manejan los scripts las confirmaciones (AUTO_CONFIRM)
-
-`Confirm-Action` (usada por los scripts `.ps1`) lee la variable de entorno `AUTO_CONFIRM` y aprueba automáticamente en vez de esperar input de `Read-Host` cuando está en `true`.
-
-Esto significa:
-- **Corriendo los scripts manualmente desde una terminal** → interactivo, pregunta antes de cada paso.
-- **Corriendo la tarea programada semanal / `Notify-*.ps1`** → sigue siendo interactivo a menos que aceptes el popup, que entonces corre el script de acción normalmente.
-- **Corriendo desde el dashboard web** → no pasa por estos scripts `.ps1` en absoluto (ver la nota de arquitectura arriba), así que no hay nada que confirmar — las acciones corren de inmediato sobre lo que seleccionaste en la interfaz.
-
----
-
 ## Portabilidad
 
-Todos los scripts de PowerShell son autocontenidos. Usan `$PSScriptRoot` para su propia ubicación y variables de entorno estándar (`$env:TEMP`, `$env:USERPROFILE`, etc.) para todo lo demás. No hay rutas ni nombres de usuario hardcodeados. Puedes clonar este repo en cualquier lugar y correr los scripts sin editarlos.
+No hay rutas ni nombres de usuario hardcodeados: todo sale de variables de entorno estándar (`%TEMP%`, `%USERPROFILE%`, `%LOCALAPPDATA%`). Podés clonar el repo donde quieras.
 
-Lo único que necesitas actualizar después de clonar es el placeholder `<RUTA_COMPLETA>` en los comandos de `schtasks` y las funciones de perfil de PowerShell de arriba.
+En el paquete de Electron los reportes se escriben en `userData`, no dentro del `.asar`, que es de solo lectura.
+
+Lo único que hay que reemplazar después de clonar es el placeholder `<RUTA>` de los comandos `schtasks` y la función de perfil de arriba.
 
 ---
 
 ## Limitaciones conocidas
 
 - `winget upgrade` no tiene salida JSON oficial (verificado en v1.28). La salida se parsea de la tabla de texto por posición de columna. Si Microsoft cambia el formato, los resultados de winget pueden aparecer vacíos — revisa la lógica de parsing de winget en `server/lib/updates.js` (o `update-checker/Check-Updates.ps1` para la vía de solo-scripts) si eso pasa.
-- El rendimiento de arranque (EventLog de Rendimiento de Windows, ID 100) **no está disponible desde el dashboard web**. La única forma confiable de leerlo sin permisos de administrador es `Get-WinEvent` de PowerShell — `wevtutil` devuelve "Access is denied" para un usuario no-admin aunque `Get-WinEvent` sí funcione. Como el backend del dashboard evita deliberadamente invocar PowerShell (ver la nota de arquitectura arriba), esta métrica se reporta como no disponible en vez de reintroducirla a costa de la estabilidad. Sigue siendo visible corriendo `startup-optimizer/Scan-Startup.ps1` directamente.
+- El rendimiento de arranque (EventLog de Rendimiento de Windows, ID 100) **no está disponible desde el dashboard web**. La única forma confiable de leerlo sin permisos de administrador es `Get-WinEvent` de PowerShell — `wevtutil` devuelve "Access is denied" para un usuario no-admin aunque `Get-WinEvent` sí funcione. Como el backend evita deliberadamente invocar PowerShell con `-File` (ver la nota de arquitectura arriba), esta métrica se reporta como no disponible en vez de reintroducirla a costa de la estabilidad.
 - Los accesos directos (`.lnk`) de la carpeta Startup se listan solo por nombre de archivo desde el dashboard web — resolver su destino real normalmente requiere `WScript.Shell` (COM/PowerShell), que no se usa aquí por la misma razón.
 - Los servicios auto-start se listan solo informativamente y nunca se modifican — deshabilitar servicios auto-start sin saber cuáles son críticos puede dejar el sistema inestable.
 - La revisión de paquetes globales de npm puede fallar con `ENOENT` si no existe la carpeta global de npm (`%APPDATA%\npm`) — se reporta como error, no como "0 actualizaciones".
-
----
-
-## READMEs de cada módulo
-
-Cada módulo tiene su propio README con notas detalladas de uso y portabilidad:
-
-- [`update-checker/README.md`](update-checker/README.md)
-- [`disk-cleanup/README.md`](disk-cleanup/README.md)
-- [`startup-optimizer/README.md`](startup-optimizer/README.md)
 
 ---
 
