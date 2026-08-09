@@ -478,12 +478,24 @@ export async function runRamActionNative(envVars, onOutput) {
   // Liberar memoria standby via EmptyWorkingSet (mueve paginas de cada
   // proceso a la standby list - no reduce el "RAM en uso" reportado por si
   // solo, ver vaciado real de standby list mas abajo).
+  //
+  // Pasa por el guard igual que taskkill: aunque no mata nada, MUTA el estado
+  // de memoria de todos los procesos del sistema. Antes corria incluso en
+  // simulacion, o sea que "Ver que va a pasar" en RAM vaciaba working sets de
+  // verdad — justo lo que la simulacion promete no hacer.
   writeLog('Liberando working sets...');
-  const standbyResult = await spawnCapture('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-Command',
-    'Get-Process | ForEach-Object { try { $_.EmptyWorkingSet() } catch {} }',
-  ]);
-  writeLog(standbyResult.code === 0 ? 'Working sets liberados.' : 'Error al liberar working sets.');
+  const standbyResult = await guard(
+    'Vaciar el working set de todos los procesos (EmptyWorkingSet)',
+    () => spawnCapture('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      'Get-Process | ForEach-Object { try { $_.EmptyWorkingSet() } catch {} }',
+    ]),
+    // Sin previousValue: el estado de memoria previo no se puede restaurar.
+    { target: 'working sets del sistema' },
+  );
+  if (!standbyResult.simulated) {
+    writeLog(standbyResult.ok ? 'Working sets liberados.' : 'Error al liberar working sets.');
+  }
 
   // Vaciado real de la standby list (requiere administrador). Esto SI baja
   // el % de uso de RAM reportado, a diferencia de EmptyWorkingSet.
@@ -492,17 +504,23 @@ export async function runRamActionNative(envVars, onOutput) {
     writeLog('Vaciar lista en espera: OMITIDO (requiere ejecutar el servidor como administrador).');
   } else {
     writeLog('Vaciando lista en espera (standby list)...');
-    const purgeResult = await spawnCapture('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-Command', PURGE_STANDBY_LIST_SCRIPT,
-    ]);
-    const m = (purgeResult.stdout || '').match(/NTSTATUS:(-?\d+)\|(True|False)\|(True|False)/);
-    const status = m ? parseInt(m[1], 10) : null;
-    if (purgeResult.code === 0 && status === 0) {
-      writeLog('Lista en espera vaciada correctamente.');
-    } else if (m && (m[2] === 'False' || m[3] === 'False')) {
-      writeLog(`ERROR vaciando lista en espera: el token de administrador no tiene el privilegio necesario (SeProfileSingleProcessPrivilege=${m[2]}, SeIncreaseQuotaPrivilege=${m[3]}). Revisa la directiva de seguridad local "Asignacion de derechos de usuario".`);
-    } else {
-      writeLog(`ERROR vaciando lista en espera (NTSTATUS=${status ?? 'desconocido'}): ${(purgeResult.stderr || '').trim().slice(0, 200)}`);
+    const purgeResult = await guard(
+      'Vaciar la lista en espera de memoria (standby list)',
+      () => spawnCapture('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command', PURGE_STANDBY_LIST_SCRIPT,
+      ]),
+      { target: 'standby list del sistema' },
+    );
+    if (!purgeResult.simulated) {
+      const m = (purgeResult.stdout || '').match(/NTSTATUS:(-?\d+)\|(True|False)\|(True|False)/);
+      const status = m ? parseInt(m[1], 10) : null;
+      if (purgeResult.code === 0 && status === 0) {
+        writeLog('Lista en espera vaciada correctamente.');
+      } else if (m && (m[2] === 'False' || m[3] === 'False')) {
+        writeLog(`ERROR vaciando lista en espera: el token de administrador no tiene el privilegio necesario (SeProfileSingleProcessPrivilege=${m[2]}, SeIncreaseQuotaPrivilege=${m[3]}). Revisa la directiva de seguridad local "Asignacion de derechos de usuario".`);
+      } else {
+        writeLog(`ERROR vaciando lista en espera (NTSTATUS=${status ?? 'desconocido'}): ${(purgeResult.stderr || '').trim().slice(0, 200)}`);
+      }
     }
   }
 

@@ -108,12 +108,38 @@ export default function ReportViewer() {
     };
   }, [module]);
 
+  // Vacia las listas del modulo activo. Este componente NO se remonta al
+  // cambiar de :module (misma Route), asi que sin esto un fetch fallido dejaba
+  // en pie la seleccion del escaneo anterior y el usuario podia ejecutar una
+  // accion sobre elementos que ya no existen.
+  const clearItems = () => {
+    if (module === 'startup') {
+      setAvailablePrograms([]); setSelectedPrograms({});
+      setAvailableTasks([]); setSelectedTasks({});
+      setDisabledPrograms([]); setSelectedEnablePrograms({});
+      setDisabledTasks([]); setSelectedEnableTasks({});
+    } else if (module === 'ram') {
+      setAvailableProcesses([]); setSelectedProcesses({});
+      setUnknownProcesses([]); setSelectedUnknownProcesses({});
+      setRiskyProcesses([]); setSelectedRiskyProcesses({});
+    } else if (module === 'services') {
+      setAvailableServices([]); setSelectedServices({});
+    } else if (module === 'apps') {
+      setAvailableApps([]); setSelectedApps({});
+    } else if (module === 'privacy') {
+      setPrivacySettings([]); setSelectedPrivacy({});
+    } else if (module === 'power') {
+      setPowerPlans([]);
+    }
+  };
+
   // Carga los elementos seleccionables del ultimo escaneo.
   const loadItems = async () => {
     const res = await fetch(`${API_BASE}/reports/${module}/items`);
     // 404 es legitimo: el modulo no tiene seleccion (network, updates, cleanup)
-    // o todavia no se escaneo.
-    if (!res.ok) return;
+    // o todavia no se escaneo. Igual hay que limpiar: es la unica forma de no
+    // quedarse con la lista del modulo anterior.
+    if (!res.ok) { clearItems(); return; }
     const { items } = await res.json();
 
     const noneChecked = (list) => Object.fromEntries(list.map((_, i) => [i, false]));
@@ -150,8 +176,8 @@ export default function ReportViewer() {
 
   // `switchingPlan` se seteaba y se limpiaba en el mismo tick, asi que el
   // `disabled` que dependia de el nunca se activaba. Estado muerto, eliminado.
-  const switchToPlan = (planIndex) => {
-    triggerExecution('/action/power', { planIndex });
+  const switchToPlan = (planGuid) => {
+    triggerExecution('/action/power', { planGuid });
   };
 
   const handleCheckboxChange = (type, index) => {
@@ -189,28 +215,18 @@ export default function ReportViewer() {
         .filter((c) => selectedCategories[c.key])
         .map((c) => c.key);
     } else if (module === 'startup') {
-      // Collect 1-based indices for checked items
-      const checkedProgs = Object.keys(selectedPrograms)
-        .filter(k => selectedPrograms[k])
-        .map(k => parseInt(k) + 1);
-      
-      const checkedTasks = Object.keys(selectedTasks)
-        .filter(k => selectedTasks[k])
-        .map(k => parseInt(k) + 1);
+      // Por identificador, no por indice: si entre el escaneo y este clic se
+      // agrega o quita una entrada de inicio, el indice N pasa a apuntar a otra
+      // y se deshabilita lo que no era.
+      const pickedIds = (selection, list) => Object.keys(selection)
+        .filter(k => selection[k])
+        .map(k => list[parseInt(k)]?.id)
+        .filter(Boolean);
 
-      body.programs = checkedProgs.length === 0 ? '' : checkedProgs.join(',');
-      body.tasks = checkedTasks.length === 0 ? '' : checkedTasks.join(',');
-
-      const checkedEnableProgs = Object.keys(selectedEnablePrograms)
-        .filter(k => selectedEnablePrograms[k])
-        .map(k => parseInt(k) + 1);
-
-      const checkedEnableTasks = Object.keys(selectedEnableTasks)
-        .filter(k => selectedEnableTasks[k])
-        .map(k => parseInt(k) + 1);
-
-      body.enablePrograms = checkedEnableProgs.length === 0 ? '' : checkedEnableProgs.join(',');
-      body.enableTasks = checkedEnableTasks.length === 0 ? '' : checkedEnableTasks.join(',');
+      body.programs = pickedIds(selectedPrograms, availablePrograms);
+      body.tasks = pickedIds(selectedTasks, availableTasks);
+      body.enablePrograms = pickedIds(selectedEnablePrograms, disabledPrograms);
+      body.enableTasks = pickedIds(selectedEnableTasks, disabledTasks);
     } else if (module === 'services') {
       // Por nombre, no por indice: el indice del reporte no coincidia con el
       // orden que usaba la accion y se deshabilitaba el servicio equivocado.
@@ -621,9 +637,9 @@ export default function ReportViewer() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {powerPlans.map((plan) => (
                   <button
-                    key={plan.index}
+                    key={plan.guid}
                     className={`btn btn-sm${plan.active ? ' btn-primary' : ''}`}
-                    onClick={() => !plan.active && switchToPlan(plan.index)}
+                    onClick={() => !plan.active && switchToPlan(plan.guid)}
                     disabled={isRunning || plan.active}
                     style={{ textAlign: 'left', justifyContent: 'flex-start' }}
                   >

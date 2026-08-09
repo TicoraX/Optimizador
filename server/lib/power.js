@@ -410,7 +410,8 @@ export async function runPowerScanNative(onOutput) {
     plan_sleep_standby: null,
     error: scanError,
   }, onOutput,
-  // `index` es 1-based: es el PLAN_INDEX que espera la accion.
+  // `guid` es lo que la accion usa para resolver el plan. `index` queda solo
+  // para numerar la lista en el reporte.
   plans.map((p, i) => ({ index: i + 1, guid: p.guid, name: p.name, active: p.active })));
 }
 
@@ -419,8 +420,11 @@ export async function runPowerActionNative(envVars, onOutput) {
 
   writeLog('=== Cambio de plan de energía - inicio ===');
 
-  const planIndex = parseInt(envVars.PLAN_INDEX, 10);
-  if (!planIndex || planIndex < 1) {
+  // Por GUID, no por posicion. `powercfg /list` puede cambiar de orden si se
+  // crea o borra un plan entre el escaneo y el clic, y ahi el indice N pasa a
+  // apuntar a otro plan. El GUID identifica al plan sin ambiguedad.
+  const planGuid = String(envVars.PLAN_GUID || '').trim().toLowerCase();
+  if (!planGuid) {
     writeLog('No se seleccionó un plan válido.');
     writeLog('=== Cambio de plan de energía - fin ===');
     return;
@@ -443,9 +447,9 @@ export async function runPowerActionNative(envVars, onOutput) {
     }
   }
 
-  const target = plans[planIndex - 1];
+  const target = plans.find((p) => p.guid.toLowerCase() === planGuid);
   if (!target) {
-    writeLog(`Índice ${planIndex} fuera de rango.`);
+    writeLog(`El plan ${planGuid} ya no existe en este equipo. Volvé a escanear.`);
     writeLog('=== Cambio de plan de energía - fin ===');
     return;
   }

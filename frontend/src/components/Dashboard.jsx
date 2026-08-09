@@ -131,8 +131,25 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         body: '{}',
         signal: ctrl.signal,
         openWhenHidden: true,
+        // El defaultOnOpen de la libreria solo mira el content-type, no el
+        // status. Un 429 del rate limit o un 403 de origen fallaban con
+        // "Expected content-type..." en vez del motivo real.
+        onopen(res) {
+          if (!res.ok) throw new Error(`El servidor respondio ${res.status}`);
+          const ct = res.headers.get('content-type') || '';
+          if (!ct.startsWith('text/event-stream')) {
+            throw new Error(`Respuesta inesperada del servidor (${ct || 'sin content-type'})`);
+          }
+        },
         onmessage(ev) {
           if (ev.event === 'done') ctrl.abort();
+        },
+        // Sin esto, fetchEventSource reintenta cada segundo hasta que vence el
+        // abort de 330 s: un backend caido dejaba la tarjeta en "Escaneando..."
+        // durante cinco minutos y medio. Relanzar corta el reintento y cae en
+        // el catch/finally de abajo.
+        onerror(err) {
+          throw err;
         },
       });
     } catch (err) {
@@ -169,7 +186,13 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
           </svg>
         </span>
         <h2>No se pudo conectar con el backend</h2>
-        <p style={{ margin: 0 }}>El servidor local en 127.0.0.1:3001 no está respondiendo.</p>
+        {/* La direccion sale de donde el navegador realmente pide, no de un
+            127.0.0.1:3001 hardcodeado: el puerto es configurable por PORT y en
+            dev la app vive en el 5173 con proxy. `new URL` resuelve tanto el
+            API_BASE relativo actual como uno absoluto si algun dia cambia. */}
+        <p style={{ margin: 0 }}>
+          El servidor local en {new URL(API_BASE, window.location.origin).origin} no está respondiendo.
+        </p>
         <button className="btn btn-secondary" onClick={onRefreshStatus}>Reintentar</button>
       </div>
     );

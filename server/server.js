@@ -473,12 +473,33 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   }
 
   // ── Validacion estricta de body params ──
+
+  // Startup: IDENTIFICADORES, no indices. Un id es `HKCU\...\Run\Nombre` para
+  // el registro o la ruta del .lnk para un acceso directo. Antes eran indices
+  // sobre la lista del reporte: si entre el escaneo y el clic se agregaba o
+  // quitaba una entrada, el indice apuntaba a otra y se deshabilitaba lo que no
+  // era. Mismo bug que ya habia mordido en services.
+  //
+  // Separador `|` y no coma: un nombre de valor del registro puede contener
+  // comas, una barra vertical no puede aparecer en una ruta de Windows.
+  const validateIdList = (value, field) => {
+    const raw = Array.isArray(value) ? value : String(value || '').split('|');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((id) => id.length > 512 || /[\r\n|]/.test(id));
+    if (bad.length > 0) {
+      const err = new Error(`${field}: identificadores invalidos`);
+      err.statusCode = 400;
+      throw err;
+    }
+    return [...new Set(picked)].join('|');
+  };
+
   if (req.body?.programs !== undefined) {
-    envVars.OPTIMIZE_PROGRAMS = validateIndexList(req.body.programs, 'programs');
+    envVars.OPTIMIZE_PROGRAMS = validateIdList(req.body.programs, 'programs');
   }
 
   if (req.body?.tasks !== undefined) {
-    envVars.OPTIMIZE_TASKS = validateIndexList(req.body.tasks, 'tasks');
+    envVars.OPTIMIZE_TASKS = validateIdList(req.body.tasks, 'tasks');
   }
 
   if (req.body?.processes !== undefined) {
@@ -508,15 +529,17 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     envVars.OPTIMIZE_SERVICES = [...new Set(picked)].join(',');
   }
 
-  // Power: indice del plan de energía a activar (1-based, entero).
-  if (req.params.module === 'power' && req.body?.planIndex !== undefined) {
-    const n = Number(req.body.planIndex);
-    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 20) {
-      const err = new Error('planIndex debe ser entero entre 1 y 20');
+  // Power: GUID del plan a activar. Antes era un indice sobre la lista del
+  // reporte, que se desplaza si se crea o borra un plan entre el escaneo y el
+  // clic. El GUID identifica al plan sin ambiguedad.
+  if (req.params.module === 'power' && req.body?.planGuid !== undefined) {
+    const guid = String(req.body.planGuid || '').trim();
+    if (!/^[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}$/.test(guid)) {
+      const err = new Error('planGuid debe ser un GUID valido');
       err.statusCode = 400;
       throw err;
     }
-    envVars.PLAN_INDEX = String(n);
+    envVars.PLAN_GUID = guid;
   }
 
   // Apps: IDs de paquetes winget a desinstalar, separados por coma.
@@ -553,11 +576,11 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // deshabilitados). Indices referidos a la lista de "deshabilitados", no a la
   // lista de "activos" que usan programs/tasks arriba.
   if (req.body?.enablePrograms !== undefined) {
-    envVars.ENABLE_PROGRAMS = validateIndexList(req.body.enablePrograms, 'enablePrograms');
+    envVars.ENABLE_PROGRAMS = validateIdList(req.body.enablePrograms, 'enablePrograms');
   }
 
   if (req.body?.enableTasks !== undefined) {
-    envVars.ENABLE_TASKS = validateIndexList(req.body.enableTasks, 'enableTasks');
+    envVars.ENABLE_TASKS = validateIdList(req.body.enableTasks, 'enableTasks');
   }
 
   // DownloadsAgeDays: solo aplica al modulo cleanup. Se pasa via env var
@@ -613,7 +636,7 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     services: ['OPTIMIZE_SERVICES'],
     apps: ['OPTIMIZE_APPS'],
     privacy: ['OPTIMIZE_PRIVACY'],
-    power: ['PLAN_INDEX'],
+    power: ['PLAN_GUID'],
   };
   const required = SELECTION_FIELDS[req.params.module];
   if (required && !required.some((k) => envVars[k])) {
@@ -743,11 +766,31 @@ app.post('/api/scheduler/:task/reschedule', safeHandler((req, res) => {
   // PROJECT_ROOT sale de OPTIMIZADOR_DATA_DIR, que en el paquete apunta a
   // userData (ruta con espacios). Sin las comillas, schtasks corta el -File
   // en el primer espacio.
+  //
+  // `-Port` va explicito: el server puede escuchar en otro puerto via la
+  // variable PORT, y Notify.ps1 por si solo asumiria 3001 y sondearia un
+  // backend que no existe.
+  //
+  // Alias cortos (-ep/-nop/-w) en vez de los nombres completos: el /TR de
+  // schtasks tiene un limite duro de 261 caracteres y la ruta puede ser larga
+  // (userData de un usuario con nombre largo). Ahorran ~30.
   const notifyPath = join(PROJECT_ROOT, 'scripts', 'Notify.ps1');
+  const trCommand = `powershell.exe -ep Bypass -nop -w Hidden -File "${notifyPath}" -Module ${moduleKey} -Port ${PORT}`;
+
+  const TR_MAX = 261;
+  if (trCommand.length > TR_MAX) {
+    const err = new Error(
+      `La ruta de instalacion es demasiado larga para el Programador de tareas de Windows `
+      + `(${trCommand.length} de ${TR_MAX} caracteres). Instala Optimizador en una ruta mas corta.`,
+    );
+    err.statusCode = 400;
+    throw err;
+  }
+
   const args = [
     '/Create', '/F',
     '/TN', task,
-    '/TR', `powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "${notifyPath}" -Module ${moduleKey}`,
+    '/TR', trCommand,
     '/SC', frequency === 'daily' ? 'DAILY' : 'WEEKLY',
     '/ST', time,
   ];
