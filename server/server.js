@@ -420,11 +420,9 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
 // POST /api/action/:module — ejecuta accion, SSE stream
 // ═══════════════════════════════════════════════════════
 app.post('/api/action/:module', safeHandler((req, res) => {
-  const mod = validateModule(req.params.module);
-
-  if (!mod.action) {
-    return res.status(400).json({ error: 'Este modulo no tiene script de accion' });
-  }
+  validateModule(req.params.module);
+  // El guard `if (!mod.action)` que estaba aca leia metadata de los .ps1, que
+  // ya no existen. La comprobacion real es ACTION_HANDLERS, mas abajo.
 
   const envVars = {};
 

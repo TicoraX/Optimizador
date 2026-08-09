@@ -48,8 +48,6 @@ export const WINDIR = process.env.WINDIR || 'C:\\WINDOWS';
 export const MODULES = Object.freeze({
   updates: Object.freeze({
     dir: join(PROJECT_ROOT, 'update-checker'),
-    scan: 'Check-Updates.ps1',
-    action: 'Apply-Updates.ps1',
     countsFile: 'update-counts.json',
     reportPrefix: 'update-report',
     taskName: 'UpdateChecker_Weekly',
@@ -57,8 +55,6 @@ export const MODULES = Object.freeze({
   }),
   cleanup: Object.freeze({
     dir: join(PROJECT_ROOT, 'disk-cleanup'),
-    scan: 'Scan-Cleanup.ps1',
-    action: 'Clean-Disk.ps1',
     countsFile: 'cleanup-counts.json',
     reportPrefix: 'cleanup-report',
     taskName: 'DiskCleanup_Weekly',
@@ -66,8 +62,6 @@ export const MODULES = Object.freeze({
   }),
   startup: Object.freeze({
     dir: join(PROJECT_ROOT, 'startup-optimizer'),
-    scan: 'Scan-Startup.ps1',
-    action: 'Optimize-Startup.ps1',
     countsFile: 'startup-counts.json',
     reportPrefix: 'startup-report',
     taskName: 'StartupOptimizer_Weekly',
@@ -75,8 +69,6 @@ export const MODULES = Object.freeze({
   }),
   ram: Object.freeze({
     dir: join(PROJECT_ROOT, 'ram-optimizer'),
-    scan: 'Scan-RAM.ps1',
-    action: 'Free-RAM.ps1',
     countsFile: 'ram-counts.json',
     reportPrefix: 'ram-report',
     taskName: 'RAMOptimizer_Weekly',
@@ -84,8 +76,6 @@ export const MODULES = Object.freeze({
   }),
   network: Object.freeze({
     dir: join(PROJECT_ROOT, 'network-optimizer'),
-    scan: 'Scan-Network.ps1',
-    action: 'Optimize-Network.ps1',
     countsFile: 'network-counts.json',
     reportPrefix: 'network-report',
     taskName: 'NetworkOptimizer_Weekly',
@@ -93,8 +83,6 @@ export const MODULES = Object.freeze({
   }),
   services: Object.freeze({
     dir: join(PROJECT_ROOT, 'services-optimizer'),
-    scan: 'Scan-Services.ps1',
-    action: 'Optimize-Services.ps1',
     countsFile: 'services-counts.json',
     reportPrefix: 'services-report',
     taskName: 'ServicesOptimizer_Weekly',
@@ -102,8 +90,6 @@ export const MODULES = Object.freeze({
   }),
   power: Object.freeze({
     dir: join(PROJECT_ROOT, 'power-optimizer'),
-    scan: 'Scan-Power.ps1',
-    action: 'Optimize-Power.ps1',
     countsFile: 'power-counts.json',
     reportPrefix: 'power-report',
     taskName: 'PowerOptimizer_Weekly',
@@ -111,8 +97,6 @@ export const MODULES = Object.freeze({
   }),
   apps: Object.freeze({
     dir: join(PROJECT_ROOT, 'apps-manager'),
-    scan: 'Scan-Apps.ps1',
-    action: 'Optimize-Apps.ps1',
     countsFile: 'apps-counts.json',
     reportPrefix: 'apps-report',
     taskName: 'AppsManager_Weekly',
@@ -120,8 +104,6 @@ export const MODULES = Object.freeze({
   }),
   privacy: Object.freeze({
     dir: join(PROJECT_ROOT, 'privacy-optimizer'),
-    scan: 'Scan-Privacy.ps1',
-    action: 'Optimize-Privacy.ps1',
     countsFile: 'privacy-counts.json',
     reportPrefix: 'privacy-report',
     taskName: 'PrivacyOptimizer_Weekly',
