@@ -1,0 +1,149 @@
+/* Hallmark · genre: modern-minimal · theme: Cobalt · macrostructure: Bento Grid
+ * nav: N3 side-rail · footer: none (app, no landing) · enrichment: none
+ * Desviacion declarada de Cobalt: el tema canonico es claro con una banda
+ * oscura. Esta app venia siendo dark-only y el usuario ya trabaja asi, por eso
+ * se implementan los dos modos sobre los mismos tokens semanticos, con dark por
+ * defecto. El acento, la tipografia, los hairlines y los radios no cambian
+ * entre modos.
+ */
+
+/* ── Primitivos ────────────────────────────────────────────
+   Valores crudos. Nadie los usa directo: solo los consumen los semanticos.
+   Cambiar uno aca cambia el tema; cambiar un semantico cambia un rol. */
+:root {
+  --cobalt-50:  oklch(96% 0.03 256);
+  --cobalt-400: oklch(66% 0.17 256);
+  --cobalt-500: oklch(58% 0.20 256);
+  --cobalt-600: oklch(52% 0.20 256);
+
+  --slate-980: oklch(15% 0.012 260);
+  --slate-950: oklch(18% 0.014 260);
+  --slate-900: oklch(22% 0.016 260);
+  --slate-850: oklch(26% 0.016 260);
+  --slate-800: oklch(32% 0.015 258);
+  --slate-500: oklch(62% 0.014 255);
+  --slate-300: oklch(78% 0.012 255);
+  --slate-100: oklch(93% 0.006 250);
+  --slate-50:  oklch(96% 0.005 250);
+  --slate-25:  oklch(98.5% 0.004 250);
+  --slate-ink: oklch(24% 0.02 258);
+  --slate-ink-2: oklch(34% 0.018 257);
+  --slate-ink-3: oklch(50% 0.016 256);
+  --slate-rule-light: oklch(89% 0.008 255);
+
+  /* Estados. Dos juegos porque el contraste minimo cambia con el fondo. */
+  --green-dark:  oklch(72% 0.15 155);
+  --green-light: oklch(48% 0.14 155);
+  --amber-dark:  oklch(80% 0.14 80);
+  --amber-light: oklch(52% 0.13 70);
+  --rose-dark:   oklch(70% 0.17 20);
+  --rose-light:  oklch(50% 0.19 22);
+}
+
+/* ── Semanticos: modo oscuro (por defecto) ───────────────── */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-paper: var(--slate-950);
+  --color-paper-2: var(--slate-900);   /* superficies elevadas */
+  --color-paper-3: var(--slate-850);   /* hover */
+  --color-well: var(--slate-980);      /* terminal, logs, code */
+
+  --color-ink: oklch(96% 0.005 250);
+  --color-ink-2: var(--slate-300);     /* cuerpo */
+  --color-ink-3: var(--slate-500);     /* secundario */
+
+  --color-rule: var(--slate-800);
+  --color-rule-strong: oklch(40% 0.02 258);
+
+  --color-accent: var(--cobalt-400);
+  --color-accent-ink: var(--slate-980); /* texto sobre el acento */
+  --color-accent-soft: oklch(66% 0.17 256 / 0.14);
+
+  --color-success: var(--green-dark);
+  --color-warning: var(--amber-dark);
+  --color-danger: var(--rose-dark);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-paper: var(--slate-25);
+  --color-paper-2: #fff;
+  --color-paper-3: var(--slate-50);
+  --color-well: var(--slate-900);      /* el terminal sigue oscuro en claro */
+
+  --color-ink: var(--slate-ink);
+  --color-ink-2: var(--slate-ink-2);
+  --color-ink-3: var(--slate-ink-3);
+
+  --color-rule: var(--slate-rule-light);
+  --color-rule-strong: oklch(80% 0.01 255);
+
+  --color-accent: var(--cobalt-600);
+  --color-accent-ink: #fff;
+  --color-accent-soft: oklch(52% 0.20 256 / 0.10);
+
+  --color-success: var(--green-light);
+  --color-warning: var(--amber-light);
+  --color-danger: var(--rose-light);
+}
+
+/* ── Tipografia ───────────────────────────────────────────
+   Self-hosted: la app corre offline, un @import a Google Fonts no resuelve. */
+:root {
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+
+  --tracking-tight: -0.02em;
+  --tracking-mono: 0.06em;   /* labels UPPERCASE en mono */
+}
+
+/* ── Espaciado: escala de 4pt ─────────────────────────────
+   Antes habia 17 valores literales sin ritmo. */
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+}
+
+/* ── Radios: dibujados con regla, no pills ────────────────── */
+:root {
+  --radius-sm: 4px;
+  --radius: 6px;    /* controles */
+  --radius-lg: 10px; /* superficies */
+  --radius-full: 999px;
+}
+
+/* ── Motion ───────────────────────────────────────────────
+   Tres easings nombrados. Nunca el `ease` del navegador, nunca overshoot. */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 400ms;
+
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.20);
+  --shadow: 0 4px 12px oklch(0% 0 0 / 0.24);
+}
