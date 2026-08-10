@@ -21,6 +21,12 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    // Electron pinta blanco hasta que el renderer dibuja, y el backend tarda
+    // unos segundos en levantar: se veia un recuadro blanco en una esquina de
+    // la pantalla. `show: false` la muestra recien cuando ya pinto, y el color
+    // de fondo (el mismo --color-paper del tema oscuro) cubre los repintados.
+    show: false,
+    backgroundColor: '#0e1218',
     autoHideMenuBar: true,
     // Los defaults de Electron 33 ya son estos, pero declararlos evita que un
     // upgrade futuro los afloje en silencio.
@@ -44,6 +50,14 @@ function createWindow() {
       event.preventDefault();
       if (/^https?:/i.test(url)) shell.openExternal(url);
     }
+  });
+
+  // El layout es responsive (rail + Bento se reacomodan en 1100px y 760px),
+  // asi que abrir maximizada aprovecha el monitor en vez de dejar una ventana
+  // de 1280x800 perdida en una esquina.
+  win.once('ready-to-show', () => {
+    win.maximize();
+    win.show();
   });
 
   win.loadURL(APP_ORIGIN);
