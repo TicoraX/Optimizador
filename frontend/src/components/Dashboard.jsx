@@ -101,7 +101,7 @@ function ModuleCard({ moduleKey, data, scanning, onScan, onOpen, style, revealIn
         >
           {scanning ? 'Escaneando…' : 'Escanear'}
         </button>
-        <button className="btn btn-primary" onClick={() => onOpen(moduleKey)}>
+        <button className="btn btn-quiet" onClick={() => onOpen(moduleKey)}>
           Abrir
         </button>
       </footer>

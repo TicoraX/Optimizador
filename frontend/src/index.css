@@ -92,6 +92,9 @@ a { color: var(--color-accent); }
   max-width: 1400px;
   width: 100%;
   min-width: 0;
+  /* Sin esto el contenido queda pegado a la izquierda y en un monitor ancho
+     sobra medio viewport en blanco a la derecha. */
+  margin-inline: auto;
 }
 
 .navbar {
@@ -185,6 +188,10 @@ a { color: var(--color-accent); }
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: start;
+  /* El usuario reordena las tarjetas desde "Personalizar", asi que los spans
+     no suman 6 en cada fila y quedan huecos. `dense` mete las tarjetas chicas
+     en el hueco en vez de dejarlo vacio. */
+  grid-auto-flow: dense;
 }
 .module-card { grid-column: span 2; }
 .module-card[data-span='wide'] { grid-column: span 3; }
@@ -302,6 +309,13 @@ a { color: var(--color-accent); }
 .btn-primary:hover:not(:disabled) { background: var(--color-accent); filter: brightness(1.08); }
 
 .btn-secondary { background: transparent; }
+/* Para acciones que solo navegan. El acento cobalto es una senial: relleno
+   solido en las 9 tarjetas del Bento lo convertia en decoracion. */
+.btn-quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent);
+}
 .btn-danger { color: var(--color-danger); border-color: var(--color-danger); }
 .btn-danger:hover:not(:disabled) { background: oklch(from var(--color-danger) l c h / 0.12); }
 
