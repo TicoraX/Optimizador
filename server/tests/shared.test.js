@@ -4,7 +4,7 @@ import {
   validateModule, validateDate, validateBooleanField, validateIndexList,
   validateDays, validateMinRamMB, validateTime, validateFrequency,
   validateWeekdays, validateIntervalDays, normalizeSchTaskStatus,
-  parseCsvLine, parseIndexSelection, padRight, VALID_MODULES,
+  parseCsvLine, parseIndexSelection, padRight, VALID_MODULES, localStamp,
 } from '../lib/shared.js';
 
 function expectError(fn, statusCode, msgPart) {
@@ -118,4 +118,18 @@ describe('padRight', () => {
   it('pads', () => assert.equal(padRight('abc', 5), 'abc  '));
   it('handles null', () => assert.equal(padRight(null, 3), '   '));
   it('no truncate', () => assert.equal(padRight('abcdef', 3), 'abcdef'));
+});
+
+describe('localStamp', () => {
+  // El bug original: `toISOString()` da UTC, asi que en UTC-5 un escaneo de
+  // las 20:00 quedaba archivado con la fecha del dia siguiente.
+  it('usa la fecha y hora del reloj local, no UTC', () => {
+    const d = new Date(2026, 7, 9, 23, 30, 5); // 9 de agosto, 23:30:05 local
+    assert.deepEqual(localStamp(d), { date: '2026-08-09', time: '23:30:05' });
+  });
+
+  it('rellena con cero a la izquierda', () => {
+    const d = new Date(2026, 0, 2, 3, 4, 5);
+    assert.deepEqual(localStamp(d), { date: '2026-01-02', time: '03:04:05' });
+  });
 });

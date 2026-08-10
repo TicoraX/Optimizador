@@ -398,10 +398,27 @@ function reportsDirOf(moduleKey) {
 export function makeLogger(moduleKey, onOutput) {
   const logPath = join(reportsDirOf(moduleKey), MODULES[moduleKey].logFile);
   return (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const { date, time } = localStamp();
+    const stamp = `${date} ${time}`;
     const line = `[${stamp}] ${String(message).replace(/[\r\n]/g, ' ')}`;
     appendFileSync(logPath, line + '\n');
     onOutput(line);
+  };
+}
+
+/**
+ * Fecha y hora locales, no UTC.
+ *
+ * `toISOString()` devuelve UTC: en UTC-5, un escaneo de las 20:00 quedaba
+ * archivado con la fecha del dia siguiente y el dashboard mostraba un
+ * "ultimo escaneo" en el futuro. La app corre en la maquina del usuario,
+ * asi que la fecha que importa es la de su reloj.
+ */
+export function localStamp(date = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return {
+    date: `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`,
+    time: `${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`,
   };
 }
 
@@ -409,7 +426,7 @@ export function makeLogger(moduleKey, onOutput) {
 export function prepareReport(moduleKey) {
   const dir = reportsDirOf(moduleKey);
   const mod = MODULES[moduleKey];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localStamp().date;
   return {
     today,
     reportPath: join(dir, `${mod.reportPrefix}-${today}.md`),

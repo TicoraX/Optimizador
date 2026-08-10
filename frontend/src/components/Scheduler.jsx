@@ -208,23 +208,28 @@ export default function Scheduler() {
                         {task.status}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                        onClick={() => isEditing ? closeSchedule() : openSchedule(task.name)}
-                      >
-                        {isEditing ? 'Cerrar' : 'Configurar horario'}
-                      </button>
-                      <label className="switch">
-                        <input
-                          type="checkbox"
-                          checked={isEnabled}
-                          disabled={toggling[task.name]}
-                          onChange={() => handleToggle(task.name, task.status)}
-                        />
-                        <span className="slider"></span>
-                      </label>
+                    {/* El flex va en un div, no en el <td>: `display:flex` sobre una
+                        celda la saca del layout de tabla y su borde queda corrido
+                        respecto del resto de la fila. */}
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                          onClick={() => isEditing ? closeSchedule() : openSchedule(task.name)}
+                        >
+                          {isEditing ? 'Cerrar' : 'Configurar horario'}
+                        </button>
+                        <label className="switch">
+                          <input
+                            type="checkbox"
+                            checked={isEnabled}
+                            disabled={toggling[task.name]}
+                            onChange={() => handleToggle(task.name, task.status)}
+                          />
+                          <span className="slider"></span>
+                        </label>
+                      </div>
                     </td>
                   </tr>
                   {isEditing && (
