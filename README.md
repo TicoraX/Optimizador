@@ -127,8 +127,12 @@ Si preferís crear la tarea a mano:
 
 ```powershell
 schtasks /Create /TN "RAMOptimizer_Weekly" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F ^
-  /TR "powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File \"<RUTA>\scripts\Notify.ps1\" -Module ram"
+  /TR "powershell.exe -ep Bypass -nop -w Hidden -File \"<RUTA>\scripts\Notify.ps1\" -Module ram -Port 3001"
 ```
+
+`<RUTA>` es la raíz del repo si corrés desde el código. En la app instalada el
+script vive en `%LOCALAPPDATA%\Programs\optimizador\resources\scripts`, fuera
+del `app.asar` justamente para que PowerShell pueda leerlo.
 
 `-Module` acepta: `updates`, `cleanup`, `startup`, `ram`, `network`, `services`,
 `power`, `apps`, `privacy`. El escaneo es de solo lectura: nunca modifica el
@@ -173,7 +177,7 @@ Agrega estas funciones a tu perfil de PowerShell (`notepad $PROFILE`) para acces
 function Optimizador {
     param([ValidateSet('updates','cleanup','startup','ram','network','services','power','apps','privacy')]
           [string]$Module)
-    powershell -ExecutionPolicy Bypass -NoProfile -File "<RUTA_COMPLETA>\scripts\Notify.ps1" -Module $Module
+    powershell -ep Bypass -nop -File "<RUTA_COMPLETA>\scripts\Notify.ps1" -Module $Module -Port 3001
 }
 ```
 
@@ -259,7 +263,7 @@ Lo único que hay que reemplazar después de clonar es el placeholder `<RUTA>` d
 
 ## Limitaciones conocidas
 
-- `winget upgrade` no tiene salida JSON oficial (verificado en v1.28). La salida se parsea de la tabla de texto por posición de columna. Si Microsoft cambia el formato, los resultados de winget pueden aparecer vacíos — revisa la lógica de parsing de winget en `server/lib/updates.js` (o `update-checker/Check-Updates.ps1` para la vía de solo-scripts) si eso pasa.
+- `winget upgrade` no tiene salida JSON oficial (verificado en v1.28). La salida se parsea de la tabla de texto por posición de columna. Si Microsoft cambia el formato, los resultados de winget pueden aparecer vacíos — revisa la lógica de parsing de winget en `server/lib/updates.js` si eso pasa.
 - El rendimiento de arranque (EventLog de Rendimiento de Windows, ID 100) **no está disponible desde el dashboard web**. La única forma confiable de leerlo sin permisos de administrador es `Get-WinEvent` de PowerShell — `wevtutil` devuelve "Access is denied" para un usuario no-admin aunque `Get-WinEvent` sí funcione. Como el backend evita deliberadamente invocar PowerShell con `-File` (ver la nota de arquitectura arriba), esta métrica se reporta como no disponible en vez de reintroducirla a costa de la estabilidad.
 - Los accesos directos (`.lnk`) de la carpeta Startup se listan solo por nombre de archivo desde el dashboard web — resolver su destino real normalmente requiere `WScript.Shell` (COM/PowerShell), que no se usa aquí por la misma razón.
 - Los servicios auto-start se listan solo informativamente y nunca se modifican — deshabilitar servicios auto-start sin saber cuáles son críticos puede dejar el sistema inestable.
