@@ -84,18 +84,29 @@ async function checkChocoUpdates() {
   return { count, error: false, block: '```\n' + header + '\n' + rows.join('\n') + '\n```' };
 }
 
-export async function runUpdatesScanNative(onOutput) {
+export async function runUpdatesScanNative(onOutput, onProgress) {
   const paths = prepareReport('updates');
   const { today, reportPath } = paths;
 
-  onOutput('Revisando winget...');
-  const winget = await checkWingetUpdates();
-  onOutput('Revisando pip...');
-  const pip = await checkPipUpdates();
-  onOutput('Revisando npm...');
-  const npm = await checkNpmUpdates();
-  onOutput('Revisando choco...');
-  const choco = await checkChocoUpdates();
+  // Es el escaneo mas lento (~35s, cuatro gestores en serie) y era el que
+  // menos senial daba. Un paso por gestor.
+  const gestores = [
+    ['winget', checkWingetUpdates],
+    ['pip', checkPipUpdates],
+    ['npm', checkNpmUpdates],
+    ['choco', checkChocoUpdates],
+  ];
+  const resultados = {};
+  for (const [i, [nombre, check]] of gestores.entries()) {
+    onOutput(`Revisando ${nombre}...`);
+    resultados[nombre] = await check();
+    onProgress?.({
+      current: i + 1,
+      total: gestores.length,
+      percentage: Math.round(((i + 1) / gestores.length) * 100),
+    });
+  }
+  const { winget, pip, npm, choco } = resultados;
 
   const fmt = (label, r) => (r.error ? `- ${label}: error (ver detalle abajo)` : `- ${label}: ${r.count} disponibles`);
 

@@ -358,11 +358,14 @@ export async function runStartupScanNative(onOutput) {
       id: startupItemId(e), name: e.name, source: e.source, type: e.type,
       command: e.command, requiresAdmin: String(e.keyPath || '').startsWith('HKLM'),
     })),
-    tasks: enabledTasks.map((t) => ({ id: t.taskName, taskName: t.taskName, state: t.state })),
+    // `name` es el campo que todo item del contrato trae: la UI lo pinta para
+    // programas, servicios, apps y procesos. Las tareas traian solo `taskName`
+    // y se dibujaban 35 checkboxes sin etiqueta.
+    tasks: enabledTasks.map((t) => ({ id: t.taskName, name: t.taskName, state: t.state })),
     disabledPrograms: disabledEntries.map((e) => ({
       id: startupItemId(e), name: e.name, source: e.source, type: e.type,
     })),
-    disabledTasks: disabledTasks.map((t) => ({ id: t.taskName, taskName: t.taskName, state: t.state })),
+    disabledTasks: disabledTasks.map((t) => ({ id: t.taskName, name: t.taskName, state: t.state })),
   });
 }
 

@@ -31,10 +31,14 @@ export default function Terminal({ logs, isRunning, onAbort, progress }) {
         )}
       </div>
 
-      {/* Progress bar — only shown when backend emits progress events */}
+      {/* Solo aparece cuando el modulo emite eventos `progress`.
+          La etiqueta va FUERA del riel: el riel mide 3px con overflow hidden,
+          asi que adentro el texto quedaba recortado y no se leia nunca. */}
       {hasProgress && (
-        <div className="terminal-progress-wrap">
-          <div className="terminal-progress-bar" style={{ width: `${progress.percentage}%` }} />
+        <div className="terminal-progress">
+          <div className="terminal-progress-wrap">
+            <div className="terminal-progress-bar" style={{ width: `${progress.percentage}%` }} />
+          </div>
           <span className="terminal-progress-label">
             {progress.total
               ? `Paso ${progress.current} de ${progress.total} — ${progress.percentage}%`

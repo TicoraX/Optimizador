@@ -89,7 +89,7 @@ export function isProtectedApp(id) {
   return PROTECTED_APP_PATTERNS.some((p) => s.includes(p));
 }
 
-export async function runAppsActionNative(envVars, onOutput) {
+export async function runAppsActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('apps', onOutput);
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('apps', { dryRun, writeLog });
@@ -107,7 +107,15 @@ export async function runAppsActionNative(envVars, onOutput) {
 
   let uninstalled = 0, errors = 0, skipped = 0;
 
-  for (const id of ids) {
+  for (const [i, id] of ids.entries()) {
+    // Desinstalar varias apps con winget tarda minutos; sin esto la unica
+    // senial de avance eran las lineas del log.
+    onProgress?.({
+      current: i + 1,
+      total: ids.length,
+      percentage: Math.round(((i + 1) / ids.length) * 100),
+    });
+
     if (isProtectedApp(id)) {
       skipped++;
       writeLog(`OMITIDO (paquete protegido del sistema): ${id}`);

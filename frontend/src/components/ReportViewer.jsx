@@ -536,7 +536,7 @@ export default function ReportViewer() {
                           onChange={() => handleCheckboxChange('task', idx)}
                           disabled={isRunning}
                         />
-                        <span className="checkbox-label" title={task.fullName}>
+                        <span className="checkbox-label" title={task.name}>
                           {task.name}
                         </span>
                       </label>
@@ -591,7 +591,7 @@ export default function ReportViewer() {
                               onChange={() => handleCheckboxChange('enableTask', idx)}
                               disabled={isRunning}
                             />
-                            <span className="checkbox-label" title={task.fullName}>
+                            <span className="checkbox-label" title={task.name}>
                               {task.name}
                             </span>
                           </label>

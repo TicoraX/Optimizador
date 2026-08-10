@@ -408,7 +408,9 @@ function runNativeOverSSE(res, task, timeoutMs = 120000) {
     res.end();
   }, timeoutMs);
 
-  task((line) => send('output', line))
+  // Segundo canal: los modulos con pasos contables reportan avance por aca.
+  // El frontend ya dibujaba la barra; hasta ahora nadie emitia el evento.
+  task((line) => send('output', line), (p) => send('progress', p))
     .then(() => {
       if (settled) return;
       settled = true;
@@ -448,7 +450,7 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
     extraArgs = [cleanMode, minMB];
   }
 
-  runNativeOverSSE(res, (onOutput) => handler(...extraArgs, onOutput));
+  runNativeOverSSE(res, (onOutput, onProgress) => handler(...extraArgs, onOutput, onProgress));
 }));
 
 // ═══════════════════════════════════════════════════════
@@ -650,11 +652,11 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   // updates no recibe envVars (no tiene params de seleccion)
   if (req.params.module === 'updates') {
-    runNativeOverSSE(res, (onOutput) => handler(onOutput), ACTION_TIMEOUT_MS);
+    runNativeOverSSE(res, (onOutput, onProgress) => handler(onOutput, onProgress), ACTION_TIMEOUT_MS);
     return;
   }
 
-  runNativeOverSSE(res, (onOutput) => handler(envVars, onOutput), ACTION_TIMEOUT_MS);
+  runNativeOverSSE(res, (onOutput, onProgress) => handler(envVars, onOutput, onProgress), ACTION_TIMEOUT_MS);
 }));
 
 // ═══════════════════════════════════════════════════════
