@@ -63,6 +63,8 @@ export default function ReportViewer() {
   const [riskyAck, setRiskyAck] = useState(false);
   const [minRamMB, setMinRamMB] = useState(50);
   const [cleanMode, setCleanMode] = useState('soft');
+  const [adblockSources, setAdblockSources] = useState([]);
+  const [selectedSources, setSelectedSources] = useState({});
 
   // Terminal & SSE States
   const [logs, setLogs] = useState([]);
@@ -171,6 +173,11 @@ export default function ReportViewer() {
       setSelectedPrivacy(noneChecked(items));
     } else if (module === 'power') {
       setPowerPlans(items);
+    } else if (module === 'adblock') {
+      setAdblockSources(items.fuentes || []);
+      // Todas marcadas por defecto: es lo que quiere quien entra a este modulo,
+      // y son listas curadas, no una seleccion peligrosa.
+      setSelectedSources(Object.fromEntries((items.fuentes || []).map((_, i) => [i, true])));
     }
   };
 
@@ -207,8 +214,17 @@ export default function ReportViewer() {
 
   // dryRun corre la accion completa sin tocar nada y reporta que HARIA. Es la
   // unica red de contencion para lo irreversible (borrar archivos, desinstalar).
-  const runAction = ({ dryRun = false } = {}) => {
+  const runAction = ({ dryRun = false, adblockAction } = {}) => {
     const body = dryRun ? { dryRun: true } : {};
+    if (module === 'adblock') {
+      // Dos acciones opuestas en el mismo modulo, asi que cual se ejecuta viene
+      // del boton y no de un estado: no hay forma de apretar "quitar" y que se
+      // mande "aplicar" porque quedo algo viejo en el estado.
+      body.adblockAction = adblockAction || 'apply';
+      body.sources = adblockSources
+        .filter((_, i) => selectedSources[i])
+        .map((f) => f.id);
+    }
     if (module === 'cleanup') {
       body.downloadsAgeDays = downloadsAgeDays;
       body.cleanCategories = CLEAN_CATEGORIES
@@ -703,6 +719,42 @@ export default function ReportViewer() {
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {module === 'adblock' && (
+            <div className="form-group">
+              <label className="form-label">Listas a usar:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Se descargan al aplicar. Windows va a pedir permiso de
+                administrador para escribir el archivo hosts.
+              </p>
+              <div className="checkbox-list">
+                {adblockSources.map((f, idx) => (
+                  <label key={f.id} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedSources[idx] || false}
+                      onChange={() => setSelectedSources(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={f.name}>
+                      {f.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
+                        {f.desc}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <button
+                className="btn btn-danger"
+                style={{ width: '100%', marginTop: 'var(--space-4)' }}
+                onClick={() => runAction({ adblockAction: 'remove' })}
+                disabled={isRunning}
+              >
+                Quitar el bloqueo
+              </button>
             </div>
           )}
 

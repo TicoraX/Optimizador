@@ -23,6 +23,7 @@ import { runServicesScanNative, runServicesActionNative } from './lib/services.j
 import { runPowerScanNative, runPowerActionNative } from './lib/power.js';
 import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
+import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -135,6 +136,7 @@ const SCAN_HANDLERS = {
   power: runPowerScanNative,
   apps: runAppsScanNative,
   privacy: runPrivacyScanNative,
+  adblock: runAdblockScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -146,6 +148,7 @@ const ACTION_HANDLERS = {
   power: runPowerActionNative,
   apps: runAppsActionNative,
   privacy: runPrivacyActionNative,
+  adblock: runAdblockActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -303,6 +306,20 @@ app.get('/api/status', safeHandler((_req, res) => {
         totalSettings: p.total_settings || 8,
         hardenedCount: p.hardened_count || 0,
         error: p.error,
+      };
+    })(),
+    adblock: (() => {
+      const a = loadJsonSafe(
+        join(MODULES.adblock.dir, 'reports', MODULES.adblock.countsFile),
+        { date: null, activo: false, blockedDomains: 0, listDomains: 0, listAgeDays: null, error: true },
+      );
+      return {
+        lastScan: a.date,
+        activo: a.activo === true,
+        blockedDomains: a.blockedDomains || 0,
+        listDomains: a.listDomains || 0,
+        listAgeDays: a.listAgeDays,
+        error: a.error,
       };
     })(),
   });
@@ -496,6 +513,31 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     return [...new Set(picked)].join('|');
   };
 
+  // Adblock: la accion es un enum cerrado y las fuentes se validan contra la
+  // whitelist del modulo. Nada de esto se concatena en una URL ni en un
+  // comando; solo indexa objetos.
+  if (req.body?.adblockAction !== undefined) {
+    const a = String(req.body.adblockAction);
+    if (a !== 'apply' && a !== 'remove') {
+      const err = new Error('adblockAction: debe ser apply o remove');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.ADBLOCK_ACTION = a;
+  }
+
+  if (req.body?.sources !== undefined) {
+    const picked = (Array.isArray(req.body.sources) ? req.body.sources : [])
+      .map((s) => String(s).trim());
+    const bad = picked.filter((s) => !FUENTES_VALIDAS.includes(s));
+    if (bad.length > 0) {
+      const err = new Error(`sources: fuente no permitida (${bad.join(', ')})`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.ADBLOCK_SOURCES = [...new Set(picked)].join(',');
+  }
+
   if (req.body?.programs !== undefined) {
     envVars.OPTIMIZE_PROGRAMS = validateIdList(req.body.programs, 'programs');
   }
@@ -639,6 +681,8 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     apps: ['OPTIMIZE_APPS'],
     privacy: ['OPTIMIZE_PRIVACY'],
     power: ['PLAN_GUID'],
+    // `remove` no lleva fuentes: quitar el bloqueo no necesita seleccion.
+    adblock: ['ADBLOCK_SOURCES', 'ADBLOCK_ACTION'],
   };
   const required = SELECTION_FIELDS[req.params.module];
   if (required && !required.some((k) => envVars[k])) {

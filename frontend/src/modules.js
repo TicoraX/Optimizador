@@ -20,6 +20,7 @@ const ICONS = {
   power: 'M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10',
   apps: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
   privacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  adblock: 'M4.9 4.9l14.2 14.2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
 };
 
 const fmtSize = (mb) => {
@@ -124,6 +125,20 @@ export const MODULES = {
     icon: ICONS.apps,
     metrics: (d) => [
       { label: 'Instaladas', value: d.appsCount ?? 0 },
+    ],
+  },
+  adblock: {
+    label: 'Anuncios',
+    blurb: 'Bloqueo por dominio en el archivo hosts',
+    icon: ICONS.adblock,
+    metrics: (d) => [
+      { label: 'Estado', value: d.activo ? 'Activo' : 'Inactivo',
+        tone: d.activo ? 'is-success' : null },
+      { label: 'Dominios bloqueados', value: d.blockedDomains ?? 0 },
+      { label: 'Lista descargada', value: d.listDomains ? `${d.listDomains} dominios` : '—' },
+      { label: 'Antigüedad de la lista',
+        value: d.listAgeDays == null ? '—' : `${d.listAgeDays} días`,
+        tone: tone(d.listAgeDays ?? 0, { warn: 30 }) },
     ],
   },
   privacy: {

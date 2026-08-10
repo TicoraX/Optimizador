@@ -210,7 +210,9 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         <div>
           <h1 style={{ fontSize: 'var(--text-2xl)' }}>Estado del equipo</h1>
           <p style={{ margin: 0, color: 'var(--color-ink-3)', fontSize: 'var(--text-sm)' }}>
-            Todo corre localmente. Ningún dato sale de esta máquina.
+            Todo corre localmente y ningún dato tuyo sale de esta máquina. La
+            única salida a internet es la descarga de listas del módulo de
+            anuncios, y solo cuando vos la pedís.
           </p>
         </div>
         <button

@@ -109,6 +109,13 @@ export const MODULES = Object.freeze({
     taskName: 'PrivacyOptimizer_Weekly',
     logFile: 'optimize-log.txt',
   }),
+  adblock: Object.freeze({
+    dir: join(PROJECT_ROOT, 'adblock'),
+    countsFile: 'adblock-counts.json',
+    reportPrefix: 'adblock-report',
+    taskName: 'AdBlock_Weekly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

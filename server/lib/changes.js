@@ -15,6 +15,26 @@ import {
  * la fila dice como estaba ese dia y eso es lo que se restaura.
  */
 const REVERTERS = {
+  /**
+   * El bloque del hosts se identifica por marcadores, asi que deshacer es
+   * aplicar la accion contraria, no reescribir el archivo desde una copia:
+   * restaurar un backup completo pisaria las entradas que el usuario haya
+   * agregado a mano despues.
+   *
+   * Vuelve a pedir UAC, igual que la accion original.
+   */
+  async adblock(change) {
+    const { aplicarHosts, estadoHosts } = await import('./adblock.js');
+    const volverAActivar = String(change.previousValue || '').startsWith('activo');
+    const r = await aplicarHosts(volverAActivar ? 'apply' : 'remove');
+    const ok = r.code === 0 && estadoHosts().activo === volverAActivar;
+    if (ok) return { ok, detail: null };
+    return {
+      ok,
+      detail: r.code === 1223 ? 'Se cancelo el permiso de administrador' : errText(r),
+    };
+  },
+
   async services(change) {
     // previousValue es 'auto' | 'demand' | 'disabled', tal como lo acepta sc.
     const r = await spawnCapture('sc.exe', ['config', change.target, 'start=', change.previousValue]);

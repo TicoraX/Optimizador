@@ -20,7 +20,8 @@
       "frontend/dist/**"
     ],
     "extraResources": [
-      "scripts/Notify.ps1"
+      "scripts/Notify.ps1",
+      "scripts/Apply-Hosts.ps1"
     ],
     "win": {
       "target": "nsis"
