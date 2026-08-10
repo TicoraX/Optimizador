@@ -144,6 +144,14 @@ a { color: var(--color-accent); }
 .nav-link:hover { background: var(--color-paper-3); color: var(--color-ink); }
 .nav-link.active { background: var(--color-accent-soft); color: var(--color-accent); }
 
+.theme-toggle {
+  margin-top: var(--space-2);
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: var(--color-ink-3);
+}
+
 .status-badge {
   margin-top: auto;
   display: flex;
@@ -216,6 +224,8 @@ a { color: var(--color-accent); }
   }
   .nav-links { flex-direction: row; overflow-x: auto; }
   .status-badge { margin-top: 0; margin-left: auto; }
+  /* En el nav horizontal el toggle no debe ocupar el ancho completo. */
+  .theme-toggle { width: auto; margin-top: 0; }
   .main-content { padding: var(--space-4); }
   .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
   .module-card, .module-card[data-span='wide'],
@@ -409,6 +419,10 @@ a { color: var(--color-accent); }
   padding: var(--space-4);
   /* Una tabla ancha scrollea adentro, nunca empuja el body. */
   overflow-x: auto;
+  /* Y una larga tambien: el listado de 234 apps de winget dejaba la pagina
+     de 7680px de alto. Mismo tope que el terminal. */
+  max-height: 480px;
+  overflow-y: auto;
 }
 .markdown-content pre code { background: none; padding: 0; }
 

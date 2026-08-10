@@ -14,6 +14,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOnline, setIsOnline] = useState(false);
+  // tokens.css define los dos modos desde el principio, pero nada seteaba
+  // nunca `data-theme`, asi que el modo claro era inalcanzable.
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const fetchStatus = async () => {
     try {
@@ -93,6 +101,19 @@ export default function App() {
             <span className={`status-dot ${isOnline ? 'online' : 'offline'}`} />
             <span>{isOnline ? 'Conectado' : 'Sin conexión'}</span>
           </div>
+
+          <button
+            className="btn btn-secondary theme-toggle"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            <ModuleIcon
+              path={theme === 'dark'
+                ? 'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'
+                : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'}
+              size={16}
+            />
+            {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+          </button>
         </nav>
 
         {/* Central Router Container */}
