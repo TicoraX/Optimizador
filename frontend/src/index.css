@@ -195,20 +195,27 @@ a { color: var(--color-accent); }
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--space-4);
-  align-items: start;
-  /* El usuario reordena las tarjetas desde "Personalizar", asi que los spans
-     no suman 6 en cada fila y quedan huecos. `dense` mete las tarjetas chicas
-     en el hueco en vez de dejarlo vacio. */
+  /* `stretch` y no `start`: las tarjetas de una misma fila igualan altura.
+     Con `start`, Aplicaciones (1 metrica) quedaba mucho mas baja que Energia
+     (3) al lado. El `flex: 1` del .card-body absorbe el alto sobrante y deja
+     los botones abajo. */
+  align-items: stretch;
+  /* El usuario reordena las tarjetas desde "Personalizar", asi que una tarjeta
+     de fila entera puede caer despues de media fila. `dense` sube una chica al
+     hueco en vez de dejarlo vacio. */
   grid-auto-flow: dense;
 }
-.module-card { grid-column: span 2; }
-.module-card[data-span='wide'] { grid-column: span 3; }
+/* Media fila o fila entera, nada intermedio: son los unicos anchos que
+   embaldosan 6 columnas en cualquier orden. Antes convivian `span 2` y
+   `span 3`, y una fila de 3+2 usaba 5 de 6 columnas dejando uno muerto a la
+   derecha, con tarjetas de anchos distintos segun donde cayeran. */
+.module-card { grid-column: span 3; }
 .module-card[data-span='full'] { grid-column: span 6; }
 .chart-card { grid-column: span 6; padding: var(--space-6); }
 
 @media (max-width: 1100px) {
   .dashboard-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .module-card, .module-card[data-span='wide'] { grid-column: span 2; }
+  .module-card { grid-column: span 2; }
   .module-card[data-span='full'], .chart-card { grid-column: span 4; }
 }
 @media (max-width: 760px) {

@@ -39,7 +39,6 @@ export const MODULES = {
     label: 'Actualizaciones',
     blurb: 'winget, pip, npm global y Chocolatey',
     icon: ICONS.updates,
-    span: 'wide',
     metrics: (d) => [
       { label: 'winget', value: d.winget?.count ?? 0, tone: tone(d.winget?.count ?? 0, { warn: 1 }) },
       { label: 'pip', value: d.pip?.count ?? 0 },
@@ -51,7 +50,6 @@ export const MODULES = {
     label: 'Limpieza de disco',
     blurb: 'Temporales, caché, descargas y papelera',
     icon: ICONS.cleanup,
-    span: 'wide',
     metrics: (d) => [
       { label: 'Temporales', value: fmtSize(d.temp?.total_mb), tone: tone(d.temp?.total_mb ?? 0, { warn: 1024, danger: 10240 }) },
       { label: 'Caché de navegadores', value: fmtSize(d.browserCache?.total_mb) },
@@ -79,7 +77,6 @@ export const MODULES = {
     label: 'Inicio de sesión',
     blurb: 'Programas, servicios y tareas al arrancar',
     icon: ICONS.startup,
-    span: 'wide',
     metrics: (d) => [
       { label: 'Programas de inicio', value: d.startupPrograms?.count ?? 0, tone: tone(d.startupPrograms?.count ?? 0, { warn: 10, danger: 20 }) },
       { label: 'Servicios automáticos', value: d.autoServices?.count ?? 0 },
@@ -91,7 +88,6 @@ export const MODULES = {
     label: 'Servicios',
     blurb: 'Automáticos, separando Microsoft de terceros',
     icon: ICONS.services,
-    span: 'wide',
     metrics: (d) => [
       { label: 'De terceros', value: d.thirdPartyTotal ?? 0 },
       { label: 'Ejecutándose', value: d.thirdPartyRunning ?? 0, tone: tone(d.thirdPartyRunning ?? 0, { warn: 10 }) },
