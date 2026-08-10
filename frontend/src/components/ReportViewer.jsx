@@ -65,6 +65,7 @@ export default function ReportViewer() {
   const [cleanMode, setCleanMode] = useState('soft');
   const [adblockSources, setAdblockSources] = useState([]);
   const [selectedSources, setSelectedSources] = useState({});
+  const [bufferbloat, setBufferbloat] = useState(false);
 
   // Terminal & SSE States
   const [logs, setLogs] = useState([]);
@@ -202,6 +203,7 @@ export default function ReportViewer() {
   const runScan = () => {
     const body = {};
     if (module === 'cleanup') body.downloadsAgeDays = downloadsAgeDays;
+    if (module === 'network') body.bufferbloat = bufferbloat;
     if (module === 'ram') {
       body.cleanMode = cleanMode;
       // Mismo umbral que se manda en runAction() - el scan y la accion deben
@@ -433,7 +435,7 @@ export default function ReportViewer() {
                   {module === 'cleanup' && 'Mide espacio recuperable en archivos temporales, caché de navegadores, descargas antiguas y papelera de reciclaje.'}
                   {module === 'startup' && 'Analiza programas, servicios y tareas programadas que se inician con tu sesión de Windows. Todo es reversible.'}
                   {module === 'ram' && 'Escanea procesos por consumo de RAM y clasifica cada uno en 4 niveles de riesgo (crítico, riesgoso, seguro, desconocido). Permite liberar memoria de forma selectiva.'}
-                  {module === 'network' && 'Diagnostica conectividad de red: entradas DNS, latencia contra 8.8.8.8, adaptadores activos. Acción: limpia caché DNS y re-registra.'}
+                  {module === 'network' && 'Diagnostica dónde se agrega la latencia: jitter y pérdida sostenidos, latencia por salto hasta el destino, MTU, ahorro de energía del adaptador y comparación de servidores DNS. No baja el ping: eso requiere cambiar la ruta y no se puede hacer localmente.'}
                   {module === 'services' && 'Lista servicios con inicio automático separando Microsoft de terceros por ruta de archivo. Permite detener y deshabilitar servicios de terceros que no necesites.'}
                   {module === 'power' && 'Muestra el plan de energía activo con su descripción, batería y consumo estimado en watts. Permite cambiar de plan al instante.'}
                   {module === 'apps' && 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.'}
@@ -463,7 +465,7 @@ export default function ReportViewer() {
             {module === 'cleanup' && 'Mide espacio recuperable en temporales, caché de navegadores, descargas y papelera. Solo lectura.'}
             {module === 'startup' && 'Analiza programas, servicios y tareas que se inician con tu sesión. Deshabilitar es reversible.'}
             {module === 'ram' && 'Escanea procesos por consumo de RAM, los clasifica por riesgo (seguro/riesgoso/crítico) y te permite liberar memoria de forma selectiva.'}
-            {module === 'network' && 'Diagnostica conectividad (DNS, ping, adaptadores) y permite limpiar la caché DNS.'}
+            {module === 'network' && 'Mide jitter, pérdida, latencia por salto, MTU y DNS. La acción solo limpia la caché DNS: no reduce la latencia.'}
             {module === 'services' && 'Lista servicios con inicio automático, separa MS de terceros. Permite detener y deshabilitar servicios que no necesites.'}
             {module === 'power' && 'Muestra el plan de energía activo, estado de batería y consumo estimado. Permite cambiar de plan al instante.'}
             {module === 'apps' && 'Lista aplicaciones instaladas vía winget y permite desinstalar varias a la vez de forma silenciosa.'}
@@ -719,6 +721,31 @@ export default function ReportViewer() {
                   </label>
                 ))}
               </div>
+            </div>
+          )}
+
+          {module === 'network' && (
+            <div className="form-group">
+              <label className="form-label">Opciones del diagnóstico:</label>
+              <label className="checkbox-item">
+                <input
+                  type="checkbox"
+                  checked={bufferbloat}
+                  onChange={() => setBufferbloat((v) => !v)}
+                  disabled={isRunning}
+                />
+                <span className="checkbox-label">
+                  Medir latencia bajo carga
+                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-warning)' }}>
+                    Satura la conexión unos segundos a propósito. No lo corras
+                    mientras jugás o estás en una llamada.
+                  </span>
+                </span>
+              </label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginTop: 'var(--space-3)' }}>
+                El diagnóstico tarda alrededor de un minuto: encadena ping
+                sostenido, traceroute, MTU y comparación de servidores DNS.
+              </p>
             </div>
           )}
 

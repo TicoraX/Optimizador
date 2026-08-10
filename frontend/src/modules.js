@@ -98,13 +98,15 @@ export const MODULES = {
   },
   network: {
     label: 'Red',
-    blurb: 'DNS, latencia y adaptadores',
+    blurb: 'Jitter, pérdida, ruta por saltos y DNS',
     icon: ICONS.network,
     metrics: (d) => [
-      { label: 'Ping a 8.8.8.8', value: d.avgPingMs != null ? `${d.avgPingMs} ms` : '—', tone: tone(d.avgPingMs ?? 0, { warn: 80, danger: 150 }) },
+      { label: 'Latencia (mediana)', value: d.avgPingMs != null ? `${d.avgPingMs} ms` : '—', tone: tone(d.avgPingMs ?? 0, { warn: 80, danger: 150 }) },
+      // El jitter explica el tironeo mejor que el promedio, por eso va segundo.
+      { label: 'Jitter', value: d.jitterMs != null ? `${d.jitterMs} ms` : '—', tone: tone(d.jitterMs ?? 0, { warn: 10, danger: 30 }) },
       { label: 'Pérdida de paquetes', value: `${d.packetLoss ?? 0}%`, tone: tone(d.packetLoss ?? 0, { warn: 1, danger: 10 }) },
-      { label: 'Caché DNS', value: `${d.dnsCacheEntries ?? 0} entradas` },
-      { label: 'Adaptadores activos', value: d.activeAdapters ?? 0 },
+      { label: 'Primer salto (router)', value: d.firstHopMs != null ? `${d.firstHopMs} ms` : '—', tone: tone(d.firstHopMs ?? 0, { warn: 5, danger: 20 }) },
+      { label: 'Adaptadores con ahorro', value: d.powerSavingAdapters ?? 0, tone: tone(d.powerSavingAdapters ?? 0, { warn: 1 }) },
     ],
   },
   power: {

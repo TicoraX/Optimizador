@@ -229,6 +229,13 @@ app.get('/api/status', safeHandler((_req, res) => {
         lastScan: n.date,
         dnsCacheEntries: n.dns_cache_entries || 0,
         avgPingMs: n.avg_ping_ms,
+        jitterMs: n.jitter_ms ?? null,
+        p95PingMs: n.p95_ping_ms ?? null,
+        firstHopMs: n.first_hop_ms ?? null,
+        mtu: n.mtu ?? null,
+        powerSavingAdapters: n.power_saving_adapters || 0,
+        bufferbloatDeltaMs: n.bufferbloat_delta_ms ?? null,
+        bestDns: n.best_dns ?? null,
         packetLoss: n.packet_loss || 0,
         activeAdapters: n.active_adapters || 0,
         disconnectedAdapters: n.disconnected_adapters || 0,
@@ -459,6 +466,12 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
     extraArgs = [ageDays];
   }
 
+  if (req.params.module === 'network') {
+    // El test de saturacion no modifica nada, pero ocupa el enlace unos
+    // segundos: va apagado por defecto y el frontend avisa antes.
+    extraArgs = [validateBooleanField(req.body?.bufferbloat ?? false, 'bufferbloat')];
+  }
+
   if (req.params.module === 'ram') {
     const cleanMode = req.body?.cleanMode === 'deep' ? 'deep' : 'soft';
     const minMB = req.body?.minRamMB !== undefined
@@ -467,7 +480,10 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
     extraArgs = [cleanMode, minMB];
   }
 
-  runNativeOverSSE(res, (onOutput, onProgress) => handler(...extraArgs, onOutput, onProgress));
+  // El diagnostico de red encadena ping sostenido, traceroute, MTU y DNS: pasa
+  // holgadamente del minuto y medio por defecto.
+  const timeout = req.params.module === 'network' ? 300000 : undefined;
+  runNativeOverSSE(res, (onOutput, onProgress) => handler(...extraArgs, onOutput, onProgress), timeout);
 }));
 
 // ═══════════════════════════════════════════════════════
