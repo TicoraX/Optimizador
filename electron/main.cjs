@@ -69,6 +69,15 @@ app.whenReady().then(async () => {
   try {
     // app.asar es de solo lectura; los reportes de cada modulo necesitan una carpeta real
     process.env.OPTIMIZADOR_DATA_DIR = app.getPath('userData');
+
+    // Notify.ps1 lo ejecuta el Task Scheduler con `powershell -File`, asi que
+    // tiene que ser un archivo real en disco. Empaquetado va como
+    // extraResources (fuera del asar, que PowerShell no sabe leer), y su ruta
+    // no coincide con la de datos: apuntarlo a userData creaba tareas con un
+    // -File inexistente.
+    process.env.OPTIMIZADOR_SCRIPTS_DIR = app.isPackaged
+      ? path.join(process.resourcesPath, 'scripts')
+      : path.join(__dirname, '..', 'scripts');
     log(`whenReady: importando server.js (data dir: ${process.env.OPTIMIZADOR_DATA_DIR})`);
     // Arranca el backend Express en el mismo proceso (ya bindea solo a 127.0.0.1:3001)
     await import('../server/server.js');

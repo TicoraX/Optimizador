@@ -17,7 +17,9 @@
       "server/lib/**",
       "server/server.js",
       "server/package.json",
-      "frontend/dist/**",
+      "frontend/dist/**"
+    ],
+    "extraResources": [
       "scripts/Notify.ps1"
     ],
     "win": {

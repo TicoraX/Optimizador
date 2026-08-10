@@ -776,7 +776,10 @@ app.post('/api/scheduler/:task/reschedule', safeHandler((req, res) => {
   // Alias cortos (-ep/-nop/-w) en vez de los nombres completos: el /TR de
   // schtasks tiene un limite duro de 261 caracteres y la ruta puede ser larga
   // (userData de un usuario con nombre largo). Ahorran ~30.
-  const notifyPath = join(PROJECT_ROOT, 'scripts', 'Notify.ps1');
+  // La carpeta de scripts no es la de datos: la setea Electron (fuera del asar
+  // cuando esta empaquetado). El fallback cubre correr el server suelto.
+  const scriptsDir = process.env.OPTIMIZADOR_SCRIPTS_DIR || join(PROJECT_ROOT, 'scripts');
+  const notifyPath = join(scriptsDir, 'Notify.ps1');
   const trCommand = `powershell.exe -ep Bypass -nop -w Hidden -File "${notifyPath}" -Module ${moduleKey} -Port ${PORT}`;
 
   const TR_MAX = 261;

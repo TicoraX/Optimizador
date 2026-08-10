@@ -54,29 +54,33 @@ try {
     exit 1
 }
 
-# El escaneo deja el resumen en <modulo>/reports/<modulo>-counts.json.
-$root = if ($env:OPTIMIZADOR_DATA_DIR) { $env:OPTIMIZADOR_DATA_DIR } else { Split-Path $PSScriptRoot -Parent }
-$dirs = @{
-    updates = 'update-checker'; cleanup = 'disk-cleanup'; startup = 'startup-optimizer'
-    ram = 'ram-optimizer'; network = 'network-optimizer'; services = 'services-optimizer'
-    power = 'power-optimizer'; apps = 'apps-manager'; privacy = 'privacy-optimizer'
-}
-$files = @{
-    updates = 'update-counts.json'; cleanup = 'cleanup-counts.json'; startup = 'startup-counts.json'
-    ram = 'ram-counts.json'; network = 'network-counts.json'; services = 'services-counts.json'
-    power = 'power-counts.json'; apps = 'apps-counts.json'; privacy = 'privacy-counts.json'
-}
-$countsPath = Join-Path $root (Join-Path $dirs[$Module] "reports\$($files[$Module])")
-
-if (-not (Test-Path $countsPath)) {
-    Show-Popup "Escaneo de '$Module' completado, pero no se encontro el resumen." "Optimizador - $Module"
+# El resumen sale del backend, que ya resuelve su propio directorio de datos.
+#
+# Antes se armaba la ruta del counts.json a mano desde $PSScriptRoot: en la app
+# instalada apuntaba dentro de resources (donde no hay reportes) y corriendo
+# desde el repo leia una copia que el escaneo recien lanzado no habia tocado,
+# porque el backend escribe en userData.
+try {
+    $status = Invoke-WebRequest -Uri "$base/api/status" -TimeoutSec 30 -UseBasicParsing |
+        Select-Object -ExpandProperty Content | ConvertFrom-Json
+} catch {
+    Show-Popup "Escaneo de '$Module' completado, pero no se pudo leer el resumen." "Optimizador - $Module"
     exit 0
 }
 
-$counts = Get-Content $countsPath -Raw | ConvertFrom-Json
-$lines = foreach ($p in $counts.PSObject.Properties) {
-    if ($p.Name -in @('date','reportPath')) { continue }
-    "$($p.Name): $($p.Value)"
+function Format-Counts($obj, $prefix = '') {
+    foreach ($p in $obj.PSObject.Properties) {
+        if ($p.Name -in @('lastScan', 'reportPath', 'error')) { continue }
+        if ($p.Value -is [System.Management.Automation.PSCustomObject]) {
+            Format-Counts $p.Value "$($p.Name) "
+        } elseif ($p.Value -isnot [System.Array] -and -not [string]::IsNullOrWhiteSpace($p.Value)) {
+            # Sin esto el popup lista los campos que no aplican (bateria y
+            # desgaste en un equipo de escritorio) como lineas vacias.
+            "$prefix$($p.Name): $($p.Value)"
+        }
+    }
 }
+
+$lines = Format-Counts $status.$Module
 
 Show-Popup (($lines -join "`n") + "`n`nAbri Optimizador para ver el detalle y actuar.") "Optimizador - $Module"
