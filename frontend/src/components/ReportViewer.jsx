@@ -64,6 +64,10 @@ export default function ReportViewer() {
   const [gamingSettings, setGamingSettings] = useState([]);
   const [selectedGaming, setSelectedGaming] = useState({});
 
+  // System Integrity States
+  const [integrityItems, setIntegrityItems] = useState([]);
+  const [selectedIntegrity, setSelectedIntegrity] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -147,6 +151,8 @@ export default function ReportViewer() {
       setPrivacySettings([]); setSelectedPrivacy({});
     } else if (module === 'gaming') {
       setGamingSettings([]); setSelectedGaming({});
+    } else if (module === 'integrity') {
+      setIntegrityItems([]); setSelectedIntegrity({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -193,6 +199,9 @@ export default function ReportViewer() {
     } else if (module === 'gaming') {
       setGamingSettings(items || []);
       setSelectedGaming(Object.fromEntries((items || []).map((s, i) => [i, !s.optimized])));
+    } else if (module === 'integrity') {
+      setIntegrityItems(items || []);
+      setSelectedIntegrity(Object.fromEntries((items || []).map((it, i) => [i, it.recommended !== false])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -291,6 +300,12 @@ export default function ReportViewer() {
         .map(k => gamingSettings[parseInt(k)]?.id)
         .filter(Boolean);
       body.settings = checked.join(',');
+    } else if (module === 'integrity') {
+      const checked = Object.keys(selectedIntegrity)
+        .filter(k => selectedIntegrity[k])
+        .map(k => integrityItems[parseInt(k)]?.action)
+        .filter(Boolean);
+      body.actions = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -423,6 +438,7 @@ export default function ReportViewer() {
       case 'apps': return 'Administrador de Aplicaciones';
       case 'privacy': return 'Privacidad';
       case 'gaming': return 'Optimización Gaming & GPU';
+      case 'integrity': return 'Integridad y Salud del Sistema';
       default: return 'Detalles del Módulo';
     }
   };
@@ -469,6 +485,7 @@ export default function ReportViewer() {
                   {module === 'apps' && 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.'}
                   {module === 'privacy' && 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.'}
                   {module === 'gaming' && 'Acelera el paso de frames, reduce la latencia de CPU-a-GPU (HAGS) y desactiva grabaciones en segundo plano para optimizar juegos.'}
+                  {module === 'integrity' && 'Verifica la salud del almacén de componentes (DISM), audita archivos protegidos (SFC) y limpia componentes obsoletos de WinSxS para recuperar espacio.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -827,6 +844,33 @@ export default function ReportViewer() {
                       {item.name}
                       <span style={{ display: 'block', fontSize: '0.7rem', color: item.optimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
                         {item.optimized ? '✓ Ya optimizado' : `Pendiente · ${item.currentLabel}`}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'integrity' && integrityItems.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Acciones de mantenimiento:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las tareas de reparación o limpieza de WinSxS a ejecutar:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {integrityItems.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedIntegrity[idx] || false}
+                      onChange={() => setSelectedIntegrity(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
+                        {item.desc}
                       </span>
                     </span>
                   </label>

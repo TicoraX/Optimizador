@@ -22,6 +22,7 @@ const ICONS = {
   privacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   adblock: 'M4.9 4.9l14.2 14.2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
   gaming: 'M6 11h4M8 9v4M15 11h.01M18 11h.01M2 12a5 5 0 0 0 5 5h1a2 2 0 0 1 2 2 3 3 0 0 0 6 0 2 2 0 0 1 2-2h1a5 5 0 0 0 5-5V9a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v3z',
+  integrity: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
 };
 
 const fmtSize = (mb) => {
@@ -162,6 +163,19 @@ export const MODULES = {
       { label: 'Ajustes optimizados', value: `${d.optimizedCount ?? 0} / ${d.total ?? 6}`,
         tone: (d.optimizedCount ?? 0) === (d.total ?? 6) ? 'is-success' : 'is-warning' },
       { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  integrity: {
+    label: 'Integridad del Sistema',
+    blurb: 'DISM, SFC y mantenimiento de almacén WinSxS',
+    icon: ICONS.integrity,
+    metrics: (d) => [
+      { label: 'DISM (Componentes)', value: d.dismStatus || 'SALUDABLE',
+        tone: d.dismStatus === 'SALUDABLE' ? 'is-success' : 'is-danger' },
+      { label: 'SFC (Archivos de Sistema)', value: d.sfcStatus || 'INTEGRO',
+        tone: d.sfcStatus === 'INTEGRO' ? 'is-success' : 'is-danger' },
+      { label: 'Estado global', value: d.healthy !== false ? 'Saludable' : 'Requiere atención',
+        tone: d.healthy !== false ? 'is-success' : 'is-warning' },
     ],
   },
 };

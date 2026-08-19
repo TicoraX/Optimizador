@@ -123,6 +123,13 @@ export const MODULES = Object.freeze({
     taskName: 'GamingOptimizer_Weekly',
     logFile: 'optimize-log.txt',
   }),
+  integrity: Object.freeze({
+    dir: join(PROJECT_ROOT, 'integrity-optimizer'),
+    countsFile: 'integrity-counts.json',
+    reportPrefix: 'integrity-report',
+    taskName: 'IntegrityOptimizer_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

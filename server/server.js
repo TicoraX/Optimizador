@@ -25,6 +25,7 @@ import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
 import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
+import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrity.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -189,6 +190,7 @@ const SCAN_HANDLERS = {
   privacy: runPrivacyScanNative,
   adblock: runAdblockScanNative,
   gaming: runGamingScanNative,
+  integrity: runIntegrityScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -202,6 +204,7 @@ const ACTION_HANDLERS = {
   privacy: runPrivacyActionNative,
   adblock: runAdblockActionNative,
   gaming: runGamingActionNative,
+  integrity: runIntegrityActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -394,6 +397,19 @@ app.get('/api/status', safeHandler((_req, res) => {
         pendingCount: g.pendingCount || 0,
         total: g.total || 6,
         error: g.error,
+      };
+    })(),
+    integrity: (() => {
+      const i = loadJsonSafe(
+        join(MODULES.integrity.dir, 'reports', MODULES.integrity.countsFile),
+        { date: null, dismStatus: 'DESCONOCIDO', sfcStatus: 'DESCONOCIDO', healthy: true, error: true },
+      );
+      return {
+        lastScan: i.date,
+        dismStatus: i.dismStatus || 'SALUDABLE',
+        sfcStatus: i.sfcStatus || 'INTEGRO',
+        healthy: i.healthy !== false,
+        error: i.error,
       };
     })(),
   });
