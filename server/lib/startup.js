@@ -370,7 +370,7 @@ export async function runStartupScanNative(onOutput) {
 }
 
 /** Deshabilita programas de inicio (registro/accesos directos) y tareas de logon seleccionadas. */
-export async function runStartupActionNative(envVars, onOutput) {
+export async function runStartupActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('startup', onOutput);
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('startup', { dryRun, writeLog });
@@ -426,8 +426,9 @@ export async function runStartupActionNative(envVars, onOutput) {
           ? `Reactivado (shortcut): ${e.name} -> ${e.restorePath}`
           : `ERROR reactivando ${e.name}: ${r.stderr}`);
       }
+    if (!dryRun) {
+      saveDisabledRegistryManifest(manifest);
     }
-    saveDisabledRegistryManifest(manifest);
   }
 
   // ── Reactivar tareas de logon deshabilitadas ──

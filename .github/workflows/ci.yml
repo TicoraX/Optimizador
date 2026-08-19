@@ -1,0 +1,34 @@
+name: CI & Tests
+
+on:
+  push:
+    branches: [ main, experiment/** ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Server Dependencies & Run Unit Tests
+        run: |
+          npm --prefix server ci
+          npm test
+
+      - name: Build Frontend
+        run: |
+          npm --prefix frontend ci
+          npm run build --prefix frontend

@@ -3,9 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
+import ItemCheckboxList from './ItemCheckboxList';
+import { GENERIC_PANEL_CONFIG } from './panelConfig';
 import { API_BASE } from '../config';
 import { renderReport } from '../lib/markdown';
 import { MODULES } from '../modules';
+import { useModuleItems, GENERIC_MODULES } from '../hooks/useModuleItems';
 
 const CleanupBreakdownChart = lazy(() => import('./CleanupBreakdownChart'));
 
@@ -32,11 +35,17 @@ export default function ReportViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Configuration States
+  // ── Hook genérico para los 14 módulos con patrón items/selected ──
+  const generic = useModuleItems(module);
+
+  // ── Estados especiales: solo los módulos que NO encajan en el genérico ──
+
+  // Cleanup
   const [downloadsAgeDays, setDownloadsAgeDays] = useState(30);
   const [availableCategories, setAvailableCategories] = useState(CLEAN_CATEGORIES);
-  // Nada tildado por defecto: borrar es irreversible, el usuario elige.
   const [selectedCategories, setSelectedCategories] = useState({});
+
+  // Startup (4 listas separadas)
   const [availablePrograms, setAvailablePrograms] = useState([]);
   const [selectedPrograms, setSelectedPrograms] = useState({});
   const [availableTasks, setAvailableTasks] = useState([]);
@@ -46,67 +55,7 @@ export default function ReportViewer() {
   const [disabledTasks, setDisabledTasks] = useState([]);
   const [selectedEnableTasks, setSelectedEnableTasks] = useState({});
 
-  // Services Optimizer States
-  const [availableServices, setAvailableServices] = useState([]);
-  const [selectedServices, setSelectedServices] = useState({});
-
-  // Power Optimizer States
-  const [powerPlans, setPowerPlans] = useState([]);
-
-  // App Manager States
-  const [availableApps, setAvailableApps] = useState([]);
-  const [selectedApps, setSelectedApps] = useState({});
-
-  // Privacy States
-  const [privacySettings, setPrivacySettings] = useState([]);
-  const [selectedPrivacy, setSelectedPrivacy] = useState({});
-
-  // Gaming & GPU States
-  const [gamingSettings, setGamingSettings] = useState([]);
-  const [selectedGaming, setSelectedGaming] = useState({});
-
-  // System Integrity States
-  const [integrityItems, setIntegrityItems] = useState([]);
-  const [selectedIntegrity, setSelectedIntegrity] = useState({});
-
-  // Context Menu States
-  const [contextMenuHandlers, setContextMenuHandlers] = useState([]);
-  const [selectedContextMenu, setSelectedContextMenu] = useState({});
-
-  // OEM Debloat States
-  const [oemServices, setOemServices] = useState([]);
-  const [selectedOem, setSelectedOem] = useState({});
-  const [oemMode, setOemMode] = useState('demand');
-
-  // Timers States
-  const [timerSettings, setTimerSettings] = useState([]);
-  const [selectedTimers, setSelectedTimers] = useState({});
-
-  // Ghost Devices States
-  const [ghostDevices, setGhostDevices] = useState([]);
-  const [selectedGhost, setSelectedGhost] = useState({});
-
-  // Search Index States
-  const [searchSettings, setSearchSettings] = useState([]);
-  const [selectedSearch, setSelectedSearch] = useState({});
-
-  // DNS Flush States
-  const [dnsActions, setDnsActions] = useState([]);
-  const [selectedDns, setSelectedDns] = useState({});
-
-  // Network Privacy States
-  const [networkPrivacySettings, setNetworkPrivacySettings] = useState([]);
-  const [selectedNetworkPrivacy, setSelectedNetworkPrivacy] = useState({});
-
-  // Pagefile / Virtual Memory States
-  const [pagefileSettings, setPagefileSettings] = useState([]);
-  const [selectedPagefile, setSelectedPagefile] = useState({});
-
-  // WerFault / Error Reporting States
-  const [werfaultSettings, setWerfaultSettings] = useState([]);
-  const [selectedWerfault, setSelectedWerfault] = useState({});
-
-  // RAM Optimizer States
+  // RAM (3 tiers + controles)
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
   const [riskyProcesses, setRiskyProcesses] = useState([]);
@@ -116,15 +65,27 @@ export default function ReportViewer() {
   const [riskyAck, setRiskyAck] = useState(false);
   const [minRamMB, setMinRamMB] = useState(50);
   const [cleanMode, setCleanMode] = useState('soft');
+
+  // Power (botones, no checkboxes)
+  const [powerPlans, setPowerPlans] = useState([]);
+
+  // Adblock
   const [adblockSources, setAdblockSources] = useState([]);
   const [selectedSources, setSelectedSources] = useState({});
+
+  // Network
   const [bufferbloat, setBufferbloat] = useState(false);
+
+  // OEM debloat mode selector
+  const [oemMode, setOemMode] = useState('demand');
 
   // Terminal & SSE States
   const [logs, setLogs] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(null);
   const sseControllerRef = useRef(null);
+
+  const noneChecked = (list) => Object.fromEntries(list.map((_, i) => [i, false]));
 
   const fetchReport = async () => {
     try {
@@ -139,11 +100,6 @@ export default function ReportViewer() {
       }
       const data = await res.json();
       setReport(data);
-
-      // Los elementos seleccionables vienen ya estructurados del backend.
-      // Antes se reconstruian con 5 parsers de regex sobre el Markdown del
-      // reporte: cambiar la redaccion de una linea rompia los checkboxes en
-      // silencio, y el indice del texto no siempre era el que usaba la accion.
       await loadItems();
     } catch (err) {
       setError(err.message);
@@ -164,11 +120,8 @@ export default function ReportViewer() {
     };
   }, [module]);
 
-  // Vacia las listas del modulo activo. Este componente NO se remonta al
-  // cambiar de :module (misma Route), asi que sin esto un fetch fallido dejaba
-  // en pie la seleccion del escaneo anterior y el usuario podia ejecutar una
-  // accion sobre elementos que ya no existen.
-  const clearItems = () => {
+  // ── Cargar items del último escaneo ──
+  const clearSpecialItems = () => {
     if (module === 'cleanup') {
       setAvailableCategories(CLEAN_CATEGORIES);
       setSelectedCategories({});
@@ -181,51 +134,23 @@ export default function ReportViewer() {
       setAvailableProcesses([]); setSelectedProcesses({});
       setUnknownProcesses([]); setSelectedUnknownProcesses({});
       setRiskyProcesses([]); setSelectedRiskyProcesses({});
-    } else if (module === 'services') {
-      setAvailableServices([]); setSelectedServices({});
-    } else if (module === 'apps') {
-      setAvailableApps([]); setSelectedApps({});
-    } else if (module === 'adblock') {
-      setAdblockSources([]); setSelectedSources({});
-    } else if (module === 'privacy') {
-      setPrivacySettings([]); setSelectedPrivacy({});
-    } else if (module === 'gaming') {
-      setGamingSettings([]); setSelectedGaming({});
-    } else if (module === 'integrity') {
-      setIntegrityItems([]); setSelectedIntegrity({});
-    } else if (module === 'contextmenu') {
-      setContextMenuHandlers([]); setSelectedContextMenu({});
-    } else if (module === 'oemdebloat') {
-      setOemServices([]); setSelectedOem({});
-    } else if (module === 'timers') {
-      setTimerSettings([]); setSelectedTimers({});
-    } else if (module === 'ghostdevices') {
-      setGhostDevices([]); setSelectedGhost({});
-    } else if (module === 'searchindex') {
-      setSearchSettings([]); setSelectedSearch({});
-    } else if (module === 'dnsflush') {
-      setDnsActions([]); setSelectedDns({});
-    } else if (module === 'networkprivacy') {
-      setNetworkPrivacySettings([]); setSelectedNetworkPrivacy({});
-    } else if (module === 'pagefile') {
-      setPagefileSettings([]); setSelectedPagefile({});
-    } else if (module === 'werfault') {
-      setWerfaultSettings([]); setSelectedWerfault({});
     } else if (module === 'power') {
       setPowerPlans([]);
+    } else if (module === 'adblock') {
+      setAdblockSources([]); setSelectedSources({});
     }
   };
 
-  // Carga los elementos seleccionables del ultimo escaneo.
   const loadItems = async () => {
-    const res = await fetch(`${API_BASE}/reports/${module}/items`);
-    // 404 es legitimo: el modulo no tiene seleccion (network, updates)
-    // o todavia no se escaneo. Igual hay que limpiar: es la unica forma de no
-    // quedarse con la lista del modulo anterior.
-    if (!res.ok) { clearItems(); return; }
-    const { items } = await res.json();
+    // Módulos genéricos: delegar al hook
+    if (GENERIC_MODULES.has(module)) {
+      await generic.load();
+      return;
+    }
 
-    const noneChecked = (list) => Object.fromEntries(list.map((_, i) => [i, false]));
+    const res = await fetch(`${API_BASE}/reports/${module}/items`);
+    if (!res.ok) { clearSpecialItems(); return; }
+    const { items } = await res.json();
 
     if (module === 'cleanup' && Array.isArray(items)) {
       setAvailableCategories(items);
@@ -245,80 +170,14 @@ export default function ReportViewer() {
       setSelectedUnknownProcesses(noneChecked(items.unknown || []));
       setRiskyProcesses(items.risky || []);
       setSelectedRiskyProcesses(noneChecked(items.risky || []));
-    } else if (module === 'services') {
-      if (Array.isArray(items)) {
-        setAvailableServices(items);
-        setSelectedServices(noneChecked(items));
-      } else {
-        clearItems();
-      }
-    } else if (module === 'apps') {
-      if (Array.isArray(items)) {
-        setAvailableApps(items);
-        setSelectedApps(noneChecked(items));
-      } else {
-        clearItems();
-      }
-    } else if (module === 'privacy') {
-      if (Array.isArray(items)) {
-        setPrivacySettings(items);
-        setSelectedPrivacy(noneChecked(items));
-      } else {
-        clearItems();
-      }
     } else if (module === 'power') {
-      if (Array.isArray(items)) {
-        setPowerPlans(items);
-      } else {
-        clearItems();
-      }
-    } else if (module === 'gaming') {
-      setGamingSettings(items || []);
-      setSelectedGaming(Object.fromEntries((items || []).map((s, i) => [i, !s.optimized])));
-    } else if (module === 'integrity') {
-      setIntegrityItems(items || []);
-      setSelectedIntegrity(Object.fromEntries((items || []).map((it, i) => [i, it.recommended !== false])));
-    } else if (module === 'contextmenu') {
-      setContextMenuHandlers(items || []);
-      setSelectedContextMenu(Object.fromEntries((items || []).map((it) => [it.regPath, it.recommendedDisable === true])));
-    } else if (module === 'oemdebloat') {
-      setOemServices(items || []);
-      setSelectedOem(Object.fromEntries((items || []).map((it, i) => [i, it.recommendedManual === true])));
-    } else if (module === 'timers') {
-      setTimerSettings(items || []);
-      setSelectedTimers(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
-    } else if (module === 'ghostdevices') {
-      setGhostDevices(items || []);
-      setSelectedGhost(Object.fromEntries((items || []).map((it, i) => [i, it.recommended === true])));
-    } else if (module === 'searchindex') {
-      setSearchSettings(items || []);
-      setSelectedSearch(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
-    } else if (module === 'dnsflush') {
-      setDnsActions(items || []);
-      setSelectedDns(Object.fromEntries((items || []).map((it, i) => [i, it.recommended === true])));
-    } else if (module === 'networkprivacy') {
-      setNetworkPrivacySettings(items || []);
-      setSelectedNetworkPrivacy(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
-    } else if (module === 'pagefile') {
-      setPagefileSettings(items || []);
-      setSelectedPagefile(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
-    } else if (module === 'werfault') {
-      setWerfaultSettings(items || []);
-      setSelectedWerfault(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
-    } else if (module === 'power') {
-      setPowerPlans(items);
+      setPowerPlans(Array.isArray(items) ? items : []);
     } else if (module === 'adblock') {
       setAdblockSources(items.fuentes || []);
-      // Todas marcadas por defecto: es lo que quiere quien entra a este modulo,
-      // y son listas curadas, no una seleccion peligrosa.
       setSelectedSources(Object.fromEntries((items.fuentes || []).map((_, i) => [i, true])));
+    } else {
+      clearSpecialItems();
     }
-  };
-
-  // `switchingPlan` se seteaba y se limpiaba en el mismo tick, asi que el
-  // `disabled` que dependia de el nunca se activaba. Estado muerto, eliminado.
-  const switchToPlan = (planGuid) => {
-    triggerExecution('/action/power', { planGuid });
   };
 
   const handleCheckboxChange = (type, index) => {
@@ -333,28 +192,45 @@ export default function ReportViewer() {
     }
   };
 
+  const switchToPlan = (planGuid) => {
+    triggerExecution('/action/power', { planGuid });
+  };
+
+  // ── Scan ──
   const runScan = () => {
     const body = {};
     if (module === 'cleanup') body.downloadsAgeDays = downloadsAgeDays;
     if (module === 'network') body.bufferbloat = bufferbloat;
     if (module === 'ram') {
       body.cleanMode = cleanMode;
-      // Mismo umbral que se manda en runAction() - el scan y la accion deben
-      // usar el mismo valor, o los indices marcados en el reporte podrian
-      // referirse a un proceso distinto al ejecutar la accion.
       body.minRamMB = minRamMB;
     }
     triggerExecution(`/scan/${module}`, body);
   };
 
-  // dryRun corre la accion completa sin tocar nada y reporta que HARIA. Es la
-  // unica red de contencion para lo irreversible (borrar archivos, desinstalar).
+  // ── Action ──
   const runAction = ({ dryRun = false, adblockAction } = {}) => {
     const body = dryRun ? { dryRun: true } : {};
+
+    // Módulos genéricos: construir body desde el hook
+    const panelCfg = GENERIC_PANEL_CONFIG[module];
+    if (GENERIC_MODULES.has(module) && panelCfg) {
+      const checked = generic.buildChecked();
+      if (panelCfg.bodyFormat === 'csv-raw') {
+        // contextmenu: los IDs ya son las regPaths completas
+        body[panelCfg.bodyKey] = checked.join(',');
+      } else if (panelCfg.bodyFormat === 'csv') {
+        body[panelCfg.bodyKey] = checked.length === 0 ? '' : checked.join(',');
+      } else {
+        body[panelCfg.bodyKey] = checked;
+      }
+      if (module === 'oemdebloat') body.mode = oemMode;
+      triggerExecution(`/action/${module}`, body);
+      return;
+    }
+
+    // Módulos especiales
     if (module === 'adblock') {
-      // Dos acciones opuestas en el mismo modulo, asi que cual se ejecuta viene
-      // del boton y no de un estado: no hay forma de apretar "quitar" y que se
-      // mande "aplicar" porque quedo algo viejo en el estado.
       body.adblockAction = adblockAction || 'apply';
       body.sources = adblockSources
         .filter((_, i) => selectedSources[i])
@@ -366,9 +242,6 @@ export default function ReportViewer() {
         .filter((c) => selectedCategories[c.key])
         .map((c) => c.key);
     } else if (module === 'startup') {
-      // Por identificador, no por indice: si entre el escaneo y este clic se
-      // agrega o quita una entrada de inicio, el indice N pasa a apuntar a otra
-      // y se deshabilita lo que no era.
       const pickedIds = (selection, list) => Object.keys(selection)
         .filter(k => selection[k])
         .map(k => list[parseInt(k)]?.id)
@@ -378,95 +251,7 @@ export default function ReportViewer() {
       body.tasks = pickedIds(selectedTasks, availableTasks);
       body.enablePrograms = pickedIds(selectedEnablePrograms, disabledPrograms);
       body.enableTasks = pickedIds(selectedEnableTasks, disabledTasks);
-    } else if (module === 'services') {
-      // Por nombre, no por indice: el indice del reporte no coincidia con el
-      // orden que usaba la accion y se deshabilitaba el servicio equivocado.
-      const names = Object.keys(selectedServices)
-        .filter(k => selectedServices[k])
-        .map(k => availableServices[parseInt(k)]?.name)
-        .filter(Boolean);
-      body.services = names;
-    } else if (module === 'apps') {
-      const ids = Object.keys(selectedApps)
-        .filter(k => selectedApps[k])
-        .map(k => availableApps[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.apps = ids.join(',');
-    } else if (module === 'privacy') {
-      const checked = Object.keys(selectedPrivacy)
-        .filter(k => selectedPrivacy[k])
-        .map(k => parseInt(k) + 1);
-      body.privacy = checked.length === 0 ? '' : checked.join(',');
-    } else if (module === 'gaming') {
-      const checked = Object.keys(selectedGaming)
-        .filter(k => selectedGaming[k])
-        .map(k => gamingSettings[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.settings = checked.join(',');
-    } else if (module === 'integrity') {
-      const checked = Object.keys(selectedIntegrity)
-        .filter(k => selectedIntegrity[k])
-        .map(k => integrityItems[parseInt(k)]?.action)
-        .filter(Boolean);
-      body.actions = checked.join(',');
-    } else if (module === 'contextmenu') {
-      const checked = Object.keys(selectedContextMenu)
-        .filter(k => selectedContextMenu[k]);
-      body.handlers = checked.join(',');
-    } else if (module === 'oemdebloat') {
-      const checked = Object.keys(selectedOem)
-        .filter(k => selectedOem[k])
-        .map(k => oemServices[parseInt(k)]?.serviceName)
-        .filter(Boolean);
-      body.services = checked.join(',');
-      body.mode = oemMode;
-    } else if (module === 'timers') {
-      const checked = Object.keys(selectedTimers)
-        .filter(k => selectedTimers[k])
-        .map(k => timerSettings[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.settings = checked.join(',');
-    } else if (module === 'ghostdevices') {
-      const checked = Object.keys(selectedGhost)
-        .filter(k => selectedGhost[k])
-        .map(k => ghostDevices[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.devices = checked.join(',');
-    } else if (module === 'searchindex') {
-      const checked = Object.keys(selectedSearch)
-        .filter(k => selectedSearch[k])
-        .map(k => searchSettings[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.settings = checked.join(',');
-    } else if (module === 'dnsflush') {
-      const checked = Object.keys(selectedDns)
-        .filter(k => selectedDns[k])
-        .map(k => dnsActions[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.actions = checked.join(',');
-    } else if (module === 'networkprivacy') {
-      const checked = Object.keys(selectedNetworkPrivacy)
-        .filter(k => selectedNetworkPrivacy[k])
-        .map(k => networkPrivacySettings[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.settings = checked.join(',');
-    } else if (module === 'pagefile') {
-      const checked = Object.keys(selectedPagefile)
-        .filter(k => selectedPagefile[k])
-        .map(k => pagefileSettings[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.settings = checked.join(',');
-    } else if (module === 'werfault') {
-      const checked = Object.keys(selectedWerfault)
-        .filter(k => selectedWerfault[k])
-        .map(k => werfaultSettings[parseInt(k)]?.id)
-        .filter(Boolean);
-      body.settings = checked.join(',');
     } else if (module === 'ram') {
-      // Se manda el PID real (no la posicion en la lista): si solo se
-      // mandara la posicion, un proceso que cambio de orden entre el
-      // escaneo y este clic (su MB vario un poco) haria que el indice
-      // apunte a un proceso distinto al que el usuario vio y marco.
       const checkedProcs = Object.keys(selectedProcesses)
         .filter(k => selectedProcesses[k])
         .map(k => availableProcesses[parseInt(k)]?.pid)
@@ -477,9 +262,6 @@ export default function ReportViewer() {
         .map(k => unknownProcesses[parseInt(k)]?.pid)
         .filter(Boolean);
       body.unknownProcesses = checkedUnknown.length === 0 ? '' : checkedUnknown.join(',');
-      // Los procesos "no recomendados" solo se mandan si el usuario marco el
-      // checkbox de confirmacion explicita (riskyAck) - de lo contrario se
-      // ignoran aunque tengan checkboxes individuales marcados.
       const checkedRisky = riskyAck
         ? Object.keys(selectedRiskyProcesses).filter(k => selectedRiskyProcesses[k]).map(k => riskyProcesses[parseInt(k)]?.pid).filter(Boolean)
         : [];
@@ -491,6 +273,7 @@ export default function ReportViewer() {
     triggerExecution(`/action/${module}`, body);
   };
 
+  // ── SSE execution engine (sin cambios funcionales) ──
   const triggerExecution = (endpoint, body) => {
     if (isRunning) {
       console.warn('triggerExecution blocked: ya hay una tarea en ejecucion');
@@ -553,9 +336,6 @@ export default function ReportViewer() {
         clearTimeout(timeoutId);
         setIsRunning(false);
         setProgress(null);
-        // Sin mensaje: onclose corre tambien despues de un 'done' limpio, y
-        // anunciar "conexion cerrada por el servidor" ahi parecia un error al
-        // final de toda ejecucion exitosa.
         
         fetchReport();
         if (window.onDoneRefreshStatus) {
@@ -582,30 +362,71 @@ export default function ReportViewer() {
     }
   };
 
-  const getModuleTitle = () => {
-    switch(module) {
-      case 'updates': return 'Actualizaciones pendientes';
-      case 'cleanup': return 'Limpieza de disco';
-      case 'startup': return 'Optimización de inicio';
-      case 'ram': return 'Optimización de RAM';
-      case 'network': return 'Red y Conectividad';
-      case 'services': return 'Optimización de Servicios';
-      case 'power': return 'Plan de Energía';
-      case 'apps': return 'Administrador de Aplicaciones';
-      case 'privacy': return 'Privacidad';
-      case 'gaming': return 'Optimización Gaming & GPU';
-      case 'integrity': return 'Integridad y Salud del Sistema';
-      case 'contextmenu': return 'Menú Contextual (Clic Derecho)';
-      case 'oemdebloat': return 'Debloat de Fabricantes (OEM)';
-      case 'timers': return 'Temporizadores y Latencia de Reloj BCD';
-      case 'ghostdevices': return 'Dispositivos Fantasma Huérfanos (PnP)';
-      case 'searchindex': return 'Indexador y Búsqueda de Windows (WSearch)';
-      case 'dnsflush': return 'Caché DNS y Pila de Red LAN';
-      case 'networkprivacy': return 'Privacidad en Red y Telemetría Conectada';
-      case 'pagefile': return 'Memoria Virtual y Archivo de Paginación';
-      case 'werfault': return 'Reporte de Errores y WerFault';
-      default: return 'Detalles del Módulo';
-    }
+  const getModuleTitle = () => MODULES[module]?.label || 'Detalles del Módulo';
+
+  // ── Panel genérico para los 14 módulos con patrón items/selected ──
+  const renderGenericPanel = () => {
+    const panelCfg = GENERIC_PANEL_CONFIG[module];
+    if (!panelCfg || !GENERIC_MODULES.has(module)) return null;
+
+    // OEM debloat tiene un mode selector extra
+    const oemModeSelector = module === 'oemdebloat' && generic.items.length > 0 && (
+      <>
+        <label className="form-label">Modo de optimización:</label>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className={`btn ${oemMode === 'demand' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+            onClick={() => setOemMode('demand')}
+            disabled={isRunning}
+          >
+            Manual (Recomendado)
+          </button>
+          <button
+            type="button"
+            className={`btn ${oemMode === 'disable' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+            onClick={() => setOemMode('disable')}
+            disabled={isRunning}
+          >
+            Deshabilitar
+          </button>
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+          Seleccioná los servicios a configurar en inicio {oemMode === 'demand' ? 'Manual' : 'Deshabilitado'}:
+        </p>
+      </>
+    );
+
+    return (
+      <>
+        {oemModeSelector}
+        <ItemCheckboxList
+          items={generic.items}
+          selected={generic.selected}
+          toggle={generic.toggle}
+          isRunning={isRunning}
+          label={module === 'oemdebloat' ? 'Servicios OEM detectados:' : panelCfg.label}
+          hint={module === 'oemdebloat' ? undefined : panelCfg.hint}
+          renderItem={panelCfg.renderItem}
+          filterFn={panelCfg.filterFn}
+        />
+      </>
+    );
+  };
+
+  // ── Textos del hint por módulo en el sidebar ──
+  const SCAN_HINTS = {
+    updates: 'Busca actualizaciones de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.',
+    cleanup: 'Mide espacio recuperable en temporales, caché de navegadores, descargas y papelera. Solo lectura.',
+    startup: 'Analiza programas, servicios y tareas que se inician con tu sesión. Deshabilitar es reversible.',
+    ram: 'Escanea procesos por consumo de RAM, los clasifica por riesgo (seguro/riesgoso/crítico) y te permite liberar memoria de forma selectiva.',
+    network: 'Mide jitter, pérdida, latencia por salto, MTU y DNS. La acción solo limpia la caché DNS: no reduce la latencia.',
+    services: 'Lista servicios con inicio automático, separa MS de terceros. Permite detener y deshabilitar servicios que no necesites.',
+    power: 'Muestra el plan de energía activo, estado de batería y consumo estimado. Permite cambiar de plan al instante.',
+    apps: 'Lista aplicaciones instaladas vía winget y permite desinstalar varias a la vez de forma silenciosa.',
+    privacy: 'Revisa 8 ajustes de privacidad (telemetría, Cortana, ubicación, etc.) y los protege con un clic.',
   };
 
   return (
@@ -676,22 +497,20 @@ export default function ReportViewer() {
             </button>
           </div>
 
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', padding: '0 0 0.75rem 0', lineHeight: '1.4' }}>
-            {module === 'updates' && 'Busca actualizaciones de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.'}
-            {module === 'cleanup' && 'Mide espacio recuperable en temporales, caché de navegadores, descargas y papelera. Solo lectura.'}
-            {module === 'startup' && 'Analiza programas, servicios y tareas que se inician con tu sesión. Deshabilitar es reversible.'}
-            {module === 'ram' && 'Escanea procesos por consumo de RAM, los clasifica por riesgo (seguro/riesgoso/crítico) y te permite liberar memoria de forma selectiva.'}
-            {module === 'network' && 'Mide jitter, pérdida, latencia por salto, MTU y DNS. La acción solo limpia la caché DNS: no reduce la latencia.'}
-            {module === 'services' && 'Lista servicios con inicio automático, separa MS de terceros. Permite detener y deshabilitar servicios que no necesites.'}
-            {module === 'power' && 'Muestra el plan de energía activo, estado de batería y consumo estimado. Permite cambiar de plan al instante.'}
-            {module === 'apps' && 'Lista aplicaciones instaladas vía winget y permite desinstalar varias a la vez de forma silenciosa.'}
-            {module === 'privacy' && 'Revisa 8 ajustes de privacidad (telemetría, Cortana, ubicación, etc.) y los protege con un clic.'}
-          </div>
+          {SCAN_HINTS[module] && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', padding: '0 0 0.75rem 0', lineHeight: '1.4' }}>
+              {SCAN_HINTS[module]}
+            </div>
+          )}
 
           <div style={{ height: '1px', background: 'var(--color-rule)', margin: '1.5rem 0' }} />
 
           <h3 style={{ fontSize: '1rem', marginBottom: '1rem', fontWeight: '600' }}>Configurar Ejecución</h3>
 
+          {/* ── Panel genérico (14 módulos) ── */}
+          {renderGenericPanel()}
+
+          {/* ── Cleanup: categorías con safety badges ── */}
           {module === 'cleanup' && (
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -772,6 +591,7 @@ export default function ReportViewer() {
             </div>
           )}
 
+          {/* ── Startup: 4 listas separadas ── */}
           {module === 'startup' && (
             <>
               {availablePrograms.length > 0 && (
@@ -878,33 +698,7 @@ export default function ReportViewer() {
             </>
           )}
 
-          {module === 'services' && availableServices.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Servicios de terceros a deshabilitar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Se detendrá el servicio y se cambiará su inicio a "Deshabilitado".
-              </p>
-              <div className="checkbox-list">
-                {availableServices.map((svc, idx) => (
-                  <label key={idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedServices[idx] || false}
-                      onChange={() => setSelectedServices(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={svc.name}>
-                      {svc.displayName || svc.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-                        {svc.name} — {svc.status}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
+          {/* ── Power: botones de plan ── */}
           {module === 'power' && powerPlans.length > 0 && (
             <div className="form-group">
               <label className="form-label">Cambiar plan de energía:</label>
@@ -917,8 +711,6 @@ export default function ReportViewer() {
                     disabled={isRunning || plan.active}
                     style={{ textAlign: 'left', justifyContent: 'flex-start' }}
                   >
-                    {/* `plan.desc` no existia: el parser producia solo
-                        index/name/active, asi que el subtitulo salia vacio. */}
                     {plan.active ? '✓ ' : ''}{plan.name}{plan.active ? ' (activo)' : ''}
                   </button>
                 ))}
@@ -926,381 +718,7 @@ export default function ReportViewer() {
             </div>
           )}
 
-          {module === 'apps' && availableApps.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Aplicaciones a desinstalar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Se desinstalarán las aplicaciones seleccionadas via winget.
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {availableApps.map((app, idx) => (
-                  <label key={idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedApps[idx] || false}
-                      onChange={() => setSelectedApps(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={app.name}>
-                      {app.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-                        {app.id} — {app.version}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'privacy' && privacySettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Ajustes a proteger:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Se aplicará la configuración recomendada de privacidad a los ajustes seleccionados.
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {privacySettings.map((item, idx) => (
-                  <label key={idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedPrivacy[idx] || false}
-                      onChange={() => setSelectedPrivacy(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-                        {item.status}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'gaming' && gamingSettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Ajustes a optimizar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las optimizaciones de latencia y aceleración gráfica a aplicar:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {gamingSettings.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedGaming[idx] || false}
-                      onChange={() => setSelectedGaming(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.optimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {item.optimized ? '✓ Ya optimizado' : `Pendiente · ${item.currentLabel}`}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'integrity' && integrityItems.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Acciones de mantenimiento:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las tareas de reparación o limpieza de WinSxS a ejecutar:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {integrityItems.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedIntegrity[idx] || false}
-                      onChange={() => setSelectedIntegrity(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-                        {item.desc}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'contextmenu' && contextMenuHandlers.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Extensiones a deshabilitar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las extensiones de terceros que no usás para acelerar el menú contextual:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {contextMenuHandlers
-                  .filter((item) => !item.isSystem)
-                  .map((item, idx) => (
-                    <label key={item.regPath || item.id || idx} className="checkbox-item">
-                      <input
-                        type="checkbox"
-                        checked={selectedContextMenu[item.regPath] || false}
-                        onChange={() => setSelectedContextMenu(prev => ({ ...prev, [item.regPath]: !prev[item.regPath] }))}
-                        disabled={isRunning}
-                      />
-                      <span className="checkbox-label" title={item.name}>
-                        {item.name}
-                        <span style={{ display: 'block', fontSize: '0.7rem', color: item.isBlocked ? 'var(--color-warning)' : 'var(--color-ink-3)' }}>
-                          {item.location} · {item.isBlocked ? 'Ya desactivado' : 'Activo'}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'oemdebloat' && oemServices.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Modo de optimización:</label>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <button
-                  type="button"
-                  className={`btn ${oemMode === 'demand' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
-                  onClick={() => setOemMode('demand')}
-                  disabled={isRunning}
-                >
-                  Manual (Recomendado)
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${oemMode === 'disable' ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
-                  onClick={() => setOemMode('disable')}
-                  disabled={isRunning}
-                >
-                  Deshabilitar
-                </button>
-              </div>
-
-              <label className="form-label">Servicios OEM detectados:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná los servicios a configurar en inicio {oemMode === 'demand' ? 'Manual' : 'Deshabilitado'}:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {oemServices.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedOem[idx] || false}
-                      onChange={() => setSelectedOem(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      <strong style={{ color: 'var(--color-brand)' }}>[{item.oem}]</strong> {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-                        {item.desc} · Actual: {item.startMode}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'timers' && timerSettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Ajustes BCD de temporizador:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná los parámetros de reloj a optimizar en el arranque de Windows:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {timerSettings.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedTimers[idx] || false}
-                      onChange={() => setSelectedTimers(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {item.desc} (Actual: {item.currentValue})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'ghostdevices' && ghostDevices.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Dispositivos desconectados a purgar:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná los registros de dispositivos periféricos desconectados para remover:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {ghostDevices.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedGhost[idx] || false}
-                      onChange={() => setSelectedGhost(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.id}>
-                      <strong style={{ color: 'var(--color-brand)' }}>[{item.className}]</strong> {item.name}
-                      <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-ink-3)', wordBreak: 'break-all' }}>
-                        {item.id}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'searchindex' && searchSettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Directivas de Windows Search:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las políticas de indexación y búsqueda a optimizar:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {searchSettings.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedSearch[idx] || false}
-                      onChange={() => setSelectedSearch(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {item.desc} (Estado: {item.currentLabel})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'dnsflush' && dnsActions.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Acciones de refresco de red:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las operaciones de limpieza y registro de red a ejecutar:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {dnsActions.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedDns[idx] || false}
-                      onChange={() => setSelectedDns(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-                        {item.desc}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'networkprivacy' && networkPrivacySettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Directivas de Privacidad en Red:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las opciones de telemetría de red a proteger:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {networkPrivacySettings.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedNetworkPrivacy[idx] || false}
-                      onChange={() => setSelectedNetworkPrivacy(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {item.desc} (Estado: {item.currentLabel})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'pagefile' && pagefileSettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Directivas de Memoria Virtual:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las directivas de memoria y paginación a optimizar:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {pagefileSettings.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedPagefile[idx] || false}
-                      onChange={() => setSelectedPagefile(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {item.desc} (Estado: {item.currentLabel})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {module === 'werfault' && werfaultSettings.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Directivas de Windows Error Reporting:</label>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
-                Seleccioná las directivas de reporte de errores a optimizar:
-              </p>
-              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {werfaultSettings.map((item, idx) => (
-                  <label key={item.id || idx} className="checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedWerfault[idx] || false}
-                      onChange={() => setSelectedWerfault(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                      disabled={isRunning}
-                    />
-                    <span className="checkbox-label" title={item.name}>
-                      {item.name}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                        {item.desc} (Estado: {item.currentLabel})
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
+          {/* ── Network: bufferbloat toggle ── */}
           {module === 'network' && (
             <div className="form-group">
               <label className="form-label">Opciones del diagnóstico:</label>
@@ -1326,6 +744,7 @@ export default function ReportViewer() {
             </div>
           )}
 
+          {/* ── Adblock: listas + botón quitar ── */}
           {module === 'adblock' && (
             <div className="form-group">
               <label className="form-label">Listas a usar:</label>
@@ -1362,6 +781,7 @@ export default function ReportViewer() {
             </div>
           )}
 
+          {/* ── RAM: 3 tiers con controles especiales ── */}
           {module === 'ram' && (
             <>
               <div className="form-group">

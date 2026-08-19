@@ -55,6 +55,17 @@ export const NETWORK_PRIVACY_SETTINGS = [
     optimizedLabel: 'Pre-carga desactivada (2)',
     defaultLabel: 'Pre-carga activa (0 o 1)',
   },
+  {
+    id: 'ncsi_passive',
+    name: 'Desactivar Sondeo Activo de Conectividad (NCSI / msftconnecttest)',
+    desc: 'Previene el envío continuo de peticiones de telemetría a servidores de sondeo de Microsoft.',
+    key: 'HKLM\\SYSTEM\\CurrentControlSet\\Services\\NlaSvc\\Parameters\\Internet',
+    value: 'EnableActiveProbing',
+    type: 'REG_DWORD',
+    optimizedValue: '0',
+    optimizedLabel: 'Sondeo desactivado (0)',
+    defaultLabel: 'Sondeo activo (1)',
+  },
 ];
 
 export async function runNetworkPrivacyScanNative(onOutput) {

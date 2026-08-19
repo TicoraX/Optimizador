@@ -7,10 +7,11 @@ import {
 
 describe('Optimizador de Privacidad en Red (networkprivacy.js)', () => {
   it('expone los ajustes clave de privacidad en red', () => {
-    assert.ok(NETWORK_PRIVACY_SETTINGS.length >= 3);
+    assert.ok(NETWORK_PRIVACY_SETTINGS.length >= 4);
     assert.ok(NETWORK_PRIVACY_SETTINGS.some((s) => s.id === 'wifisense'));
     assert.ok(NETWORK_PRIVACY_SETTINGS.some((s) => s.id === 'spotlight'));
     assert.ok(NETWORK_PRIVACY_SETTINGS.some((s) => s.id === 'edgepreloading'));
+    assert.ok(NETWORK_PRIVACY_SETTINGS.some((s) => s.id === 'ncsi_passive'));
   });
 
   it('runNetworkPrivacyActionNative en dryRun no realiza mutaciones destructivas', async () => {

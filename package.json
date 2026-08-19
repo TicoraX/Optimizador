@@ -5,6 +5,7 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
+    "test": "npm test --prefix server",
     "build:frontend": "npm install --prefix frontend && npm run build --prefix frontend",
     "dist": "npm run build:frontend && electron-builder",
     "release": "npm run build:frontend && electron-builder --publish always"

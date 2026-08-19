@@ -88,24 +88,30 @@ export async function runUpdatesScanNative(onOutput, onProgress) {
   const paths = prepareReport('updates');
   const { today, reportPath } = paths;
 
-  // Es el escaneo mas lento (~35s, cuatro gestores en serie) y era el que
-  // menos senial daba. Un paso por gestor.
   const gestores = [
     ['winget', checkWingetUpdates],
     ['pip', checkPipUpdates],
     ['npm', checkNpmUpdates],
     ['choco', checkChocoUpdates],
   ];
-  const resultados = {};
-  for (const [i, [nombre, check]] of gestores.entries()) {
-    onOutput(`Revisando ${nombre}...`);
-    resultados[nombre] = await check();
-    onProgress?.({
-      current: i + 1,
-      total: gestores.length,
-      percentage: Math.round(((i + 1) / gestores.length) * 100),
-    });
-  }
+
+  onOutput('Auditando actualizaciones en gestores de paquetes (winget, pip, npm, choco)...');
+  let completed = 0;
+  const entries = await Promise.all(
+    gestores.map(async ([nombre, check]) => {
+      onOutput(`Consultando ${nombre}...`);
+      const result = await check();
+      completed++;
+      onProgress?.({
+        current: completed,
+        total: gestores.length,
+        percentage: Math.round((completed / gestores.length) * 100),
+      });
+      return [nombre, result];
+    }),
+  );
+
+  const resultados = Object.fromEntries(entries);
   const { winget, pip, npm, choco } = resultados;
 
   const fmt = (label, r) => (r.error ? `- ${label}: error (ver detalle abajo)` : `- ${label}: ${r.count} disponibles`);
@@ -131,60 +137,114 @@ export async function runUpdatesScanNative(onOutput, onProgress) {
 }
 
 /** Instala lo detectado por el scan: winget/pip/npm/choco directo, sin PowerShell. */
-export async function runUpdatesActionNative(onOutput) {
+export async function runUpdatesActionNative(arg1, arg2, arg3) {
+  let envVars = {};
+  let onOutput = () => {};
+  let onProgress = null;
+
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    envVars = arg1;
+    if (typeof arg2 === 'function') onOutput = arg2;
+    if (typeof arg3 === 'function') onProgress = arg3;
+  } else if (typeof arg1 === 'function') {
+    onOutput = arg1;
+    if (typeof arg2 === 'function') onProgress = arg2;
+  }
+
   const writeLog = makeLogger('updates', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
 
-  writeLog('=== Aplicar actualizaciones - inicio ===');
+  writeLog(`=== Aplicar actualizaciones - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
-  if (await commandExists('winget')) {
-    onOutput('Ejecutando winget upgrade --all...');
-    const r = await spawnCapture('winget', [
-      'upgrade', '--all', '--include-unknown', '--disable-interactivity',
-      '--accept-source-agreements', '--accept-package-agreements',
-    ]);
-    writeLog(r.code === 0 ? 'winget upgrade --all completado.' : `winget upgrade fallo (codigo ${r.code}): ${(r.stderr || r.stdout).slice(0, 300)}`);
-  } else {
-    writeLog('winget no disponible, se omite.');
-  }
-
-  if (await commandExists('pip')) {
-    const listResult = await spawnCapture('pip', ['list', '--outdated', '--format=json']);
-    try {
-      const outdated = JSON.parse(listResult.stdout || '[]');
-      if (outdated.length === 0) {
-        writeLog('No hay paquetes pip desactualizados.');
-      } else {
-        const ok = [];
-        const failed = [];
-        for (const pkg of outdated) {
-          onOutput(`Instalando ${pkg.name}...`);
-          const r = await spawnCapture('pip', ['install', '-U', pkg.name]);
-          (r.code === 0 ? ok : failed).push(pkg.name);
+  const steps = [
+    {
+      name: 'winget',
+      action: async () => {
+        if (await commandExists('winget')) {
+          if (dryRun) {
+            writeLog('Simulación: winget upgrade --all se ejecutaría.');
+            return;
+          }
+          onOutput('Ejecutando winget upgrade --all...');
+          const r = await spawnCapture('winget', [
+            'upgrade', '--all', '--include-unknown', '--disable-interactivity',
+            '--accept-source-agreements', '--accept-package-agreements',
+          ]);
+          writeLog(r.code === 0 ? 'winget upgrade --all completado.' : `winget upgrade fallo (codigo ${r.code}): ${(r.stderr || r.stdout).slice(0, 300)}`);
+        } else {
+          writeLog('winget no disponible, se omite.');
         }
-        writeLog(`pip install -U OK: ${ok.join(', ') || '(ninguno)'}`);
-        if (failed.length > 0) writeLog(`pip install -U FALLO en: ${failed.join(', ')}`);
-      }
-    } catch (err) {
-      writeLog(`pip update fallo: ${err.message}`);
+      },
+    },
+    {
+      name: 'pip',
+      action: async () => {
+        if (await commandExists('pip')) {
+          const listResult = await spawnCapture('pip', ['list', '--outdated', '--format=json']);
+          try {
+            const outdated = JSON.parse(listResult.stdout || '[]');
+            if (outdated.length === 0) {
+              writeLog('No hay paquetes pip desactualizados.');
+            } else if (dryRun) {
+              writeLog(`Simulación: se actualizarían ${outdated.length} paquetes pip (${outdated.map((p) => p.name).join(', ')}).`);
+            } else {
+              const ok = [];
+              const failed = [];
+              for (const pkg of outdated) {
+                onOutput(`Instalando ${pkg.name}...`);
+                const r = await spawnCapture('pip', ['install', '-U', pkg.name]);
+                (r.code === 0 ? ok : failed).push(pkg.name);
+              }
+              writeLog(`pip install -U OK: ${ok.join(', ') || '(ninguno)'}`);
+              if (failed.length > 0) writeLog(`pip install -U FALLO en: ${failed.join(', ')}`);
+            }
+          } catch (err) {
+            writeLog(`pip update fallo: ${err.message}`);
+          }
+        } else {
+          writeLog('pip no disponible, se omite.');
+        }
+      },
+    },
+    {
+      name: 'npm',
+      action: async () => {
+        if (await commandExists('npm')) {
+          if (dryRun) {
+            writeLog('Simulación: npm update -g se ejecutaría.');
+            return;
+          }
+          onOutput('Ejecutando npm update -g...');
+          const r = await spawnCaptureShell('npm', ['update', '-g']);
+          writeLog(r.code === 0 ? 'npm update -g completado.' : `npm update fallo (codigo ${r.code}).`);
+        } else {
+          writeLog('npm no disponible, se omite.');
+        }
+      },
+    },
+    {
+      name: 'choco',
+      action: async () => {
+        if (await commandExists('choco')) {
+          if (dryRun) {
+            writeLog('Simulación: choco upgrade all se ejecutaría.');
+            return;
+          }
+          onOutput('Ejecutando choco upgrade all...');
+          const r = await spawnCapture('choco', ['upgrade', 'all', '-y', '--no-color']);
+          writeLog(r.code === 0 ? 'choco upgrade all completado.' : `choco upgrade fallo (codigo ${r.code}).`);
+        } else {
+          writeLog('Chocolatey no disponible, se omite.');
+        }
+      },
+    },
+  ];
+
+  for (let i = 0; i < steps.length; i++) {
+    await steps[i].action();
+    if (onProgress) {
+      onProgress(Math.round(((i + 1) / steps.length) * 100));
     }
-  } else {
-    writeLog('pip no disponible, se omite.');
-  }
-
-  if (await commandExists('npm')) {
-    onOutput('Ejecutando npm update -g...');
-    const r = await spawnCaptureShell('npm', ['update', '-g']);
-    writeLog(r.code === 0 ? 'npm update -g completado.' : `npm update fallo (codigo ${r.code}).`);
-  } else {
-    writeLog('npm no disponible, se omite.');
-  }
-
-  if (await commandExists('choco')) {
-    onOutput('Ejecutando choco upgrade all...');
-    const r = await spawnCapture('choco', ['upgrade', 'all', '-y', '--no-color']);
-    writeLog(r.code === 0 ? 'choco upgrade all completado.' : `choco upgrade fallo (codigo ${r.code}).`);
-  } else {
-    writeLog('Chocolatey no disponible, se omite.');
   }
 
   writeLog('=== Aplicar actualizaciones - fin ===');

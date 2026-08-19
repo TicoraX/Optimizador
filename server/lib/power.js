@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, prepareReport, finishReport, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
 } from './shared.js';
 
 // Una sola consulta para bateria, CPU, GPU, RAM y discos.
@@ -414,28 +414,32 @@ export async function runPowerScanNative(onOutput) {
   plans.map((p, i) => ({ index: i + 1, guid: p.guid, name: p.name, active: p.active })));
 }
 
-export async function runPowerActionNative(envVars, onOutput) {
+export async function runPowerActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('power', onOutput);
+  const dryRun = envVars?.DRY_RUN === 'true';
+  const guard = makeGuard('power', { dryRun, writeLog });
 
-  writeLog('=== Cambio de plan de energía - inicio ===');
+  writeLog(`=== Cambio de plan de energía - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   // Por GUID, no por posicion. `powercfg /list` puede cambiar de orden si se
   // crea o borra un plan entre el escaneo y el clic, y ahi el indice N pasa a
   // apuntar a otro plan. El GUID identifica al plan sin ambiguedad.
-  const planGuid = String(envVars.PLAN_GUID || '').trim().toLowerCase();
+  const planGuid = String(envVars?.PLAN_GUID || envVars?.GUID || envVars?.PLAN || '').trim().toLowerCase();
   if (!planGuid) {
     writeLog('No se seleccionó un plan válido.');
     writeLog('=== Cambio de plan de energía - fin ===');
     return;
   }
 
-  // Re-escanear planes.
-  //
-  // Antes esto exigia el literal ingles /^Power Scheme GUID:/. En un Windows en
-  // español la linea dice "GUID del plan de energía:", asi que la lista quedaba
-  // vacia y la accion respondia "Indice fuera de rango" SIEMPRE: el modulo era
-  // inutilizable en el idioma para el que esta escrita toda la app. Se usa el
-  // mismo regex agnostico de idioma que ya usaba el scan.
+  onProgress?.(25);
+
+  let currentActiveGuid = '';
+  const activeResult = await spawnCapture('powercfg', ['/getactivescheme']);
+  if (activeResult.code === 0) {
+    const m = activeResult.stdout.match(/[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}/);
+    if (m) currentActiveGuid = m[0];
+  }
+
   const listResult = await spawnCapture('powercfg', ['/list']);
   const plans = [];
   if (listResult.code === 0) {
@@ -446,6 +450,8 @@ export async function runPowerActionNative(envVars, onOutput) {
     }
   }
 
+  onProgress?.(50);
+
   const target = plans.find((p) => p.guid.toLowerCase() === planGuid);
   if (!target) {
     writeLog(`El plan ${planGuid} ya no existe en este equipo. Volvé a escanear.`);
@@ -454,12 +460,28 @@ export async function runPowerActionNative(envVars, onOutput) {
   }
 
   writeLog(`Cambiando a: ${target.name} (${target.guid})`);
-  const setResult = await spawnCapture('powercfg', ['/setactive', target.guid]);
-  if (setResult.code === 0) {
+  const setResult = await guard(
+    `Activar plan de energía ${target.name}`,
+    () => spawnCapture('powercfg', ['/setactive', target.guid]),
+    {
+      target: target.guid,
+      previousValue: currentActiveGuid || null,
+      newValue: target.guid,
+    },
+  );
+
+  if (setResult.simulated) {
+    onProgress?.(100);
+    writeLog('=== Cambio de plan de energía - fin ===');
+    return;
+  }
+
+  if (setResult.ok) {
     writeLog(`Plan activado: ${target.name}`);
   } else {
     writeLog(`ERROR al cambiar plan: ${errText(setResult)}`);
   }
 
+  onProgress?.(100);
   writeLog('=== Cambio de plan de energía - fin ===');
 }

@@ -96,6 +96,12 @@ const REVERTERS = {
     return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
   },
 
+  async power(change) {
+    if (!change.previousValue) return { ok: false, detail: 'No hay esquema de energía anterior registrado' };
+    const r = await spawnCapture('powercfg', ['/setactive', change.previousValue]);
+    return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
+  },
+
   async startup(change) {
     // Tarea programada: el previousValue es su estado anterior.
     if (change.previousValue === 'Disabled' || change.newValue === 'Disabled') {
