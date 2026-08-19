@@ -1,10 +1,5 @@
 /**
- * Registro declarativo de los 9 modulos.
- *
- * Antes esto vivia repartido: `MODULE_LABELS` en Dashboard.jsx con solo los
- * nombres, `MODULE_SCRIPTS` en ReportViewer.jsx, y 460 lineas de JSX casi
- * identico con una tarjeta escrita a mano por modulo, cada una con su SVG
- * inline. Agregar un modulo significaba tocar cuatro lugares.
+ * Registro declarativo de los módulos del Optimizador.
  *
  * `span` controla el area en el Bento: los modulos no importan todos igual.
  */
@@ -35,8 +30,9 @@ const ICONS = {
 };
 
 const fmtSize = (mb) => {
-  if (mb == null) return '—';
-  return mb < 1024 ? `${Number(mb).toFixed(1)} MB` : `${(mb / 1024).toFixed(2)} GB`;
+  const n = Number(mb);
+  if (mb == null || Number.isNaN(n)) return '—';
+  return n < 1024 ? `${n.toFixed(1)} MB` : `${(n / 1024).toFixed(2)} GB`;
 };
 
 /** `tone` pinta el valor: se usa solo cuando el numero significa algo. */
@@ -50,6 +46,7 @@ export const MODULES = {
   updates: {
     label: 'Actualizaciones',
     blurb: 'winget, pip, npm global y Chocolatey',
+    description: 'Busca actualizaciones pendientes de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.',
     icon: ICONS.updates,
     metrics: (d) => [
       { label: 'winget', value: d.winget?.count ?? 0, tone: tone(d.winget?.count ?? 0, { warn: 1 }) },
@@ -61,6 +58,7 @@ export const MODULES = {
   cleanup: {
     label: 'Limpieza de disco',
     blurb: 'Temporales, caché, descargas y papelera',
+    description: 'Mide espacio recuperable en archivos temporales, caché de navegadores, descargas antiguas y papelera de reciclaje.',
     icon: ICONS.cleanup,
     metrics: (d) => [
       { label: 'Temporales', value: fmtSize(d.temp?.total_mb), tone: tone(d.temp?.total_mb ?? 0, { warn: 1024, danger: 10240 }) },
@@ -72,6 +70,7 @@ export const MODULES = {
   ram: {
     label: 'Memoria RAM',
     blurb: 'Procesos por consumo, en 4 niveles de riesgo',
+    description: 'Escanea procesos por consumo de RAM y clasifica cada uno en 4 niveles de riesgo (crítico, riesgoso, seguro, desconocido). Permite liberar memoria de forma selectiva.',
     icon: ICONS.ram,
     span: 'full',
     metrics: (d) => [
@@ -88,6 +87,7 @@ export const MODULES = {
   startup: {
     label: 'Inicio de sesión',
     blurb: 'Programas, servicios y tareas al arrancar',
+    description: 'Analiza programas, servicios y tareas programadas que se inician con tu sesión de Windows. Todo es reversible.',
     icon: ICONS.startup,
     metrics: (d) => [
       { label: 'Programas de inicio', value: d.startupPrograms?.count ?? 0, tone: tone(d.startupPrograms?.count ?? 0, { warn: 10, danger: 20 }) },
@@ -99,6 +99,7 @@ export const MODULES = {
   services: {
     label: 'Servicios',
     blurb: 'Automáticos, separando Microsoft de terceros',
+    description: 'Lista servicios con inicio automático separando Microsoft de terceros por ruta de archivo. Permite detener y deshabilitar servicios de terceros que no necesites.',
     icon: ICONS.services,
     metrics: (d) => [
       { label: 'De terceros', value: d.thirdPartyTotal ?? 0 },
@@ -110,10 +111,10 @@ export const MODULES = {
   network: {
     label: 'Red',
     blurb: 'Jitter, pérdida, ruta por saltos y DNS',
+    description: 'Diagnostica dónde se agrega la latencia: jitter y pérdida sostenidos, latencia por salto hasta el destino, MTU, ahorro de energía del adaptador y comparación de servidores DNS. No baja el ping: eso requiere cambiar la ruta y no se puede hacer localmente.',
     icon: ICONS.network,
     metrics: (d) => [
       { label: 'Latencia (mediana)', value: d.avgPingMs != null ? `${d.avgPingMs} ms` : '—', tone: tone(d.avgPingMs ?? 0, { warn: 80, danger: 150 }) },
-      // El jitter explica el tironeo mejor que el promedio, por eso va segundo.
       { label: 'Jitter', value: d.jitterMs != null ? `${d.jitterMs} ms` : '—', tone: tone(d.jitterMs ?? 0, { warn: 10, danger: 30 }) },
       { label: 'Pérdida de paquetes', value: `${d.packetLoss ?? 0}%`, tone: tone(d.packetLoss ?? 0, { warn: 1, danger: 10 }) },
       { label: 'Primer salto (router)', value: d.firstHopMs != null ? `${d.firstHopMs} ms` : '—', tone: tone(d.firstHopMs ?? 0, { warn: 5, danger: 20 }) },
@@ -123,6 +124,7 @@ export const MODULES = {
   power: {
     label: 'Energía',
     blurb: 'Plan activo, batería y consumo estimado',
+    description: 'Muestra el plan de energía activo con su descripción, batería y consumo estimado en watts. Permite cambiar de plan al instante.',
     icon: ICONS.power,
     metrics: (d) => [
       { label: 'Plan activo', value: d.activePlan ?? '—' },
@@ -135,6 +137,7 @@ export const MODULES = {
   apps: {
     label: 'Aplicaciones',
     blurb: 'Instaladas vía winget',
+    description: 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.',
     icon: ICONS.apps,
     metrics: (d) => [
       { label: 'Instaladas', value: d.appsCount ?? 0 },
@@ -143,6 +146,7 @@ export const MODULES = {
   adblock: {
     label: 'Anuncios',
     blurb: 'Bloqueo por dominio en el archivo hosts',
+    description: 'Aplica bloqueo de anuncios y telemetría por dominios en el archivo hosts de Windows con fuentes verificadas.',
     icon: ICONS.adblock,
     metrics: (d) => [
       { label: 'Estado', value: d.activo ? 'Activo' : 'Inactivo',
@@ -157,6 +161,7 @@ export const MODULES = {
   privacy: {
     label: 'Privacidad',
     blurb: '8 ajustes de telemetría y permisos',
+    description: 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.',
     icon: ICONS.privacy,
     metrics: (d) => [
       { label: 'Protegidos', value: `${d.hardenedCount ?? 0} / ${d.totalSettings ?? 0}`,
@@ -166,6 +171,7 @@ export const MODULES = {
   gaming: {
     label: 'Gaming & GPU',
     blurb: 'Aceleración HAGS, Game Mode y baja latencia',
+    description: 'Acelera el paso de frames, reduce la latencia de CPU-a-GPU (HAGS) y desactiva grabaciones en segundo plano para optimizar juegos.',
     icon: ICONS.gaming,
     metrics: (d) => [
       { label: 'GPU', value: d.gpu ? d.gpu.slice(0, 24) : 'GPU Detectada' },
@@ -177,6 +183,7 @@ export const MODULES = {
   integrity: {
     label: 'Integridad del Sistema',
     blurb: 'DISM, SFC y mantenimiento de almacén WinSxS',
+    description: 'Verifica la salud del almacén de componentes (DISM), audita archivos protegidos (SFC) y limpia componentes obsoletos de WinSxS para recuperar espacio.',
     icon: ICONS.integrity,
     metrics: (d) => [
       { label: 'DISM (Componentes)', value: d.dismStatus || 'SALUDABLE',
@@ -190,6 +197,7 @@ export const MODULES = {
   contextmenu: {
     label: 'Menú Clic Derecho',
     blurb: 'Extensiones del Explorador de Windows',
+    description: 'Audita y deshabilita extensiones de terceros en el menú de clic derecho del Explorador de Windows para acelerar su apertura.',
     icon: ICONS.contextmenu,
     metrics: (d) => [
       { label: 'De terceros activas', value: d.activeThirdParty ?? 0,
@@ -201,6 +209,7 @@ export const MODULES = {
   oemdebloat: {
     label: 'Debloat Fabricantes (OEM)',
     blurb: 'Servicios de Dell, HP, Lenovo, ASUS, Razer',
+    description: 'Identifica y optimiza servicios pesados de telemetría de fabricantes (Dell, HP, Lenovo, ASUS, Razer, Corsair) cambiándolos a inicio manual o desactivándolos.',
     icon: ICONS.oemdebloat,
     metrics: (d) => [
       { label: 'En inicio automático', value: d.autoCount ?? 0,
@@ -211,6 +220,7 @@ export const MODULES = {
   timers: {
     label: 'Temporizadores & Latencia BCD',
     blurb: 'HPET, Dynamic Ticking y TSC de CPU',
+    description: 'Ajusta parámetros de reloj de bajo nivel (Dynamic Ticking, HPET, TSC) en el almacén de arranque de Windows (BCD) para reducir el micro-stuttering.',
     icon: ICONS.timers,
     metrics: (d) => [
       { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 3}`,
@@ -221,6 +231,7 @@ export const MODULES = {
   ghostdevices: {
     label: 'Dispositivos Fantasma PnP',
     blurb: 'Registros de USB y periféricos desconectados',
+    description: 'Detecta registros de periféricos y dispositivos USB desconectados acumulados en Windows y permite eliminarlos de forma segura.',
     icon: ICONS.ghostdevices,
     metrics: (d) => [
       { label: 'Seguros de limpiar', value: d.safeCount ?? 0,
@@ -231,6 +242,7 @@ export const MODULES = {
   searchindex: {
     label: 'Indexador & Búsqueda Windows',
     blurb: 'Políticas de I/O y CPU de Windows Search',
+    description: 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.',
     icon: ICONS.searchindex,
     metrics: (d) => [
       { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,
@@ -241,6 +253,7 @@ export const MODULES = {
   dnsflush: {
     label: 'Caché DNS & Red LAN',
     blurb: 'Vaciado DNS, NetBIOS y registro WINS',
+    description: 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.',
     icon: ICONS.dnsflush,
     metrics: (d) => [
       { label: 'Dominios en caché', value: d.cachedCount ?? 0 },
@@ -250,6 +263,7 @@ export const MODULES = {
   networkprivacy: {
     label: 'Privacidad en Red & Telemetría',
     blurb: 'WiFi Sense, Spotlight y pre-carga Edge',
+    description: 'Bloquea la telemetría transmitida por red: descargas de Spotlight, WiFi Sense, apps promocionadas y pre-carga de Microsoft Edge.',
     icon: ICONS.networkprivacy,
     metrics: (d) => [
       { label: 'Protegidos', value: `${d.protectedCount ?? 0}/${d.total ?? 4}`,
@@ -260,6 +274,7 @@ export const MODULES = {
   pagefile: {
     label: 'Memoria Virtual & Pagefile',
     blurb: 'Kernel en RAM física y Paginación',
+    description: 'Optimiza el Administrador de Memoria de Windows: mantiene el núcleo y controladores en RAM física (DisablePagingExecutive), prioriza memoria para programas y acelera el apagado.',
     icon: ICONS.pagefile,
     metrics: (d) => [
       { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 3}`,
@@ -270,6 +285,7 @@ export const MODULES = {
   werfault: {
     label: 'Reporte de Errores & WerFault',
     blurb: 'Volcados y Telemetría de Fallos',
+    description: 'Administra directivas de Windows Error Reporting: suprime bloqueos por recolección de minidumps, desactiva la telemetría de fallos hacia servidores de Microsoft y cierra procesos silenciosamente.',
     icon: ICONS.werfault,
     metrics: (d) => [
       { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,

@@ -182,9 +182,11 @@ export async function deleteOldDownloads(ageDays, { dryRun = false } = {}) {
   return { deleted, error: false, files, freedBytes };
 }
 
+const RECYCLE_BIN_ROOT = `${(process.env.SystemDrive || 'C:').replace(/\\$/, '')}\\$Recycle.Bin`;
+
 /** Cuenta y mide elementos en la papelera de reciclaje por SID. */
 export async function measureRecycleBin() {
-  const recycleRoot = 'C:\\$Recycle.Bin';
+  const recycleRoot = RECYCLE_BIN_ROOT;
   let sidDirs;
   try {
     sidDirs = await readdir(recycleRoot);
@@ -211,7 +213,7 @@ export async function measureRecycleBin() {
 
 /** Vacía la papelera de reciclaje borrando los contenidos por SID. */
 export async function emptyRecycleBinNative() {
-  const recycleRoot = 'C:\\$Recycle.Bin';
+  const recycleRoot = RECYCLE_BIN_ROOT;
   let deleted = 0;
   let errors = 0;
   let freedBytes = 0;
@@ -671,8 +673,8 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
 
     if (cat === 'thumbnails') {
       if (dryRun) {
-        const mb = await targets.thumbnails.customScan();
-        writeLog(`[SIMULACION] Miniaturas Explorer: se liberarian ~${mb} MB`);
+        const r = await targets.thumbnails.customClean(true);
+        writeLog(`[SIMULACION] Miniaturas Explorer: se liberarian ${(r.freedBytes / (1024 * 1024)).toFixed(1)} MB (${r.deleted} archivos)`);
       } else {
         const r = await targets.thumbnails.customClean(false);
         totalFreedBytes += r.freedBytes;

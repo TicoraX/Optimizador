@@ -42,9 +42,11 @@ export default function RestoreManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: description.trim() }),
       });
+      if (!res.ok) {
+        throw new Error('No se pudo crear el punto de restauración');
+      }
       const data = await res.json();
-
-      if (!res.ok || !data.ok) {
+      if (!data.ok) {
         throw new Error(data.error || 'No se pudo crear el punto de restauración');
       }
 
@@ -204,7 +206,7 @@ export default function RestoreManager() {
                         className="badge badge-neutral"
                         style={{ fontSize: '11px', textTransform: 'capitalize' }}
                       >
-                        {p.type.toLowerCase().replace(/_/g, ' ')}
+                        {typeof p.type === 'string' ? p.type.toLowerCase().replace(/_/g, ' ') : (p.type ?? '—')}
                       </span>
                     </td>
                   </tr>

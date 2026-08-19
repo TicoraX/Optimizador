@@ -38,23 +38,19 @@ function usePersistedModuleLayout() {
   };
 
   const moveModule = (id, delta) => {
-    setOrder((prev) => {
-      const i = prev.indexOf(id);
-      const j = i + delta;
-      if (i < 0 || j < 0 || j >= prev.length) return prev;
-      const next = [...prev];
-      [next[i], next[j]] = [next[j], next[i]];
-      persist(next, hidden);
-      return next;
-    });
+    const i = order.indexOf(id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    persist(next, hidden);
+    setOrder(next);
   };
 
   const toggleHidden = (id) => {
-    setHidden((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      persist(order, next);
-      return next;
-    });
+    const next = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
+    persist(order, next);
+    setHidden(next);
   };
 
   return { order, hidden, moveModule, toggleHidden };
@@ -117,14 +113,23 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
   const [customizing, setCustomizing] = useState(false);
   const { order, hidden, moveModule, toggleHidden } = usePersistedModuleLayout();
 
-  // Antes esto parseaba el stream SSE a mano buscando el string 'event: done',
-  // que se rompe si un chunk llega partido. fetchEventSource ya estaba instalado.
   const handleScan = useCallback(async (moduleKey) => {
-    if (scanning[moduleKey]) return;
-    setScanning((prev) => ({ ...prev, [moduleKey]: true }));
+    let wasScanning = false;
+    setScanning((prev) => {
+      if (prev[moduleKey]) {
+        wasScanning = true;
+        return prev;
+      }
+      return { ...prev, [moduleKey]: true };
+    });
+    if (wasScanning) return;
 
+    let abortReason = null;
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 330000);
+    const timeout = setTimeout(() => {
+      abortReason = 'timeout';
+      ctrl.abort();
+    }, 330000);
 
     try {
       await fetchEventSource(`${API_BASE}/scan/${moduleKey}`, {
@@ -133,9 +138,6 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         body: '{}',
         signal: ctrl.signal,
         openWhenHidden: true,
-        // El defaultOnOpen de la libreria solo mira el content-type, no el
-        // status. Un 429 del rate limit o un 403 de origen fallaban con
-        // "Expected content-type..." en vez del motivo real.
         onopen(res) {
           if (!res.ok) throw new Error(`El servidor respondio ${res.status}`);
           const ct = res.headers.get('content-type') || '';
@@ -144,34 +146,36 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
           }
         },
         onmessage(ev) {
-          if (ev.event === 'done') ctrl.abort();
+          if (ev.event === 'done') {
+            abortReason = 'done';
+            ctrl.abort();
+          }
         },
-        // Sin esto, fetchEventSource reintenta cada segundo hasta que vence el
-        // abort de 330 s: un backend caido dejaba la tarjeta en "Escaneando..."
-        // durante cinco minutos y medio. Relanzar corta el reintento y cae en
-        // el catch/finally de abajo.
         onerror(err) {
           throw err;
         },
       });
     } catch (err) {
-      if (err.name !== 'AbortError') console.error(`Escaneo de ${moduleKey}:`, err);
+      if (abortReason === 'timeout') {
+        console.error(`Escaneo de ${moduleKey}: tiempo de espera agotado (330s)`);
+      } else if (abortReason !== 'done' && err.name !== 'AbortError') {
+        console.error(`Escaneo de ${moduleKey}:`, err);
+      }
     } finally {
       clearTimeout(timeout);
       setScanning((prev) => ({ ...prev, [moduleKey]: false }));
       onRefreshStatus();
     }
-  }, [scanning, onRefreshStatus]);
+  }, [onRefreshStatus]);
 
   if (loading) {
     return (
       <div className="dashboard-grid">
         {MODULE_KEYS.slice(0, 6).map((key) => (
           <div key={key} className="glass-panel module-card" data-span={MODULES[key].span} style={{ minHeight: 220, padding: 'var(--space-5)' }}>
-            <div className="skeleton" style={{ width: '55%', height: 20, marginBottom: 'var(--space-5)' }} />
-            <div className="skeleton" style={{ width: '100%', height: 14, marginBottom: 'var(--space-3)' }} />
-            <div className="skeleton" style={{ width: '85%', height: 14, marginBottom: 'var(--space-3)' }} />
-            <div className="skeleton" style={{ width: '92%', height: 14 }} />
+            <div className="skeleton" style={{ width: '40%', height: 20, marginBottom: 'var(--space-3)' }} />
+            <div className="skeleton" style={{ width: '70%', height: 14, marginBottom: 'var(--space-5)' }} />
+            <div className="skeleton" style={{ width: '100%', height: 60 }} />
           </div>
         ))}
       </div>
@@ -220,7 +224,7 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
         <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
           <a
             className="btn btn-secondary"
-            href="http://localhost:3000/api/system/export?format=markdown"
+            href={`${API_BASE}/system/export?format=markdown`}
             download
             title="Exportar informe técnico del sistema en Markdown"
             style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}

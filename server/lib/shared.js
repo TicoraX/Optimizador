@@ -485,7 +485,11 @@ export function makeLogger(moduleKey, onOutput) {
     const { date, time } = localStamp();
     const stamp = `${date} ${time}`;
     const line = `[${stamp}] ${String(message).replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
+    try {
+      appendFileSync(logPath, line + '\n');
+    } catch {
+      // Continuar para no interrumpir la entrega SSE aunque falle la escritura a disco
+    }
     onOutput(line);
   };
 }
@@ -526,6 +530,7 @@ export function loadItems(moduleKey) {
 }
 
 const TIMELINE_PATH = join(PROJECT_ROOT, 'reports', 'scan-timeline.json');
+let timelineWriteLock = Promise.resolve();
 
 /**
  * Registra un snapshot histórico de escaneo en la línea de tiempo unificada.
@@ -613,19 +618,17 @@ export function writeChanges(moduleKey, journal) {
 
 export function appendChange(moduleKey, entry) {
   const journal = readChanges(moduleKey);
+  const maxId = journal.reduce((acc, c) => (typeof c.id === 'number' ? Math.max(acc, c.id) : acc), -1);
+  const newId = maxId >= 0 ? maxId + 1 : journal.length;
   journal.push({
-    // `id` es el indice al momento de escribir. El diario es append-only:
-    // revertir marca la fila, no la borra, asi que el id no se corre nunca.
-    id: journal.length,
+    id: newId,
     at: new Date().toISOString(),
     module: moduleKey,
     ...entry,
-    // Se calcula aca y no en el llamador: si dependiera de que cada modulo se
-    // acuerde de pasarlo, alcanzaria con un olvido para ofrecer un "deshacer"
-    // que no tiene con que.
     reversible: entry.previousValue !== undefined,
   });
   writeChanges(moduleKey, journal);
+  return newId;
 }
 
 /**
@@ -654,23 +657,6 @@ export function makeGuard(moduleKey, { dryRun, writeLog }) {
 
 // ═══════════════════════════════════════════════════════
 // Proceso externo — spawn helpers compartidos por los 4 modulos
-//
-// Diagnostico (2026-06-19): spawn('powershell.exe', ['-File', scriptPath, ...])
-// invocado desde DENTRO de este servidor Express muere en ~150ms con exit code 1
-// y CERO salida en stdout/stderr, incluso en el primer request tras un arranque
-// limpio. El MISMO spawn ejecutado desde un script de Node suelto (sin servidor
-// HTTP) funciona siempre. No se identifico la causa raiz exacta. spawn() de
-// binarios nativos (winget.exe, schtasks.exe, taskkill.exe) SI funciona bien
-// desde este mismo servidor, y los -Command cortos de PowerShell tambien — por
-// eso cada modulo invoca sus binarios nativos directo, sin -File de PowerShell.
-//
-// spawnCapture() usa shell:false (Win32 CreateProcess directo, args como array
-// real — sin riesgo de inyeccion, valores con espacios funcionan bien). Solo
-// npm/pip/choco son wrappers .cmd en Windows que `spawn` sin shell no resuelve;
-// para esos se usa spawnCaptureShell(), que SI usa shell:true. Node no escapa
-// los argumentos en ese modo (advertencia DEP0190) — por eso spawnCaptureShell
-// solo se usa con literales fijos del codigo, nunca con datos que puedan tener
-// espacios o comillas (ej. nombres de programas o valores de registro).
 // ═══════════════════════════════════════════════════════
 
 /**
@@ -683,12 +669,36 @@ export function makeGuard(moduleKey, { dryRun, writeLog }) {
 function killTree(proc) {
   if (!proc?.pid) return;
   try {
-    spawn('taskkill', ['/T', '/F', '/PID', String(proc.pid)], {
+    const child = spawn('taskkill', ['/T', '/F', '/PID', String(proc.pid)], {
       windowsHide: true, shell: false, stdio: 'ignore',
+    });
+    child.on('error', () => {
+      try { proc.kill(); } catch { /* ya murio */ }
     });
   } catch {
     try { proc.kill(); } catch { /* ya murio */ }
   }
+}
+
+/**
+ * Consulta un valor en el Registro de Windows de forma segura y estructurada.
+ * Devuelve el valor casteado o null si la clave/valor no existe.
+ */
+export async function queryRegistryValue(key, value) {
+  const r = await spawnCapture('reg', ['query', key, '/v', value], 10000);
+  if (r.code !== 0 || !r.stdout) return null;
+  const escapedVal = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = r.stdout.match(new RegExp(`^\\s*${escapedVal}\\b\\s+(REG_[A-Z_]+)\\s+(.*)$`, 'mi'));
+  if (!match) return null;
+  const type = match[1];
+  const raw = match[2].trim();
+  if (type === 'REG_DWORD') {
+    return parseInt(raw, 16);
+  }
+  if (type === 'REG_SZ' || type === 'REG_EXPAND_SZ') {
+    return raw;
+  }
+  return raw;
 }
 
 export function spawnCapture(cmd, args, timeoutMs = 120000) {

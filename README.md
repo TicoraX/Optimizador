@@ -32,12 +32,12 @@ Cada módulo sigue el mismo patrón:
 Optimizador/
 ├── server/
 │   ├── server.js            # Express: rutas, seguridad, SSE
-│   └── lib/                 # La logica de los 9 modulos, nativa en Node
+│   └── lib/                 # La logica de los 21 modulos, nativa en Node
 │       ├── shared.js        # Whitelist, validadores, spawn, barrera y diario
 │       ├── changes.js       # Deshacer un cambio aplicado
 │       └── <modulo>.js      # Un archivo por modulo: scan + accion
 ├── frontend/                # React + Vite
-│   ├── src/modules.js       # Registro declarativo de los 9 modulos
+│   ├── src/modules.js       # Registro declarativo de los 21 modulos
 │   ├── src/styles/tokens.css# Sistema de diseno (color, espaciado, tipografia)
 │   └── src/components/
 ├── electron/                # App de escritorio, con auto-update
@@ -147,7 +147,7 @@ schtasks /Run   /TN "UpdateChecker_Weekly"
 ```
 
 > Los scripts `Scan-*.ps1` y `Optimize-*.ps1` de cada carpeta se eliminaron. La
-> lógica de los 9 módulos vive en `server/lib/` y corre nativa en Node: mantener
+> lógica de los 21 módulos vive en `server/lib/` y corre nativa en Node: mantener
 > dos implementaciones en paralelo hacía que divergieran. `scripts/Notify.ps1`
 > es el único PowerShell que queda, y solo llama al backend.
 
@@ -175,7 +175,7 @@ Agrega estas funciones a tu perfil de PowerShell (`notepad $PROFILE`) para acces
 
 ```powershell
 function Optimizador {
-    param([ValidateSet('updates','cleanup','startup','ram','network','services','power','apps','privacy')]
+    param([ValidateSet('updates','cleanup','startup','ram','network','services','power','apps','privacy','adblock','gaming','integrity','contextmenu','oemdebloat','timers','ghostdevices','searchindex','dnsflush','networkprivacy','pagefile','werfault')]
           [string]$Module)
     powershell -ep Bypass -nop -File "<RUTA_COMPLETA>\scripts\Notify.ps1" -Module $Module -Port 3001
 }

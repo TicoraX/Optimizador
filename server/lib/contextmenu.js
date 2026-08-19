@@ -117,6 +117,12 @@ export async function runContextMenuScanNative(onOutput) {
   }, onOutput, items);
 }
 
+export function isAllowedContextLocation(targetKey) {
+  if (!targetKey || typeof targetKey !== 'string') return false;
+  const normalized = targetKey.toUpperCase().replace(/^HKEY_CLASSES_ROOT\\/, 'HKCR\\');
+  return CONTEXT_LOCATIONS.some((loc) => normalized.startsWith(loc.key.toUpperCase() + '\\'));
+}
+
 export async function runContextMenuActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('contextmenu', onOutput);
   const dryRun = envVars.DRY_RUN === 'true';
@@ -135,6 +141,11 @@ export async function runContextMenuActionNative(envVars, onOutput, onProgress) 
   for (let i = 0; i < rawTargets.length; i++) {
     const targetKey = rawTargets[i];
     if (onProgress) onProgress(Math.round(((i + 1) / rawTargets.length) * 100));
+
+    if (!isAllowedContextLocation(targetKey)) {
+      writeLog(`- ${targetKey}: Ubicación no permitida. Solo se pueden modificar extensiones de menú contextual.`);
+      continue;
+    }
 
     // Leer el valor actual
     const check = await spawnCapture('reg', ['query', targetKey, '/ve']);

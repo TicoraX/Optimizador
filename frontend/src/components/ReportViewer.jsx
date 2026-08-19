@@ -5,6 +5,7 @@ import Terminal from './Terminal';
 import LogViewer from './LogViewer';
 import { API_BASE } from '../config';
 import { renderReport } from '../lib/markdown';
+import { MODULES } from '../modules';
 
 const CleanupBreakdownChart = lazy(() => import('./CleanupBreakdownChart'));
 
@@ -184,6 +185,8 @@ export default function ReportViewer() {
       setAvailableServices([]); setSelectedServices({});
     } else if (module === 'apps') {
       setAvailableApps([]); setSelectedApps({});
+    } else if (module === 'adblock') {
+      setAdblockSources([]); setSelectedSources({});
     } else if (module === 'privacy') {
       setPrivacySettings([]); setSelectedPrivacy({});
     } else if (module === 'gaming') {
@@ -243,14 +246,32 @@ export default function ReportViewer() {
       setRiskyProcesses(items.risky || []);
       setSelectedRiskyProcesses(noneChecked(items.risky || []));
     } else if (module === 'services') {
-      setAvailableServices(items);
-      setSelectedServices(noneChecked(items));
+      if (Array.isArray(items)) {
+        setAvailableServices(items);
+        setSelectedServices(noneChecked(items));
+      } else {
+        clearItems();
+      }
     } else if (module === 'apps') {
-      setAvailableApps(items);
-      setSelectedApps(noneChecked(items));
+      if (Array.isArray(items)) {
+        setAvailableApps(items);
+        setSelectedApps(noneChecked(items));
+      } else {
+        clearItems();
+      }
     } else if (module === 'privacy') {
-      setPrivacySettings(items);
-      setSelectedPrivacy(noneChecked(items));
+      if (Array.isArray(items)) {
+        setPrivacySettings(items);
+        setSelectedPrivacy(noneChecked(items));
+      } else {
+        clearItems();
+      }
+    } else if (module === 'power') {
+      if (Array.isArray(items)) {
+        setPowerPlans(items);
+      } else {
+        clearItems();
+      }
     } else if (module === 'gaming') {
       setGamingSettings(items || []);
       setSelectedGaming(Object.fromEntries((items || []).map((s, i) => [i, !s.optimized])));
@@ -259,7 +280,7 @@ export default function ReportViewer() {
       setSelectedIntegrity(Object.fromEntries((items || []).map((it, i) => [i, it.recommended !== false])));
     } else if (module === 'contextmenu') {
       setContextMenuHandlers(items || []);
-      setSelectedContextMenu(Object.fromEntries((items || []).map((it, i) => [i, it.recommendedDisable === true])));
+      setSelectedContextMenu(Object.fromEntries((items || []).map((it) => [it.regPath, it.recommendedDisable === true])));
     } else if (module === 'oemdebloat') {
       setOemServices(items || []);
       setSelectedOem(Object.fromEntries((items || []).map((it, i) => [i, it.recommendedManual === true])));
@@ -341,7 +362,7 @@ export default function ReportViewer() {
     }
     if (module === 'cleanup') {
       body.downloadsAgeDays = downloadsAgeDays;
-      body.cleanCategories = CLEAN_CATEGORIES
+      body.cleanCategories = availableCategories
         .filter((c) => selectedCategories[c.key])
         .map((c) => c.key);
     } else if (module === 'startup') {
@@ -390,9 +411,7 @@ export default function ReportViewer() {
       body.actions = checked.join(',');
     } else if (module === 'contextmenu') {
       const checked = Object.keys(selectedContextMenu)
-        .filter(k => selectedContextMenu[k])
-        .map(k => contextMenuHandlers[parseInt(k)]?.regPath)
-        .filter(Boolean);
+        .filter(k => selectedContextMenu[k]);
       body.handlers = checked.join(',');
     } else if (module === 'oemdebloat') {
       const checked = Object.keys(selectedOem)
@@ -619,28 +638,9 @@ export default function ReportViewer() {
             </div>
           ) : (
             <>
-              {report?.content && (
+              {report?.content && MODULES[module]?.description && (
                 <div style={{ fontSize: '0.8rem', color: 'var(--color-ink-3)', padding: '0 0 1rem 0', lineHeight: '1.4', borderBottom: '1px solid var(--color-rule)', marginBottom: '1rem' }}>
-                  {module === 'updates' && 'Busca actualizaciones pendientes de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.'}
-                  {module === 'cleanup' && 'Mide espacio recuperable en archivos temporales, caché de navegadores, descargas antiguas y papelera de reciclaje.'}
-                  {module === 'startup' && 'Analiza programas, servicios y tareas programadas que se inician con tu sesión de Windows. Todo es reversible.'}
-                  {module === 'ram' && 'Escanea procesos por consumo de RAM y clasifica cada uno en 4 niveles de riesgo (crítico, riesgoso, seguro, desconocido). Permite liberar memoria de forma selectiva.'}
-                  {module === 'network' && 'Diagnostica dónde se agrega la latencia: jitter y pérdida sostenidos, latencia por salto hasta el destino, MTU, ahorro de energía del adaptador y comparación de servidores DNS. No baja el ping: eso requiere cambiar la ruta y no se puede hacer localmente.'}
-                  {module === 'services' && 'Lista servicios con inicio automático separando Microsoft de terceros por ruta de archivo. Permite detener y deshabilitar servicios de terceros que no necesites.'}
-                  {module === 'power' && 'Muestra el plan de energía activo con su descripción, batería y consumo estimado en watts. Permite cambiar de plan al instante.'}
-                  {module === 'apps' && 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.'}
-                  {module === 'privacy' && 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.'}
-                  {module === 'gaming' && 'Acelera el paso de frames, reduce la latencia de CPU-a-GPU (HAGS) y desactiva grabaciones en segundo plano para optimizar juegos.'}
-                  {module === 'integrity' && 'Verifica la salud del almacén de componentes (DISM), audita archivos protegidos (SFC) y limpia componentes obsoletos de WinSxS para recuperar espacio.'}
-                  {module === 'contextmenu' && 'Audita y deshabilita extensiones de terceros en el menú de clic derecho del Explorador de Windows para acelerar su apertura.'}
-                  {module === 'oemdebloat' && 'Identifica y optimiza servicios pesados de telemetría de fabricantes (Dell, HP, Lenovo, ASUS, Razer, Corsair) cambiándolos a inicio manual o desactivándolos.'}
-                  {module === 'timers' && 'Ajusta parámetros de reloj de bajo nivel (Dynamic Ticking, HPET, TSC) en el almacén de arranque de Windows (BCD) para reducir el micro-stuttering.'}
-                  {module === 'ghostdevices' && 'Detecta registros de periféricos y dispositivos USB desconectados acumulados en Windows y permite eliminarlos de forma segura.'}
-                  {module === 'searchindex' && 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.'}
-                  {module === 'dnsflush' && 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.'}
-                  {module === 'networkprivacy' && 'Bloquea la telemetría transmitida por red: descargas de Spotlight, WiFi Sense, apps promocionadas y pre-carga de Microsoft Edge.'}
-                  {module === 'pagefile' && 'Optimiza el Administrador de Memoria de Windows: mantiene el núcleo y controladores en RAM física (DisablePagingExecutive), prioriza memoria para programas y acelera el apagado.'}
-                  {module === 'werfault' && 'Administra directivas de Windows Error Reporting: suprime bloqueos por recolección de minidumps, desactiva la telemetría de fallos hacia servidores de Microsoft y cierra procesos silenciosamente.'}
+                  {MODULES[module].description}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -1044,11 +1044,11 @@ export default function ReportViewer() {
                 {contextMenuHandlers
                   .filter((item) => !item.isSystem)
                   .map((item, idx) => (
-                    <label key={item.id || idx} className="checkbox-item">
+                    <label key={item.regPath || item.id || idx} className="checkbox-item">
                       <input
                         type="checkbox"
-                        checked={selectedContextMenu[idx] || false}
-                        onChange={() => setSelectedContextMenu(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                        checked={selectedContextMenu[item.regPath] || false}
+                        onChange={() => setSelectedContextMenu(prev => ({ ...prev, [item.regPath]: !prev[item.regPath] }))}
                         disabled={isRunning}
                       />
                       <span className="checkbox-label" title={item.name}>

@@ -23,7 +23,7 @@ export function getAllChanges() {
 
 export async function generateSystemExport(status, format = 'markdown') {
   const telemetry = await getSystemTelemetry();
-  const health = calculateHealthScore(status);
+  const health = calculateHealthScore(status, telemetry);
   const changes = getAllChanges();
   const timeline = getScanTimeline();
   const now = new Date();
@@ -72,7 +72,7 @@ export async function generateSystemExport(status, format = 'markdown') {
     '## 2. Telemetría de Hardware en Tiempo Real',
     '',
     `- **Carga de CPU**: ${telemetry.cpu?.usagePercent}% (${telemetry.cpu?.model || 'Desconocido'}, ${telemetry.cpu?.cores || 0} núcleos)`,
-    `- **Memoria RAM**: ${telemetry.ram?.usedFormatted} usados de ${telemetry.ram?.totalFormatted} (${telemetry.ram?.usedPercent}% ocupado, ${telemetry.ram?.freeFormatted} libres)`,
+    `- **Memoria RAM**: ${telemetry.ram?.usedGB ?? 0} GB usados de ${telemetry.ram?.totalGB ?? 0} GB (${telemetry.ram?.usagePercent ?? 0}% ocupado, ${telemetry.ram?.freeGB ?? 0} GB libres)`,
     '',
     '### Particiones de Disco',
     '| Unidad | Sistema de Archivos | Espacio Libre | Tamaño Total | Porcentaje Libre |',

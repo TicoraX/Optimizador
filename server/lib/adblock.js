@@ -189,9 +189,6 @@ export async function runAdblockActionNative(envVars, onOutput, onProgress) {
 
   writeLog(`=== Bloqueo de anuncios - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
-  const reportsDir = join(MODULES.adblock.dir, 'reports');
-  mkdirSync(reportsDir, { recursive: true });
-
   if (accion === 'apply') {
     const claves = String(envVars.ADBLOCK_SOURCES || '')
       .split(',').map((s) => s.trim()).filter((s) => FUENTES_VALIDAS.includes(s));
@@ -212,8 +209,10 @@ export async function runAdblockActionNative(envVars, onOutput, onProgress) {
       return;
     }
 
-    writeFileSync(listaPath(), [...dominios].sort().join('\n') + '\n', 'utf-8');
-    writeFileSync(metaPath(), JSON.stringify({ at: new Date().toISOString(), detalle }, null, 2));
+    if (!dryRun) {
+      writeFileSync(listaPath(), [...dominios].sort().join('\n') + '\n', 'utf-8');
+      writeFileSync(metaPath(), JSON.stringify({ at: new Date().toISOString(), detalle }, null, 2));
+    }
     writeLog(`Lista consolidada: ${dominios.size} dominios unicos.`);
   }
 

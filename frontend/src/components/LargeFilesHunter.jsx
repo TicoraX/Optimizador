@@ -40,13 +40,18 @@ export default function LargeFilesHunter() {
   const handleReveal = async (filePath) => {
     setRevealingPath(filePath);
     try {
-      await fetch(`${API_BASE}/large-files/reveal`, {
+      const res = await fetch(`${API_BASE}/large-files/reveal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filePath }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'No se pudo abrir el Explorador de Windows para este archivo');
+      }
     } catch (err) {
       console.error('Error abriendo explorador:', err);
+      setError(err.message);
     } finally {
       setRevealingPath(null);
     }

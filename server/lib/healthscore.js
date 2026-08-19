@@ -37,7 +37,7 @@ export function calculateHealthScore(status = {}, telemetry = {}) {
   // 2. Memoria RAM (Peso: 20 pts)
   let ramScore = 20;
   const ram = status.ram || {};
-  const ramUsage = ram.usagePercent || telemetry.ram?.usagePercent || 0;
+  const ramUsage = ram.usagePercent ?? ram.usedPercent ?? telemetry.ram?.usagePercent ?? telemetry.ram?.usedPercent ?? 0;
   if (ramUsage > 85) {
     ramScore -= 12;
   } else if (ramUsage > 70) {
@@ -86,7 +86,10 @@ export function calculateHealthScore(status = {}, telemetry = {}) {
   // 5. Privacidad y Seguridad (Peso: 15 pts)
   let privacyScore = 15;
   const privacy = status.privacy || {};
-  const unhardened = (privacy.totalSettings || 8) - (privacy.hardenedCount || 0);
+  const hasPrivacyScan = privacy.unprotectedCount !== undefined || privacy.hardenedCount !== undefined;
+  const unhardened = hasPrivacyScan
+    ? (privacy.unprotectedCount ?? ((privacy.totalSettings || 8) - (privacy.hardenedCount || 0)))
+    : 0;
   if (unhardened > 4) {
     privacyScore -= 8;
   } else if (unhardened > 0) {

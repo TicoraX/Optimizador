@@ -11,7 +11,7 @@ describe('Optimizador de Búsqueda e Indexador (searchindex.js)', () => {
     assert.ok(SEARCH_SETTINGS.length >= 3);
     assert.ok(SEARCH_SETTINGS.some((s) => s.id === 'preventlowdisk'));
     assert.ok(SEARCH_SETTINGS.some((s) => s.id === 'disableencrypted'));
-    assert.ok(SEARCH_SETTINGS.some((s) => s.id === 'allowcortana'));
+    assert.ok(SEARCH_SETTINGS.some((s) => s.id === 'disablewebsearch' || s.id === 'allowcortana'));
   });
 
   it('getWSearchServiceStatus retorna un estado estructurado', async () => {

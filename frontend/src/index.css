@@ -246,7 +246,7 @@ a { color: var(--color-accent); }
   .theme-toggle { width: auto; margin-top: 0; }
   .main-content { padding: var(--space-4); }
   .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
-  .module-card, .module-card[data-span='wide'],
+  .module-card,
   .module-card[data-span='full'], .chart-card { grid-column: span 1; }
 }
 
@@ -453,7 +453,7 @@ a { color: var(--color-accent); }
   max-height: 480px;
   overflow-y: auto;
 }
-.markdown-content pre code { background: none; padding: 0; }
+.markdown-content pre code { background: none; padding: 0; color: var(--color-well-ink); }
 
 /* El reporte de energia trae una tabla Markdown y sin esto las columnas se
    tocan: el nombre del componente quedaba pegado a los watts. */
@@ -485,7 +485,7 @@ a { color: var(--color-accent); }
   border-radius: var(--radius);
   padding: var(--space-3);
   overflow-x: auto;
-  color: var(--color-ink-3);
+  color: var(--color-well-ink);
 }
 
 /* ── Terminal y logs: la superficie oscura del tema ───────── */
@@ -503,7 +503,7 @@ a { color: var(--color-accent); }
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
-  color: var(--color-ink-3);
+  color: var(--color-well-ink-3);
 }
 .terminal-body, .log-viewer-body {
   background: var(--color-well);
@@ -513,11 +513,12 @@ a { color: var(--color-accent); }
   padding: var(--space-4);
   max-height: 420px;
   overflow-y: auto;
+  color: var(--color-well-ink);
 }
-.terminal-line { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-ink-2); }
+.terminal-line { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-well-ink-2); }
 .terminal-line.error, .log-line-err { color: var(--color-danger); }
 .terminal-line.success, .log-line-ok { color: var(--color-success); }
-.log-line-timestamp { color: var(--color-ink-3); }
+.log-line-timestamp { color: var(--color-well-ink-3); }
 .log-line-sep { color: var(--color-rule-strong); }
 
 .log-viewer-panel { margin-top: var(--space-6); overflow: hidden; }

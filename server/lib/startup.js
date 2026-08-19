@@ -503,7 +503,9 @@ export async function runStartupActionNative(envVars, onOutput) {
           : `ERROR deshabilitando ${e.name}: ${r.stderr}`);
       }
     }
-    saveDisabledRegistryManifest(manifest);
+    if (!dryRun) {
+      saveDisabledRegistryManifest(manifest);
+    }
   }
 
   const { tasks: logonTasks } = await getLogonScheduledTasks();

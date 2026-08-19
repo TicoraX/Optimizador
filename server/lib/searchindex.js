@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText, queryRegistryValue,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -45,7 +45,7 @@ export const SEARCH_SETTINGS = [
     defaultLabel: 'Permitido o no configurado',
   },
   {
-    id: 'allowcortana',
+    id: 'disablewebsearch',
     name: 'Restringir Búsqueda Web de Bing en Menú Inicio',
     desc: 'Elimina los resultados web lentos e invasivos al buscar archivos locales en el menú de Windows.',
     key: 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search',
@@ -56,18 +56,6 @@ export const SEARCH_SETTINGS = [
     defaultLabel: 'Búsqueda web activa (0)',
   },
 ];
-
-export async function queryRegistryValue(key, value) {
-  const r = await spawnCapture('reg', ['query', key, '/v', value], 3000);
-  if (r.code !== 0) return null;
-  const match = r.stdout.match(new RegExp(`${value}\\s+(REG_\\w+)\\s+(\\S+)`, 'i'));
-  if (!match) return null;
-  let val = match[2];
-  if (val.startsWith('0x')) {
-    val = String(parseInt(val, 16));
-  }
-  return val;
-}
 
 export async function getWSearchServiceStatus() {
   const r = await spawnCapture('sc', ['query', 'WSearch'], 3000);
@@ -177,6 +165,7 @@ export async function runSearchIndexActionNative(envVars, onOutput, onProgress) 
       () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.optimizedValue, '/f']),
       {
         target: `${s.key}\\${s.value}`,
+        valueType: s.type,
         previousValue: prevVal,
         newValue: s.optimizedValue,
       },

@@ -15,27 +15,32 @@ export default function LogViewer({ module }) {
   const [error, setError]       = useState(null);
   const [clearing, setClearing] = useState(false);
 
-  // Sin setLoading/setError sincronos al entrar: se llama directo desde un
-  // efecto y disparaba un render en cascada. El estado inicial ya es el correcto.
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (signal) => {
     try {
-      const res = await fetch(`${API_BASE}/logs/${module}`);
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE}/logs/${module}`, { signal });
       if (res.status === 404) { setLines([]); setSize(0); return; }
       if (!res.ok) throw new Error('No se pudo leer el log');
       const data = await res.json();
       setLines(data.lines || []);
       setSize(data.size || 0);
     } catch (err) {
-      setError(err.message);
+      if (err.name !== 'AbortError') {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   }, [module]);
 
   useEffect(() => {
-    let alive = true;
-    (async () => { await fetchLogs(); if (alive) setLoading(false); })();
-    return () => { alive = false; };
+    setLines([]);
+    setSize(0);
+    setError(null);
+    const ctrl = new AbortController();
+    fetchLogs(ctrl.signal);
+    return () => { ctrl.abort(); };
   }, [fetchLogs]);
 
   const handleClear = async (rotate = false) => {
@@ -67,7 +72,7 @@ export default function LogViewer({ module }) {
           <button
             className="btn btn-secondary"
             style={{ width: 'auto', padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}
-            onClick={fetchLogs}
+            onClick={() => fetchLogs()}
             disabled={loading || clearing}
           >
             Actualizar

@@ -66,29 +66,50 @@ export async function runOemDebloatScanNative(onOutput) {
   const paths = prepareReport('oemdebloat');
   const { today, reportPath } = paths;
 
-  onOutput('Auditanado servicios de fabricantes y suites OEM...');
+  onOutput('Auditando servicios de fabricantes y suites OEM...');
+  let allServices = [];
+
   const r = await spawnCapture('wmic', [
     'service', 'get', 'DisplayName,Name,StartMode,State', '/format:csv',
   ], 10000);
 
-  const detectedOemServices = [];
   if (r.code === 0 && r.stdout) {
-    const allServices = parseServicesCsv(r.stdout);
-    for (const s of allServices) {
-      const match = matchOemService(s.name, s.displayName);
-      if (match) {
-        detectedOemServices.push({
-          id: s.name,
-          name: s.displayName,
-          serviceName: s.name,
-          oem: match.oem,
-          desc: match.desc,
-          startMode: s.startMode,
-          state: s.state,
-          isAuto: s.startMode.toLowerCase() === 'auto',
-          recommendedManual: s.startMode.toLowerCase() === 'auto',
-        });
-      }
+    allServices = parseServicesCsv(r.stdout);
+  } else {
+    // Fallback con PowerShell Get-CimInstance si wmic no está disponible o falla
+    const ps = await spawnCapture('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      'Get-CimInstance Win32_Service | Select-Object DisplayName, Name, StartMode, State | ConvertTo-Json -Compress',
+    ], 10000);
+    if (ps.code === 0 && ps.stdout) {
+      try {
+        const parsed = JSON.parse(ps.stdout);
+        const list = Array.isArray(parsed) ? parsed : [parsed];
+        allServices = list.map((s) => ({
+          displayName: s.DisplayName || s.Name,
+          name: s.Name,
+          startMode: s.StartMode || 'Auto',
+          state: s.State || 'Unknown',
+        }));
+      } catch {}
+    }
+  }
+
+  const detectedOemServices = [];
+  for (const s of allServices) {
+    const match = matchOemService(s.name, s.displayName);
+    if (match) {
+      detectedOemServices.push({
+        id: s.name,
+        name: s.displayName,
+        serviceName: s.name,
+        oem: match.oem,
+        desc: match.desc,
+        startMode: s.startMode,
+        state: s.state,
+        isAuto: s.startMode.toLowerCase() === 'auto',
+        recommendedManual: s.startMode.toLowerCase() === 'auto',
+      });
     }
   }
 
@@ -141,7 +162,7 @@ export async function runOemDebloatActionNative(envVars, onOutput, onProgress) {
     if (onProgress) onProgress(Math.round(((i + 1) / rawServices.length) * 100));
 
     // Consultar estado previo del servicio con sc qc
-    const qc = await spawnCapture('sc', ['qc', svc]);
+    const qc = await spawnCapture('sc.exe', ['qc', svc]);
     let prevStart = 'auto';
     if (qc.code === 0 && qc.stdout) {
       if (qc.stdout.includes('DEMAND_START')) prevStart = 'demand';
@@ -156,7 +177,7 @@ export async function runOemDebloatActionNative(envVars, onOutput, onProgress) {
 
     const result = await guard(
       `Configurar servicio OEM ${svc} a inicio ${targetMode}`,
-      () => spawnCapture('sc', ['config', svc, `start= ${targetMode}`]),
+      () => spawnCapture('sc.exe', ['config', svc, 'start=', targetMode]),
       {
         target: `Service\\${svc}`,
         previousValue: prevStart,

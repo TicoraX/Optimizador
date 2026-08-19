@@ -34,17 +34,26 @@ export default function SystemTelemetry() {
 
   useEffect(() => {
     let alive = true;
+    let interval = null;
+
     const load = async () => {
-      if (alive) await fetchTelemetry();
+      if (alive && !document.hidden) await fetchTelemetry();
     };
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden && alive) {
+        fetchTelemetry();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     load();
-    // Sondeo suave cada 5 segundos
-    const interval = setInterval(load, 5000);
+    interval = setInterval(load, 5000);
 
     return () => {
       alive = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchTelemetry]);
 
@@ -99,12 +108,12 @@ export default function SystemTelemetry() {
               width: 8,
               height: 8,
               borderRadius: '50%',
-              backgroundColor: 'var(--color-success)',
-              boxShadow: '0 0 8px var(--color-success)',
+              backgroundColor: error ? 'var(--color-warning)' : 'var(--color-success)',
+              boxShadow: error ? '0 0 8px var(--color-warning)' : '0 0 8px var(--color-success)',
             }}
           />
           <h2 id="telemetry-title" style={{ fontSize: 'var(--text-base)', margin: 0, fontWeight: 600 }}>
-            Telemetría de Hardware en Vivo
+            {error ? 'Telemetría de Hardware (Desactualizada)' : 'Telemetría de Hardware en Vivo'}
           </h2>
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', marginLeft: 'var(--space-2)' }}>
             Uptime: {telemetry?.system?.uptimeFormatted || '—'}

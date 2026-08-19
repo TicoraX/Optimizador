@@ -24,38 +24,26 @@ export default function Scheduler() {
   const [days, setDays] = useState(['MON']);
   const [intervalDays, setIntervalDays] = useState(1);
 
-  // Sin setLoading(true) sincrono: se llama directo desde un efecto y disparaba
-  // un render en cascada. `loading` ya arranca en true.
-  const fetchTasks = async () => {
+  const fetchTasks = async (signal) => {
     try {
-      const res = await fetch(`${API_BASE}/scheduler`);
+      const res = await fetch(`${API_BASE}/scheduler`, { signal });
       if (!res.ok) throw new Error('Error al cargar tareas programadas');
       const data = await res.json();
       setTasks(data.tasks || []);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      if (err.name !== 'AbortError') {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // `alive` evita setear estado si el usuario navega antes de la respuesta.
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/scheduler`);
-        if (!res.ok) throw new Error('Error al cargar tareas programadas');
-        const data = await res.json();
-        if (alive) { setTasks(data.tasks || []); setError(null); }
-      } catch (err) {
-        if (alive) setError(err.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
+    const ctrl = new AbortController();
+    fetchTasks(ctrl.signal);
+    return () => { ctrl.abort(); };
   }, []);
 
   const handleToggle = async (taskName, currentStatus) => {
@@ -199,10 +187,10 @@ export default function Scheduler() {
                           fontSize: '0.8rem',
                           fontWeight: '600',
                           color: isEnabled ? 'var(--color-success)' : 'var(--color-ink-3)',
-                          background: isEnabled ? 'var(--color-success-soft)' : 'rgba(255, 255, 255, 0.02)',
+                          background: isEnabled ? 'var(--color-success-soft)' : 'var(--color-paper-3)',
                           padding: '0.2rem 0.5rem',
                           borderRadius: '4px',
-                          border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.2)' : 'var(--color-rule)'}`
+                          border: `1px solid ${isEnabled ? 'var(--color-success)' : 'var(--color-rule)'}`
                         }}
                       >
                         {task.status}

@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText, queryRegistryValue,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -57,18 +57,6 @@ export const NETWORK_PRIVACY_SETTINGS = [
   },
 ];
 
-export async function queryRegistryValue(key, value) {
-  const r = await spawnCapture('reg', ['query', key, '/v', value], 3000);
-  if (r.code !== 0) return null;
-  const match = r.stdout.match(new RegExp(`${value}\\s+(REG_\\w+)\\s+(\\S+)`, 'i'));
-  if (!match) return null;
-  let val = match[2];
-  if (val.startsWith('0x')) {
-    val = String(parseInt(val, 16));
-  }
-  return val;
-}
-
 export async function runNetworkPrivacyScanNative(onOutput) {
   const paths = prepareReport('networkprivacy');
   const { today, reportPath } = paths;
@@ -79,7 +67,7 @@ export async function runNetworkPrivacyScanNative(onOutput) {
 
   for (const s of NETWORK_PRIVACY_SETTINGS) {
     const cur = await queryRegistryValue(s.key, s.value);
-    const isOpt = cur === s.optimizedValue;
+    const isOpt = String(cur) === String(s.optimizedValue);
     if (isOpt) protectedCount++;
 
     items.push({
@@ -90,7 +78,7 @@ export async function runNetworkPrivacyScanNative(onOutput) {
       value: s.value,
       type: s.type,
       currentValue: cur ?? 'No configurado',
-      currentLabel: isOpt ? s.optimizedLabel : (cur ? `Valor actual: ${cur}` : s.defaultLabel),
+      currentLabel: isOpt ? s.optimizedLabel : (cur !== null ? `Valor actual: ${cur}` : s.defaultLabel),
       recommendedValue: s.optimizedValue,
       isOptimized: isOpt,
     });
@@ -157,6 +145,7 @@ export async function runNetworkPrivacyActionNative(envVars, onOutput, onProgres
       () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.optimizedValue, '/f']),
       {
         target: `${s.key}\\${s.value}`,
+        valueType: s.type,
         previousValue: prevVal,
         newValue: s.optimizedValue,
       },

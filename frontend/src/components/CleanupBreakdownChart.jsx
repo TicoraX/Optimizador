@@ -211,7 +211,7 @@ export default function CleanupBreakdownChart({
                     className={`badge badge-${isCaution ? 'warning' : 'neutral'}`}
                     style={{ fontSize: '10px', padding: '1px 6px' }}
                   >
-                    {c.safety}
+                    {c.safety === 'SAFE' ? 'Seguro' : 'Precaución'}
                   </span>
                 </div>
 

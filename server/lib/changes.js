@@ -81,8 +81,8 @@ const REVERTERS = {
 
   async oemdebloat(change) {
     const serviceName = String(change.target || '').replace(/^Service\\/, '');
-    const prev = change.previousValue || 'auto';
-    const r = await spawnCapture('sc', ['config', serviceName, `start= ${prev}`]);
+    const prev = change.previousValue || 'demand';
+    const r = await spawnCapture('sc.exe', ['config', serviceName, 'start=', prev]);
     return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
   },
 
@@ -126,6 +126,7 @@ const REVERTERS = {
 function splitRegTarget(target) {
   const s = String(target);
   const i = s.lastIndexOf('\\');
+  if (i === -1) return [s, ''];
   return [s.slice(0, i), s.slice(i + 1)];
 }
 
@@ -156,8 +157,10 @@ export async function undoChange(moduleKey, id) {
     return { ok: false, status: 500, error: `No se pudo deshacer: ${result.detail || 'error desconocido'}` };
   }
 
-  // Se marca, no se borra: el diario cuenta lo que paso, incluido el deshacer.
-  change.undoneAt = new Date().toISOString();
-  writeChanges(moduleKey, journal);
-  return { ok: true, change };
+  // Re-leer el diario fresco por si hubo escrituras concurrentes durante el revert
+  const freshJournal = readChanges(moduleKey);
+  const freshChange = freshJournal.find((c) => c.id === id) || change;
+  freshChange.undoneAt = new Date().toISOString();
+  writeChanges(moduleKey, freshJournal);
+  return { ok: true, change: freshChange };
 }

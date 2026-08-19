@@ -435,8 +435,8 @@ export function getConsolidatedStatus() {
       );
       return {
         lastScan: i.date,
-        dismStatus: i.dismStatus || 'SALUDABLE',
-        sfcStatus: i.sfcStatus || 'INTEGRO',
+        dismStatus: i.dismStatus || 'DESCONOCIDO',
+        sfcStatus: i.sfcStatus || 'DESCONOCIDO',
         healthy: i.healthy !== false,
         error: i.error,
       };
@@ -591,9 +591,17 @@ app.get('/api/health-score', safeHandler(async (_req, res) => {
   });
 }));
 
-app.post('/api/quick-optimize', safeHandler(async (req, res) => {
+app.post('/api/quick-optimize', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10, message: limiterMsg(15), handler: onLimit,
+}), safeHandler(async (req, res) => {
   const dryRun = req.body?.dryRun === true;
-  const actions = req.body?.actions || ['cleanup', 'privacy', 'gaming'];
+  const rawActions = req.body?.actions;
+  if (rawActions !== undefined && !Array.isArray(rawActions)) {
+    const err = new Error('El campo actions debe ser una lista.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const actions = Array.isArray(rawActions) ? rawActions.map(String) : ['cleanup', 'privacy', 'gaming'];
 
   const status = getConsolidatedStatus();
   const health = calculateHealthScore(status);
@@ -605,7 +613,16 @@ app.post('/api/quick-optimize', safeHandler(async (req, res) => {
     if (handler) {
       const logs = [];
       try {
-        await handler({ DRY_RUN: dryRun ? 'true' : 'false' }, (msg) => logs.push(msg));
+        const env = { DRY_RUN: dryRun ? 'true' : 'false' };
+        if (fix.module === 'cleanup') env.CLEAN_CATEGORIES = 'temp,recycle,cache';
+        else if (fix.module === 'privacy') env.OPTIMIZE_PRIVACY = '1,2,3,4,5,6,7,8';
+        else if (fix.module === 'gaming') env.SETTINGS = 'hags,gamemode,gamedvr,fse,networkThrottle,systemResponsiveness';
+        else if (fix.module === 'dnsflush') env.FLUSH_DNS = 'true';
+        else if (fix.module === 'networkprivacy') env.SETTINGS = 'telemetry_diag,ceip_optin,advertising_id,smartscreen_p2p';
+        else if (fix.module === 'pagefile') env.SETTINGS = 'disablepagingexecutive,largesystemcache,clearpagefile';
+        else if (fix.module === 'werfault') env.SETTINGS = 'disableerrorreporting,disablecrashdumps,disablecer,disablesqmlogger';
+
+        await handler(env, (msg) => logs.push(msg));
         results.push({ id: fix.id, module: fix.module, success: true, logs });
       } catch (err) {
         results.push({ id: fix.id, module: fix.module, success: false, error: err.message });

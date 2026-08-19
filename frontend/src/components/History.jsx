@@ -59,13 +59,15 @@ export default function History() {
   const fetchChanges = useCallback(async () => {
     const res = await fetch(`${API_BASE}/changes`);
     if (!res.ok) throw new Error('No se pudo leer el historial de cambios');
-    return (await res.json()).changes;
+    const data = await res.json();
+    return Array.isArray(data?.changes) ? data.changes : [];
   }, []);
 
   const fetchTimeline = useCallback(async () => {
     const res = await fetch(`${API_BASE}/timeline`);
     if (!res.ok) throw new Error('No se pudo leer la línea de tiempo de escaneos');
-    return await res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   }, []);
 
   const loadData = useCallback(async () => {
@@ -95,7 +97,8 @@ export default function History() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'No se pudo deshacer');
-      setChanges(await fetchChanges());
+      const freshChanges = await fetchChanges();
+      setChanges(freshChanges || []);
       setError(null);
     } catch (err) {
       setError(err.message);

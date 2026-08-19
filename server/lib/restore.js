@@ -33,7 +33,7 @@ export function parseRestorePointsJson(rawJson) {
         let dateStr = item.CreationTime || '';
         // PowerShell puede devolver fechas en formato /Date(1234567890)/ o string ISO/locale
         if (typeof dateStr === 'string' && dateStr.startsWith('/Date(')) {
-          const match = dateStr.match(/\/Date\((\d+)\)\//);
+          const match = dateStr.match(/\/Date\((\d+)(?:[+-]\d+)?\)\//);
           if (match) {
             dateStr = new Date(Number(match[1])).toLocaleString();
           }
@@ -105,9 +105,9 @@ export async function getRestorePoints() {
   }
 
   return {
-    ok: true,
+    ok: false,
     points: [],
-    protectionEnabled: true,
+    protectionEnabled: false,
   };
 }
 
@@ -125,15 +125,19 @@ export async function createRestorePoint(rawDescription) {
     '-NonInteractive',
     '-Command',
     psCmd,
-  ], 30000);
+  ], 120000);
 
   if (code !== 0) {
     const errorMsg = (stderr || stdout || 'Error desconocido al crear punto de restauración').trim();
+    let userMsg = `No se pudo crear el punto de restauración: ${errorMsg.slice(0, 200)}`;
+    if (errorMsg.includes('Access is denied') || errorMsg.includes('administrador') || errorMsg.includes('permission')) {
+      userMsg = 'Se requieren permisos de Administrador para crear puntos de restauración de Windows.';
+    } else if (errorMsg.includes('0x80042306') || errorMsg.includes('24') || errorMsg.toLowerCase().includes('frequency')) {
+      userMsg = 'Windows limita la creación de puntos de restauración automáticos a uno cada 24 horas por directiva del sistema.';
+    }
     return {
       ok: false,
-      error: errorMsg.includes('Access is denied') || errorMsg.includes('administrador')
-        ? 'Se requieren permisos de Administrador para crear puntos de restauración de Windows.'
-        : `No se pudo crear el punto de restauración: ${errorMsg.slice(0, 200)}`,
+      error: userMsg,
     };
   }
 

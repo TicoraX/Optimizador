@@ -193,9 +193,50 @@
 - **Tests**: `server/tests/werfault.test.js` (2 tests unitarios).
 - **Commit**: `f350188` — `feat(werfault): add Windows Error Reporting and WerFault telemetry optimizer with crash dialog and minidump suppression`.
 
+### Mejora 20: Barrido Integral de Calidad, Robustez y Cohesión de Arquitectura
+- **Documentación, Scripts y Electron**:
+  - `README.md`: Actualizadas referencias de módulos (de 9 a 21) en la arquitectura del proyecto, estructura de carpetas y comandos de PowerShell.
+  - `scripts/Notify.ps1`: Expandido `ValidateSet` a los 21 módulos válidos.
+  - `scripts/Apply-Hosts.ps1`: Retorno seguro de `HashSet` con el operador coma `,` para evitar desenrollado en pipeline.
+  - `electron/main.cjs`: Validación exacta de `new URL(url).origin !== APP_ORIGIN` en `will-navigate` para evitar spoofing de origen.
+- **Frontend y Accesibilidad**:
+  - `frontend/package.json`: Script de test multiplataforma compatible con Windows (`node --test "src/lib/*.test.js"`).
+  - `frontend/src/main.jsx`: Import de `@fontsource/inter/700.css` para soportar títulos `.nav-section-title`.
+  - `frontend/src/styles/tokens.css` y `index.css`: Definición y uso de tokens `--color-well-ink`, `--color-well-ink-2`, `--color-well-ink-3` en terminal, visor de logs y bloques de código Markdown. Eliminado selector huérfano `.module-card[data-span='wide']`.
+  - `frontend/src/modules.js`: Manejo de `NaN` en `fmtSize` y descripciones técnicas para los 21 módulos.
+  - `frontend/src/components/ReportViewer.jsx`: Uso dinámico de `MODULES[module]?.description`, reseteo limpio de `adblock`, validaciones `Array.isArray`, claves estables `regPath` en `contextmenu`, y filtrado sobre `availableCategories` en `cleanup`.
+  - `frontend/src/components/Dashboard.jsx`: Enlace directo a `/system/export?format=markdown`, seguimiento de timeout en `handleScan`, y cálculo puro de orden y visibilidad de tarjetas.
+  - `frontend/src/components/HealthScoreCard.jsx`: Protección contra división por cero en `pct` y panel de error en línea sin `alert` bloqueante.
+  - `frontend/src/components/History.jsx`, `LargeFilesHunter.jsx`, `LogViewer.jsx`, `RestoreManager.jsx`, `Scheduler.jsx`, `SystemTelemetry.jsx`, `Terminal.jsx`: Manejo de señales `AbortController`, verificación `res.ok`, pausa en `visibilitychange`, roles ARIA `progressbar`.
+  - `frontend/src/lib/markdown.test.js`: Pruebas de rechazo de links `javascript:` y valores nulos/indefinidos (7/7 tests pasando).
+- **Backend y Servicios del Sistema**:
+  - `server/lib/shared.js`: Captura de errores en `makeLogger` con `try-catch`, lectura y escritura síncrona atómica de `appendChange` y `recordScanSnapshot`, manejo de `child.on('error')` en `killTree`, y función compartida `queryRegistryValue(key, value)`.
+  - `server/lib/changes.js`: Desglose seguro de claves simples en `splitRegTarget`, re-lectura fresca del diario en `undoChange`, y separación de argumentos `start=` en `sc.exe`.
+  - `server/lib/cleanup.js`: `RECYCLE_BIN_ROOT` dinámico según `process.env.SystemDrive` y medición exacta de miniaturas en `dryRun`.
+  - `server/lib/contextmenu.js`: Validación contra `CONTEXT_LOCATIONS` antes de tocar el registro.
+  - `server/lib/exportreport.js`: Telemetría vinculada en el cálculo de salud y propiedades alineadas con el sistema.
+  - `server/lib/ghostdevices.js`: Corrección de clase `volumesnapshot`.
+  - `server/lib/integrity.js`: Fallback a `DESCONOCIDO` ante salidas imprevistas de DISM/SFC, error 400 en ausencia de acciones y timeouts extendidos a 15m.
+  - `server/lib/largefiles.js`: Validación estricta de rutas con letra de unidad, rechazo de UNC y verificación de existencia antes de lanzar el Explorador.
+  - `server/lib/network.js`: Límite de 50MB y timeout de 15s en pruebas bajo carga.
+  - `server/lib/networkprivacy.js` y `pagefile.js`: Uso centralizado de `queryRegistryValue`, metadatos `valueType` en guard y notas de advertencia física en el archivo de paginación.
+  - `server/lib/oemdebloat.js`: Corrección tipográfica, fallback de consulta con PowerShell CIM y separación de argumentos `start= demand|disabled` en `sc.exe`.
+  - `server/lib/power.js`: Aplanado de bloques anidados y diagnóstico claro en fallos de listado de planes.
+  - `server/lib/privacy.js`: Detección independiente de idioma de claves ausentes mediante código de salida 1 de `reg query`.
+  - `server/lib/restore.js`: Timeout de 120s, soporte de formato `/Date(ms+-offset)/`, detección de throttling de 24h y reporte fidedigno de estado.
+  - `server/lib/services.js`: Comprobación previa de ejecución con `sc query` antes de detener servicios y protección de escritura del manifiesto en `dryRun`.
+  - `server/lib/startup.js`: Guard de escritura de manifiesto en `dryRun`.
+  - `server/lib/system.js`: Fallback a PowerShell CIM en `getLogicalDisks` y derivación matemática exacta de porcentajes de disco.
+  - `server/lib/timers.js`: Timeout de 5s en `bcdedit` y aviso de reinicio requerido.
+  - `server/lib/searchindex.js`: Renombrado semántico de directiva web search y metadatos `valueType`.
+  - `server/lib/gaming.js`: Validación 400 ante configuración vacía y fallback CIM para detección de GPU.
+  - `server/server.js`: Rate limiting específico y validación de listas en `POST /api/quick-optimize`, e inyección de parámetros contextuales por módulo.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios**: **188 / 188 tests pasando al 100%** (43 suites de test completas).
-- **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados con Vite.
-- **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica.
+- **Tests Unitarios Backend**: **190 / 190 tests pasando al 100%** (43 suites de test completas).
+- **Tests Unitarios Frontend**: **7 / 7 tests pasando al 100%**.
+- **Total Tests Automatizados**: **197 / 197 tests pasando exitosamente**.
+- **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite optimizados.
+- **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica y soporte para modo simulación (`dryRun`).

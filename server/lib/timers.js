@@ -138,7 +138,7 @@ export async function runTimersActionNative(envVars, onOutput, onProgress) {
 
     const result = await guard(
       `Ajustar temporizador BCD: ${setting.param} = ${setting.optimizedValue}`,
-      () => spawnCapture('bcdedit', ['/set', setting.param, setting.optimizedValue]),
+      () => spawnCapture('bcdedit', ['/set', setting.param, setting.optimizedValue], 5000),
       {
         target: `BCD\\{current}\\${setting.param}`,
         previousValue: prevVal,
@@ -154,5 +154,6 @@ export async function runTimersActionNative(envVars, onOutput, onProgress) {
     }
   }
 
+  writeLog('Nota: Los cambios en el almacén de arranque (BCD) surtirán efecto completo tras reiniciar el equipo.');
   writeLog('Optimización de temporizadores finalizada.');
 }

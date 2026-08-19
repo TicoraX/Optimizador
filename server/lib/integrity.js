@@ -23,7 +23,7 @@ export function parseDismHealth(stdout) {
   if (text.includes('corruption') || text.includes('daños')) {
     return 'CORRUPTO';
   }
-  return 'SALUDABLE';
+  return 'DESCONOCIDO';
 }
 
 export function parseSfcVerify(stdout) {
@@ -36,7 +36,7 @@ export function parseSfcVerify(stdout) {
   if (text.includes('found corrupt files') || text.includes('encontró archivos dañados')) {
     return 'ARCHIVOS_CORRUPTOS';
   }
-  return 'INTEGRO';
+  return 'DESCONOCIDO';
 }
 
 export async function runIntegrityScanNative(onOutput) {
@@ -115,7 +115,13 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('integrity', { dryRun, writeLog });
 
-  const chosenActions = String(envVars.ACTIONS || envVars.ITEMS || 'winsxs_cleanup').split(',').map((s) => s.trim()).filter(Boolean);
+  const chosenActions = String(envVars.ACTIONS || envVars.ITEMS || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+  if (chosenActions.length === 0) {
+    const err = new Error('No se seleccionó ninguna acción de integridad para ejecutar.');
+    err.statusCode = 400;
+    throw err;
+  }
 
   writeLog(`Iniciando tareas de integridad y mantenimiento de componentes (Modo: ${dryRun ? 'SIMULACIÓN' : 'APLICAR'})...`);
 
@@ -127,7 +133,7 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       writeLog('Ejecutando limpieza de componentes WinSxS (DISM /StartComponentCleanup)...');
       const r = await guard(
         'Limpieza de componentes obsoletos WinSxS',
-        () => spawnCapture('dism', ['/Online', '/Cleanup-Image', '/StartComponentCleanup'], 180000),
+        () => spawnCapture('dism', ['/Online', '/Cleanup-Image', '/StartComponentCleanup'], 900000),
         { target: 'WinSxS\\ComponentCleanup', irreversible: true },
       );
       if (r.simulated) continue;
@@ -140,7 +146,7 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       writeLog('Ejecutando restauración de imagen de Windows (DISM /RestoreHealth)...');
       const r = await guard(
         'Restauración de imagen de Windows',
-        () => spawnCapture('dism', ['/Online', '/Cleanup-Image', '/RestoreHealth'], 300000),
+        () => spawnCapture('dism', ['/Online', '/Cleanup-Image', '/RestoreHealth'], 900000),
         { target: 'DISM\\RestoreHealth', irreversible: true },
       );
       if (r.simulated) continue;
@@ -153,7 +159,7 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       writeLog('Ejecutando reparación de archivos del sistema (SFC /scannow)...');
       const r = await guard(
         'Reparación SFC de archivos de sistema',
-        () => spawnCapture('sfc', ['/scannow'], 300000),
+        () => spawnCapture('sfc', ['/scannow'], 900000),
         { target: 'SFC\\Scannow', irreversible: true },
       );
       if (r.simulated) continue;

@@ -49,6 +49,9 @@
   --color-paper-2: var(--slate-900);   /* superficies elevadas */
   --color-paper-3: var(--slate-850);   /* hover */
   --color-well: var(--slate-980);      /* terminal, logs, code */
+  --color-well-ink: var(--slate-100);
+  --color-well-ink-2: var(--slate-300);
+  --color-well-ink-3: var(--slate-500);
 
   --color-ink: oklch(96% 0.005 250);
   --color-ink-2: var(--slate-300);     /* cuerpo */
@@ -74,6 +77,9 @@
   --color-paper-2: #fff;
   --color-paper-3: var(--slate-50);
   --color-well: var(--slate-900);      /* el terminal sigue oscuro en claro */
+  --color-well-ink: var(--slate-100);
+  --color-well-ink-2: var(--slate-300);
+  --color-well-ink-3: var(--slate-400);
 
   --color-ink: var(--slate-ink);
   --color-ink-2: var(--slate-ink-2);

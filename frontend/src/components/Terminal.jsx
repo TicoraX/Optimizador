@@ -37,7 +37,14 @@ export default function Terminal({ logs, isRunning, onAbort, progress }) {
       {hasProgress && (
         <div className="terminal-progress">
           <div className="terminal-progress-wrap">
-            <div className="terminal-progress-bar" style={{ width: `${progress.percentage}%` }} />
+            <div
+              className="terminal-progress-bar"
+              style={{ width: `${progress.percentage}%` }}
+              role="progressbar"
+              aria-valuenow={progress.percentage}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
           </div>
           <span className="terminal-progress-label">
             {progress.total

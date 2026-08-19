@@ -326,14 +326,26 @@ async function medirBajoCarga(onOutput) {
   );
 
   const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 15000);
+  const MAX_BYTES = 50 * 1024 * 1024; // 50 MB límite de seguridad
+
   // Descarga de un endpoint publico de medicion solo para ocupar el enlace.
   // Se descarta a medida que llega: no se guarda nada.
   const saturar = (async () => {
     try {
-      const res = await fetch('https://speed.cloudflare.com/__down?bytes=200000000', {
+      const res = await fetch('https://speed.cloudflare.com/__down?bytes=50000000', {
         signal: ctrl.signal,
       });
-      for await (const _ of res.body) { /* descartado */ }
+      if (res.body) {
+        let bytes = 0;
+        for await (const chunk of res.body) {
+          bytes += chunk?.length || 0;
+          if (bytes >= MAX_BYTES) {
+            ctrl.abort();
+            break;
+          }
+        }
+      }
     } catch { /* abortado a proposito */ }
   })();
 
@@ -342,6 +354,7 @@ async function medirBajoCarga(onOutput) {
     (await spawnCapture('ping', ['-n', '8', OBJETIVO], 30000)).stdout, 8,
   );
 
+  clearTimeout(timeout);
   ctrl.abort();
   await saturar;
 

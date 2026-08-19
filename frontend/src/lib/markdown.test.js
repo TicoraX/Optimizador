@@ -20,6 +20,16 @@ test('bloquea links con protocolo ejecutable', () => {
   assert.ok(!html.includes('<a '), 'no debe emitir un <a> para un href inseguro');
 });
 
+test('rechaza imagen con javascript: url sin emitir etiqueta img', () => {
+  const html = renderReport('![alt](javascript:alert(1))');
+  assert.ok(!html.includes('<img'), 'no debe emitir una etiqueta <img>');
+});
+
+test('maneja entradas nulas o indefinidas devolviendo string vacio', () => {
+  assert.equal(renderReport(null), '');
+  assert.equal(renderReport(undefined), '');
+});
+
 test('conserva links http normales', () => {
   const html = renderReport('[docs](https://example.com)');
   assert.match(html, /<a href="https:\/\/example\.com"/);

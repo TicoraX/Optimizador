@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText, queryRegistryValue,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -36,7 +36,7 @@ export const PAGEFILE_SETTINGS = [
   {
     id: 'clearpagefile',
     name: 'Apagado Rápido sin Purgado de Memoria Virtual (ClearPageFileAtShutdown)',
-    desc: 'Desactiva el sobrescrito exhaustivo del archivo de paginación durante el apagado, acelerando el cierre del sistema.',
+    desc: 'Desactiva el sobrescrito exhaustivo del archivo de paginación durante el apagado, acelerando el cierre del sistema. Nota: en discos sin BitLocker, restos del archivo pueden ser accesibles mediante análisis forense físico.',
     key: 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management',
     value: 'ClearPageFileAtShutdown',
     type: 'REG_DWORD',
@@ -45,18 +45,6 @@ export const PAGEFILE_SETTINGS = [
     defaultLabel: 'Sobrescrito activo (1)',
   },
 ];
-
-export async function queryRegistryValue(key, value) {
-  const r = await spawnCapture('reg', ['query', key, '/v', value], 3000);
-  if (r.code !== 0) return null;
-  const match = r.stdout.match(new RegExp(`${value}\\s+(REG_\\w+)\\s+(\\S+)`, 'i'));
-  if (!match) return null;
-  let val = match[2];
-  if (val.startsWith('0x')) {
-    val = String(parseInt(val, 16));
-  }
-  return val;
-}
 
 export async function getExistingPagefiles() {
   const r = await spawnCapture('reg', [
@@ -163,6 +151,7 @@ export async function runPagefileActionNative(envVars, onOutput, onProgress) {
       () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.optimizedValue, '/f']),
       {
         target: `${s.key}\\${s.value}`,
+        valueType: s.type,
         previousValue: prevVal,
         newValue: s.optimizedValue,
       },

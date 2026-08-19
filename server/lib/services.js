@@ -225,22 +225,29 @@ export async function runServicesActionNative(envVars, onOutput) {
 
     writeLog(`Procesando: ${info.name} (${info.displayName})`);
 
-    const stopResult = await guard(
-      `Detener servicio ${info.name}`,
-      () => spawnCapture('sc.exe', ['stop', info.name]),
-      { target: info.name, previousValue: 'Running', newValue: 'Stopped' },
-    );
-    if (!stopResult.simulated) {
-      if (stopResult.ok) {
-        stopped++;
-        writeLog(`  Detenido: ${info.name}`);
-      } else if (/1062|no se ha iniciado|not been started/i.test(errText(stopResult))) {
-        writeLog(`  Ya estaba detenido: ${info.name}`);
-      } else {
-        errors++;
-        writeLog(`  ERROR deteniendo ${info.name}: ${errText(stopResult)}`);
-        continue;
+    const queryResult = await spawnCapture('sc.exe', ['query', info.name]);
+    const isRunning = queryResult.code === 0 && /STATE\s*:\s*\d+\s+RUNNING/i.test(queryResult.stdout);
+
+    if (isRunning) {
+      const stopResult = await guard(
+        `Detener servicio ${info.name}`,
+        () => spawnCapture('sc.exe', ['stop', info.name]),
+        { target: info.name, previousValue: 'Running', newValue: 'Stopped' },
+      );
+      if (!stopResult.simulated) {
+        if (stopResult.ok) {
+          stopped++;
+          writeLog(`  Detenido: ${info.name}`);
+        } else if (/1062|no se ha iniciado|not been started/i.test(errText(stopResult))) {
+          writeLog(`  Ya estaba detenido: ${info.name}`);
+        } else {
+          errors++;
+          writeLog(`  ERROR deteniendo ${info.name}: ${errText(stopResult)}`);
+          continue;
+        }
       }
+    } else {
+      writeLog(`  Ya estaba detenido: ${info.name}`);
     }
 
     const previousStartType = START_TYPE_BY_CODE[info.startTypeCode] || 'auto';
@@ -269,7 +276,9 @@ export async function runServicesActionNative(envVars, onOutput) {
     }
   }
 
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  if (!dryRun) {
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  }
 
   writeLog(`Resumen: ${stopped} detenidos, ${disabled} deshabilitados, ${skipped} omitidos, ${errors} errores`);
   writeLog('=== Optimizacion de Servicios - fin ===');

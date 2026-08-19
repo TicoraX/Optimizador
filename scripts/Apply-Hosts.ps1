@@ -73,7 +73,7 @@ function Get-DominiosValidos([string]$ruta) {
         [void]$vistos.Add($d)
         if ($vistos.Count -ge $maxDominios) { break }
     }
-    return $vistos
+    return , $vistos
 }
 
 $lineas = [System.IO.File]::ReadAllLines($hostsPath)

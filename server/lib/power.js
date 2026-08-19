@@ -56,7 +56,10 @@ export async function runPowerScanNative(onOutput) {
         plans.push({ guid: guidM[1], name: nameM[1], active: line.includes('*') });
       }
     }
-  } else { scanError = true; }
+  } else {
+    scanError = true;
+    onOutput(`Error listando planes de energía: ${errText(listResult)}`);
+  }
 
   let batteryPct = null, batteryStatus = '', runtimeMin = null, powerWatts = null;
   let capFull = null, capDesign = null, wearPct = null;
@@ -77,66 +80,62 @@ export async function runPowerScanNative(onOutput) {
     onOutput(`Error consultando hardware: ${errText(sysResult)}`);
   }
 
-  {
-    const b = sysInfo?.battery;
-    if (b && b.pct != null) {
-      {
-        batteryPct = parseInt(b.pct, 10);
-        if (!Number.isFinite(batteryPct)) batteryPct = null;
+  const b = sysInfo?.battery;
+  if (b && b.pct != null) {
+    batteryPct = parseInt(b.pct, 10);
+    if (!Number.isFinite(batteryPct)) batteryPct = null;
 
-        const rawRunTime = parseInt(b.runtime, 10);
-        if (rawRunTime === 4294967295 || !Number.isFinite(rawRunTime) || rawRunTime <= 0) {
-          runtimeMin = null;
+    const rawRunTime = parseInt(b.runtime, 10);
+    if (rawRunTime === 4294967295 || !Number.isFinite(rawRunTime) || rawRunTime <= 0) {
+      runtimeMin = null;
+    } else {
+      // EstimatedRunTime está documentado en segundos, pero algunos drivers reportan minutos.
+      // Si rawRunTime > 3600 (>1h en segundos) → seguro son segundos.
+      // Si rawRunTime < 600 (<10min en segundos) → podría ser minutos (ej. 180 = 3h).
+      if (rawRunTime > 3600) {
+        runtimeMin = Math.round(rawRunTime / 60);
+      } else {
+        // Valor ambiguo: asumir segundos. Si la batería tiene >50% y el runtime
+        // en minutos da <5, el valor probablemente son minutos.
+        const mins = Math.round(rawRunTime / 60);
+        if (mins < 5 && batteryPct !== null && batteryPct > 50) {
+          runtimeMin = Math.round(rawRunTime);
         } else {
-          // EstimatedRunTime está documentado en segundos, pero algunos drivers reportan minutos.
-          // Si rawRunTime > 3600 (>1h en segundos) → seguro son segundos.
-          // Si rawRunTime < 600 (<10min en segundos) → podría ser minutos (ej. 180 = 3h).
-          if (rawRunTime > 3600) {
-            runtimeMin = Math.round(rawRunTime / 60);
-          } else {
-            // Valor ambiguo: asumir segundos. Si la batería tiene >50% y el runtime
-            // en minutos da <5, el valor probablemente son minutos.
-            const mins = Math.round(rawRunTime / 60);
-            if (mins < 5 && batteryPct !== null && batteryPct > 50) {
-              runtimeMin = Math.round(rawRunTime);
-            } else {
-              runtimeMin = mins;
-            }
-          }
+          runtimeMin = mins;
         }
+      }
+    }
 
-        const bs = parseInt(b.status, 10);
-        if (bs === 1) batteryStatus = 'Descargando';
-        else if (bs === 2 || bs === 3) batteryStatus = 'En CA';
-        else if (bs === 4) batteryStatus = 'Batería baja';
-        else if (bs === 5) batteryStatus = 'Batería crítica';
-        else if (bs >= 6 && bs <= 9) batteryStatus = 'Cargando';
-        else if (bs === 10) batteryStatus = 'Cargando';
-        else if (bs === 11) batteryStatus = 'Parcialmente cargada';
-        else batteryStatus = 'Conectado';
+    const bs = parseInt(b.status, 10);
+    if (bs === 1) batteryStatus = 'Descargando';
+    else if (bs === 2 || bs === 3) batteryStatus = 'En CA';
+    else if (bs === 4) batteryStatus = 'Batería baja';
+    else if (bs === 5) batteryStatus = 'Batería crítica';
+    else if (bs >= 6 && bs <= 9) batteryStatus = 'Cargando';
+    else if (bs === 10) batteryStatus = 'Cargando';
+    else if (bs === 11) batteryStatus = 'Parcialmente cargada';
+    else batteryStatus = 'Conectado';
 
-        capFull = parseInt(b.full, 10);
-        capDesign = parseInt(b.design, 10);
-        if (!Number.isFinite(capFull) || capFull <= 0) capFull = null;
-        if (!Number.isFinite(capDesign) || capDesign <= 0) capDesign = null;
+    capFull = parseInt(b.full, 10);
+    capDesign = parseInt(b.design, 10);
+    if (!Number.isFinite(capFull) || capFull <= 0) capFull = null;
+    if (!Number.isFinite(capDesign) || capDesign <= 0) capDesign = null;
 
-        // Desgaste de batería (si tenemos ambas capacidades)
-        if (capFull && capDesign && capDesign > 0) {
-          wearPct = Math.round((1 - capFull / capDesign) * 100);
-          if (wearPct < 0) wearPct = 0;
-        }
+    // Desgaste de batería (si tenemos ambas capacidades)
+    if (capFull && capDesign && capDesign > 0) {
+      wearPct = Math.round((1 - capFull / capDesign) * 100);
+      if (wearPct < 0) wearPct = 0;
+    }
 
-        // Consumo estimado: disponible siempre que tengamos batería y datos suficientes
-        if (capFull && batteryPct !== null) {
-          const currentMWh = capFull * (batteryPct / 100);
-          if (bs === 1 && runtimeMin > 0 && runtimeMin !== null) {
-            // Descargando con runtime conocido → cálculo preciso
-            powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
-          } else if (runtimeMin && runtimeMin > 0) {
-            // En CA pero con runtime del último descargo → estimado
-            powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
-          }
-        }
+    // Consumo estimado: disponible siempre que tengamos batería y datos suficientes
+    if (capFull && batteryPct !== null) {
+      const currentMWh = capFull * (batteryPct / 100);
+      if (bs === 1 && runtimeMin > 0 && runtimeMin !== null) {
+        // Descargando con runtime conocido → cálculo preciso
+        powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
+      } else if (runtimeMin && runtimeMin > 0) {
+        // En CA pero con runtime del último descargo → estimado
+        powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
       }
     }
   }

@@ -112,8 +112,26 @@ export async function detectActiveGPU() {
       }
     }
   } catch {
-    // Fallback silencioso
+    // Fallback
   }
+
+  try {
+    const ps = await spawnCapture('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      'Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion | ConvertTo-Json -Compress',
+    ], 4000);
+    if (ps.code === 0 && ps.stdout) {
+      const raw = JSON.parse(ps.stdout);
+      const gpu = Array.isArray(raw) ? raw[0] : raw;
+      if (gpu?.Name) {
+        return {
+          name: gpu.Name,
+          driverVersion: gpu.DriverVersion || 'N/A',
+        };
+      }
+    }
+  } catch {}
+
   return { name: 'GPU Compatible con DirectX / Vulkan', driverVersion: 'N/A' };
 }
 
@@ -187,16 +205,15 @@ export async function runGamingActionNative(envVars, onOutput, onProgress) {
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('gaming', { dryRun, writeLog });
 
-  const rawSettings = String(envVars.SETTINGS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const selectedIds = rawSettings.length > 0 ? rawSettings : GAMING_SETTINGS.map((s) => s.id);
+  const rawSettings = String(envVars.SETTINGS || envVars.ITEMS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
-  const targets = GAMING_SETTINGS.filter((s) => selectedIds.includes(s.id));
-
-  if (targets.length === 0) {
+  if (rawSettings.length === 0) {
     const err = new Error('No se seleccionó ningún ajuste para optimizar.');
     err.statusCode = 400;
     throw err;
   }
+
+  const targets = GAMING_SETTINGS.filter((s) => rawSettings.includes(s.id));
 
   writeLog(`Iniciando optimización Gaming & GPU (Modo: ${dryRun ? 'SIMULACIÓN' : 'APLICAR'})...`);
 

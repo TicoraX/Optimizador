@@ -15,7 +15,7 @@ const PROTECTED_CLASSES = new Set([
   'processor',
   'computer',
   'volume',
-  'volumepanapshot',
+  'volumesnapshot',
   'firmware',
   'biometric',
   'securitydevices',

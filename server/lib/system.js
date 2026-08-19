@@ -89,8 +89,9 @@ export function parseLogicalDisks(csvOutput) {
         if (Number.isFinite(sizeBytes) && sizeBytes > 0) {
           const totalGB = Math.round((sizeBytes / (1024 ** 3)) * 10) / 10;
           const freeGB = Math.round((freeSpaceBytes / (1024 ** 3)) * 10) / 10;
-          const usedGB = Math.round((totalGB - freeGB) * 10) / 10;
-          const usagePercent = totalGB > 0 ? Math.round(((totalGB - freeGB) / totalGB) * 100) : 0;
+          const usedGB = Math.round(((sizeBytes - freeSpaceBytes) / (1024 ** 3)) * 10) / 10;
+          const usagePercent = Math.round(((sizeBytes - freeSpaceBytes) / sizeBytes) * 100);
+          const percentFree = Math.round((freeSpaceBytes / sizeBytes) * 100);
 
           disks.push({
             drive,
@@ -99,6 +100,9 @@ export function parseLogicalDisks(csvOutput) {
             freeGB,
             usedGB,
             usagePercent,
+            percentFree,
+            freeFormatted: `${freeGB} GB`,
+            totalFormatted: `${totalGB} GB`,
           });
         }
       }
@@ -109,7 +113,7 @@ export function parseLogicalDisks(csvOutput) {
 }
 
 /**
- * Obtiene la lista de discos lógicos de Windows mediante wmic (rápido y seguro).
+ * Obtiene la lista de discos lógicos de Windows mediante wmic con fallback a PowerShell.
  */
 export async function getLogicalDisks() {
   try {
@@ -118,11 +122,44 @@ export async function getLogicalDisks() {
     ], 3000);
 
     if (code === 0 && stdout) {
-      return parseLogicalDisks(stdout);
+      const disks = parseLogicalDisks(stdout);
+      if (disks.length > 0) return disks;
     }
   } catch {
-    // Fallback silencioso si wmic falla
+    // Fallback
   }
+
+  // Fallback con PowerShell Get-CimInstance Win32_LogicalDisk
+  try {
+    const ps = await spawnCapture('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      'Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Select-Object DeviceID, FreeSpace, Size, VolumeName | ConvertTo-Json -Compress',
+    ], 4000);
+    if (ps.code === 0 && ps.stdout) {
+      const raw = JSON.parse(ps.stdout);
+      const list = Array.isArray(raw) ? raw : [raw];
+      return list.filter((d) => d && Number(d.Size) > 0).map((d) => {
+        const sizeBytes = Number(d.Size);
+        const freeSpaceBytes = Number(d.FreeSpace || 0);
+        const totalGB = Math.round((sizeBytes / (1024 ** 3)) * 10) / 10;
+        const freeGB = Math.round((freeSpaceBytes / (1024 ** 3)) * 10) / 10;
+        const usedGB = Math.round(((sizeBytes - freeSpaceBytes) / (1024 ** 3)) * 10) / 10;
+        const usagePercent = Math.round(((sizeBytes - freeSpaceBytes) / sizeBytes) * 100);
+        const percentFree = Math.round((freeSpaceBytes / sizeBytes) * 100);
+        return {
+          drive: d.DeviceID,
+          volumeName: d.VolumeName || '',
+          totalGB,
+          freeGB,
+          usedGB,
+          usagePercent,
+          percentFree,
+          freeFormatted: `${freeGB} GB`,
+          totalFormatted: `${totalGB} GB`,
+        };
+      });
+    }
+  } catch {}
 
   return [];
 }

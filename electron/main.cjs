@@ -46,9 +46,14 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(APP_ORIGIN)) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.origin !== APP_ORIGIN) {
+        event.preventDefault();
+        if (/^https?:/i.test(url)) shell.openExternal(url);
+      }
+    } catch {
       event.preventDefault();
-      if (/^https?:/i.test(url)) shell.openExternal(url);
     }
   });
 

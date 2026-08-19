@@ -65,11 +65,11 @@ export async function runPrivacyScanNative(onOutput) {
     let currentValue = null;
     if (r.code === 0) {
       currentValue = parseRegValue(setting, r.stdout);
-    } else if (!/no se encuentra|cannot find|unable to find/i.test(r.stderr || '')) {
-      // Una clave ausente es un estado legitimo (el ajuste nunca se toco).
-      // Cualquier otro fallo de `reg query` si es un error real de escaneo.
-      // Antes scanError se declaraba y nunca se asignaba: el JSON reportaba
-      // error:false aunque los 8 reg query hubieran fallado.
+    } else if (r.code === 1) {
+      // Exit code 1 de reg query significa clave o valor no encontrado (estado ausente legítimo)
+      currentValue = null;
+    } else {
+      // Error real de ejecución o timeout
       scanError = true;
     }
 

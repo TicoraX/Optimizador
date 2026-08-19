@@ -52,7 +52,7 @@ export default function HealthScoreCard({ onOptimized }) {
         if (onOptimized) onOptimized();
       }
     } catch (err) {
-      alert(`Error: ${err.message}`);
+      setError(`Error: ${err.message}`);
     } finally {
       setExecuting(false);
     }
@@ -149,7 +149,9 @@ export default function HealthScoreCard({ onOptimized }) {
           }}
         >
           {data?.breakdown?.map((b) => {
-            const pct = Math.round((b.score / b.max) * 100);
+            const maxVal = Number(b.max) || 0;
+            const scoreVal = Number(b.score) || 0;
+            const pct = maxVal > 0 ? Math.min(100, Math.max(0, Math.round((scoreVal / maxVal) * 100))) : 0;
             return (
               <div key={b.category} style={{ minWidth: 100 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: 2 }}>
@@ -263,6 +265,22 @@ export default function HealthScoreCard({ onOptimized }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            marginTop: 'var(--space-3)',
+            padding: 'var(--space-2) var(--space-3)',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid var(--color-danger)',
+            color: 'var(--color-danger)',
+            fontSize: 'var(--text-xs)',
+          }}
+        >
+          {error}
         </div>
       )}
 

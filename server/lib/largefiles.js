@@ -1,5 +1,6 @@
 import { stat, opendir } from 'fs/promises';
-import { join, extname, basename } from 'path';
+import { existsSync } from 'fs';
+import { join, extname, basename, isAbsolute } from 'path';
 import { spawnCapture, makeLogger, makeGuard, spawnCaptureShell, WINDIR } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -125,6 +126,7 @@ export async function findLargeFiles(minSizeMB = 250) {
   const allFiles = [];
 
   for (const root of roots) {
+    if (allFiles.length >= 200) break;
     await scanDirForLargeFiles(root, minSizeBytes, 4, 0, allFiles);
   }
 
@@ -149,6 +151,14 @@ export async function revealInExplorer(filePath) {
   if (typeof filePath !== 'string' || !filePath.trim()) {
     throw new Error('Ruta de archivo inválida');
   }
+  const cleanPath = filePath.trim();
+  // Validar ruta local de Windows con letra de unidad absoluta y sin comodines ni rutas de red UNC
+  if (!/^[A-Za-z]:\\[^"<>|?*]+$/.test(cleanPath) || cleanPath.startsWith('\\\\')) {
+    throw new Error('Ruta inválida o no permitida');
+  }
+  if (!existsSync(cleanPath)) {
+    throw new Error('El archivo no existe en el disco');
+  }
   // explorer.exe /select,"<ruta>"
-  return spawnCapture('explorer.exe', [`/select,${filePath.trim()}`], 5000);
+  return spawnCapture('explorer.exe', [`/select,${cleanPath}`], 5000);
 }

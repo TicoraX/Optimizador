@@ -21,7 +21,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('updates','cleanup','startup','ram','network','services','power','apps','privacy','adblock')]
+    [ValidateSet('updates','cleanup','startup','ram','network','services','power','apps','privacy','adblock','gaming','integrity','contextmenu','oemdebloat','timers','ghostdevices','searchindex','dnsflush','networkprivacy','pagefile','werfault')]
     [string]$Module,
 
     [int]$Port = 3001
