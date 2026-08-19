@@ -32,6 +32,7 @@ import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
 import { calculateHealthScore } from './lib/healthscore.js';
+import { generateSystemExport } from './lib/exportreport.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -449,6 +450,22 @@ export function getConsolidatedStatus() {
 
 app.get('/api/status', safeHandler((_req, res) => {
   res.json(getConsolidatedStatus());
+}));
+
+app.get('/api/system/export', safeHandler(async (req, res) => {
+  const format = req.query.format === 'json' ? 'json' : 'markdown';
+  const status = getConsolidatedStatus();
+  const content = await generateSystemExport(status, format);
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  if (format === 'json') {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="d1-system-report-${dateStr}.json"`);
+  } else {
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="d1-system-report-${dateStr}.md"`);
+  }
+  res.send(content);
 }));
 
 // ═══════════════════════════════════════════════════════

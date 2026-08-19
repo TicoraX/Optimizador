@@ -217,14 +217,26 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
             anuncios, y solo cuando vos la pedís.
           </p>
         </div>
-        <button
-          className="btn btn-secondary"
-          onClick={() => setCustomizing((v) => !v)}
-          aria-expanded={customizing}
-          aria-controls="panel-personalizar"
-        >
-          {customizing ? 'Listo' : 'Personalizar'}
-        </button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <a
+            className="btn btn-secondary"
+            href="http://localhost:3000/api/system/export?format=markdown"
+            download
+            title="Exportar informe técnico del sistema en Markdown"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar Informe (.md)
+          </a>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setCustomizing((v) => !v)}
+            aria-expanded={customizing}
+            aria-controls="panel-personalizar"
+          >
+            {customizing ? 'Listo' : 'Personalizar'}
+          </button>
+        </div>
       </header>
 
       {customizing && (
