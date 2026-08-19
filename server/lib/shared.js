@@ -116,6 +116,13 @@ export const MODULES = Object.freeze({
     taskName: 'AdBlock_Weekly',
     logFile: 'optimize-log.txt',
   }),
+  gaming: Object.freeze({
+    dir: join(PROJECT_ROOT, 'gaming-optimizer'),
+    countsFile: 'gaming-counts.json',
+    reportPrefix: 'gaming-report',
+    taskName: 'GamingOptimizer_Weekly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

@@ -21,6 +21,7 @@ const ICONS = {
   apps: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
   privacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   adblock: 'M4.9 4.9l14.2 14.2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+  gaming: 'M6 11h4M8 9v4M15 11h.01M18 11h.01M2 12a5 5 0 0 0 5 5h1a2 2 0 0 1 2 2 3 3 0 0 0 6 0 2 2 0 0 1 2-2h1a5 5 0 0 0 5-5V9a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v3z',
 };
 
 const fmtSize = (mb) => {
@@ -150,6 +151,17 @@ export const MODULES = {
     metrics: (d) => [
       { label: 'Protegidos', value: `${d.hardenedCount ?? 0} / ${d.totalSettings ?? 0}`,
         tone: (d.hardenedCount ?? 0) < (d.totalSettings ?? 0) ? 'is-warning' : 'is-success' },
+    ],
+  },
+  gaming: {
+    label: 'Gaming & GPU',
+    blurb: 'Aceleración HAGS, Game Mode y baja latencia',
+    icon: ICONS.gaming,
+    metrics: (d) => [
+      { label: 'GPU', value: d.gpu ? d.gpu.slice(0, 24) : 'GPU Detectada' },
+      { label: 'Ajustes optimizados', value: `${d.optimizedCount ?? 0} / ${d.total ?? 6}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 6) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
     ],
   },
 };

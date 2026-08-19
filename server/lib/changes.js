@@ -55,6 +55,10 @@ const REVERTERS = {
     return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
   },
 
+  async gaming(change) {
+    return REVERTERS.privacy(change);
+  },
+
   async startup(change) {
     // Tarea programada: el previousValue es su estado anterior.
     if (change.previousValue === 'Disabled' || change.newValue === 'Disabled') {

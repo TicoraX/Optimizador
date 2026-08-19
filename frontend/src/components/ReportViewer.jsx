@@ -60,6 +60,10 @@ export default function ReportViewer() {
   const [privacySettings, setPrivacySettings] = useState([]);
   const [selectedPrivacy, setSelectedPrivacy] = useState({});
 
+  // Gaming & GPU States
+  const [gamingSettings, setGamingSettings] = useState([]);
+  const [selectedGaming, setSelectedGaming] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -141,6 +145,8 @@ export default function ReportViewer() {
       setAvailableApps([]); setSelectedApps({});
     } else if (module === 'privacy') {
       setPrivacySettings([]); setSelectedPrivacy({});
+    } else if (module === 'gaming') {
+      setGamingSettings([]); setSelectedGaming({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -184,6 +190,9 @@ export default function ReportViewer() {
     } else if (module === 'privacy') {
       setPrivacySettings(items);
       setSelectedPrivacy(noneChecked(items));
+    } else if (module === 'gaming') {
+      setGamingSettings(items || []);
+      setSelectedGaming(Object.fromEntries((items || []).map((s, i) => [i, !s.optimized])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -276,6 +285,12 @@ export default function ReportViewer() {
         .filter(k => selectedPrivacy[k])
         .map(k => parseInt(k) + 1);
       body.privacy = checked.length === 0 ? '' : checked.join(',');
+    } else if (module === 'gaming') {
+      const checked = Object.keys(selectedGaming)
+        .filter(k => selectedGaming[k])
+        .map(k => gamingSettings[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.settings = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -407,6 +422,7 @@ export default function ReportViewer() {
       case 'power': return 'Plan de Energía';
       case 'apps': return 'Administrador de Aplicaciones';
       case 'privacy': return 'Privacidad';
+      case 'gaming': return 'Optimización Gaming & GPU';
       default: return 'Detalles del Módulo';
     }
   };
@@ -452,6 +468,7 @@ export default function ReportViewer() {
                   {module === 'power' && 'Muestra el plan de energía activo con su descripción, batería y consumo estimado en watts. Permite cambiar de plan al instante.'}
                   {module === 'apps' && 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.'}
                   {module === 'privacy' && 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.'}
+                  {module === 'gaming' && 'Acelera el paso de frames, reduce la latencia de CPU-a-GPU (HAGS) y desactiva grabaciones en segundo plano para optimizar juegos.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -783,6 +800,33 @@ export default function ReportViewer() {
                       {item.name}
                       <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {item.status}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'gaming' && gamingSettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Ajustes a optimizar:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las optimizaciones de latencia y aceleración gráfica a aplicar:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {gamingSettings.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedGaming[idx] || false}
+                      onChange={() => setSelectedGaming(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.optimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {item.optimized ? '✓ Ya optimizado' : `Pendiente · ${item.currentLabel}`}
                       </span>
                     </span>
                   </label>

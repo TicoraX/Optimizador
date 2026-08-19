@@ -24,6 +24,7 @@ import { runPowerScanNative, runPowerActionNative } from './lib/power.js';
 import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
+import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 
@@ -170,6 +171,7 @@ const SCAN_HANDLERS = {
   apps: runAppsScanNative,
   privacy: runPrivacyScanNative,
   adblock: runAdblockScanNative,
+  gaming: runGamingScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -182,6 +184,7 @@ const ACTION_HANDLERS = {
   apps: runAppsActionNative,
   privacy: runPrivacyActionNative,
   adblock: runAdblockActionNative,
+  gaming: runGamingActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -360,6 +363,20 @@ app.get('/api/status', safeHandler((_req, res) => {
         listDomains: a.listDomains || 0,
         listAgeDays: a.listAgeDays,
         error: a.error,
+      };
+    })(),
+    gaming: (() => {
+      const g = loadJsonSafe(
+        join(MODULES.gaming.dir, 'reports', MODULES.gaming.countsFile),
+        { date: null, gpu: null, optimizedCount: 0, pendingCount: 0, total: 6, error: true },
+      );
+      return {
+        lastScan: g.date,
+        gpu: g.gpu || null,
+        optimizedCount: g.optimizedCount || 0,
+        pendingCount: g.pendingCount || 0,
+        total: g.total || 6,
+        error: g.error,
       };
     })(),
   });
