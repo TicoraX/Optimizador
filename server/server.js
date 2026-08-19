@@ -25,6 +25,7 @@ import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
 import { getSystemTelemetry } from './lib/system.js';
+import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -128,6 +129,23 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() })
 app.get('/api/system/metrics', safeHandler(async (_req, res) => {
   const telemetry = await getSystemTelemetry();
   res.json(telemetry);
+}));
+
+// ═══════════════════════════════════════════════════════
+// Puntos de Restauración de Windows
+// ═══════════════════════════════════════════════════════
+app.get('/api/restore/points', safeHandler(async (_req, res) => {
+  const result = await getRestorePoints();
+  res.json(result);
+}));
+
+app.post('/api/restore/create', safeHandler(async (req, res) => {
+  const description = req.body?.description;
+  const result = await createRestorePoint(description);
+  if (!result.ok) {
+    return res.status(500).json({ error: result.error });
+  }
+  res.json(result);
 }));
 
 // ═══════════════════════════════════════════════════════

@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import ReportViewer from './components/ReportViewer';
 import Scheduler from './components/Scheduler';
 import History from './components/History';
+import RestoreManager from './components/RestoreManager';
 import ErrorBoundary from './components/ErrorBoundary';
 import { MODULES, MODULE_KEYS } from './modules';
 import { ModuleIcon } from './components/ModuleIcon';
@@ -89,6 +90,10 @@ export default function App() {
               <ModuleIcon path="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2" size={16} />
               Historial
             </NavLink>
+            <NavLink to="/restauracion" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <ModuleIcon path="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" size={16} />
+              Restauración
+            </NavLink>
             <NavLink to="/scheduler" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <ModuleIcon path="M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" size={16} />
               Programador
@@ -133,6 +138,7 @@ export default function App() {
               />
               <Route path="/report/:module" element={<ReportViewer />} />
               <Route path="/historial" element={<History />} />
+              <Route path="/restauracion" element={<RestoreManager />} />
               <Route path="/scheduler" element={<Scheduler />} />
             </Routes>
           </ErrorBoundary>
