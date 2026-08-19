@@ -97,6 +97,10 @@ export default function ReportViewer() {
   const [networkPrivacySettings, setNetworkPrivacySettings] = useState([]);
   const [selectedNetworkPrivacy, setSelectedNetworkPrivacy] = useState({});
 
+  // Pagefile / Virtual Memory States
+  const [pagefileSettings, setPagefileSettings] = useState([]);
+  const [selectedPagefile, setSelectedPagefile] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -196,6 +200,8 @@ export default function ReportViewer() {
       setDnsActions([]); setSelectedDns({});
     } else if (module === 'networkprivacy') {
       setNetworkPrivacySettings([]); setSelectedNetworkPrivacy({});
+    } else if (module === 'pagefile') {
+      setPagefileSettings([]); setSelectedPagefile({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -266,6 +272,9 @@ export default function ReportViewer() {
     } else if (module === 'networkprivacy') {
       setNetworkPrivacySettings(items || []);
       setSelectedNetworkPrivacy(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
+    } else if (module === 'pagefile') {
+      setPagefileSettings(items || []);
+      setSelectedPagefile(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -413,6 +422,12 @@ export default function ReportViewer() {
         .map(k => networkPrivacySettings[parseInt(k)]?.id)
         .filter(Boolean);
       body.settings = checked.join(',');
+    } else if (module === 'pagefile') {
+      const checked = Object.keys(selectedPagefile)
+        .filter(k => selectedPagefile[k])
+        .map(k => pagefileSettings[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.settings = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -553,6 +568,7 @@ export default function ReportViewer() {
       case 'searchindex': return 'Indexador y Búsqueda de Windows (WSearch)';
       case 'dnsflush': return 'Caché DNS y Pila de Red LAN';
       case 'networkprivacy': return 'Privacidad en Red y Telemetría Conectada';
+      case 'pagefile': return 'Memoria Virtual y Archivo de Paginación';
       default: return 'Detalles del Módulo';
     }
   };
@@ -607,6 +623,7 @@ export default function ReportViewer() {
                   {module === 'searchindex' && 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.'}
                   {module === 'dnsflush' && 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.'}
                   {module === 'networkprivacy' && 'Bloquea la telemetría transmitida por red: descargas de Spotlight, WiFi Sense, apps promocionadas y pre-carga de Microsoft Edge.'}
+                  {module === 'pagefile' && 'Optimiza el Administrador de Memoria de Windows: mantiene el núcleo y controladores en RAM física (DisablePagingExecutive), prioriza memoria para programas y acelera el apagado.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -1199,6 +1216,33 @@ export default function ReportViewer() {
                       type="checkbox"
                       checked={selectedNetworkPrivacy[idx] || false}
                       onChange={() => setSelectedNetworkPrivacy(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {item.desc} (Estado: {item.currentLabel})
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'pagefile' && pagefileSettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Directivas de Memoria Virtual:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las directivas de memoria y paginación a optimizar:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {pagefileSettings.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedPagefile[idx] || false}
+                      onChange={() => setSelectedPagefile(prev => ({ ...prev, [idx]: !prev[idx] }))}
                       disabled={isRunning}
                     />
                     <span className="checkbox-label" title={item.name}>

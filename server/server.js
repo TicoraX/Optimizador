@@ -33,6 +33,7 @@ import { runGhostDevicesScanNative, runGhostDevicesActionNative } from './lib/gh
 import { runSearchIndexScanNative, runSearchIndexActionNative } from './lib/searchindex.js';
 import { runDnsFlushScanNative, runDnsFlushActionNative } from './lib/dnsflush.js';
 import { runNetworkPrivacyScanNative, runNetworkPrivacyActionNative } from './lib/networkprivacy.js';
+import { runPagefileScanNative, runPagefileActionNative } from './lib/pagefile.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -207,6 +208,7 @@ const SCAN_HANDLERS = {
   searchindex: runSearchIndexScanNative,
   dnsflush: runDnsFlushScanNative,
   networkprivacy: runNetworkPrivacyScanNative,
+  pagefile: runPagefileScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -228,6 +230,7 @@ const ACTION_HANDLERS = {
   searchindex: runSearchIndexActionNative,
   dnsflush: runDnsFlushActionNative,
   networkprivacy: runNetworkPrivacyActionNative,
+  pagefile: runPagefileActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -521,6 +524,19 @@ export function getConsolidatedStatus() {
         exposedCount: n.exposedCount || 0,
         total: n.total || 4,
         error: n.error,
+      };
+    })(),
+    pagefile: (() => {
+      const p = loadJsonSafe(
+        join(MODULES.pagefile.dir, 'reports', MODULES.pagefile.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 3, error: true },
+      );
+      return {
+        lastScan: p.date,
+        optimizedCount: p.optimizedCount || 0,
+        pendingCount: p.pendingCount || 0,
+        total: p.total || 3,
+        error: p.error,
       };
     })(),
   };

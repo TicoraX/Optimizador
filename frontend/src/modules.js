@@ -30,6 +30,7 @@ const ICONS = {
   searchindex: 'M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z',
   dnsflush: 'M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9',
   networkprivacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4m0 4h.01',
+  pagefile: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm4 3h8M8 12h8M8 15h4',
 };
 
 const fmtSize = (mb) => {
@@ -253,6 +254,16 @@ export const MODULES = {
       { label: 'Protegidos', value: `${d.protectedCount ?? 0}/${d.total ?? 4}`,
         tone: (d.protectedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
       { label: 'Expuestos', value: d.exposedCount ?? 0 },
+    ],
+  },
+  pagefile: {
+    label: 'Memoria Virtual & Pagefile',
+    blurb: 'Kernel en RAM física y Paginación',
+    icon: ICONS.pagefile,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 3}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 3) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
     ],
   },
 };
