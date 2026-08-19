@@ -435,6 +435,7 @@ export function prepareReport(moduleKey) {
   const mod = MODULES[moduleKey];
   const today = localStamp().date;
   return {
+    moduleKey,
     today,
     reportPath: join(dir, `${mod.reportPrefix}-${today}.md`),
     countsPath: join(dir, mod.countsFile),
@@ -447,20 +448,52 @@ export function loadItems(moduleKey) {
   return loadJsonSafe(join(MODULES[moduleKey].dir, 'reports', `${moduleKey}-items.json`), null);
 }
 
+const TIMELINE_PATH = join(PROJECT_ROOT, 'reports', 'scan-timeline.json');
+
+/**
+ * Registra un snapshot histórico de escaneo en la línea de tiempo unificada.
+ * Mantiene un máximo de 100 registros cronológicos ordenados de más reciente a más antiguo.
+ */
+export function recordScanSnapshot(moduleKey, counts) {
+  try {
+    const reportsDir = join(PROJECT_ROOT, 'reports');
+    if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
+
+    const currentTimeline = loadJsonSafe(TIMELINE_PATH, []);
+    const { date, time } = localStamp();
+    const entry = {
+      id: `scan_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: `${date} ${time}`,
+      date,
+      time,
+      module: moduleKey,
+      counts: counts || {},
+    };
+
+    const updated = [entry, ...(Array.isArray(currentTimeline) ? currentTimeline : [])].slice(0, 100);
+    writeFileSync(TIMELINE_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lee la línea de tiempo histórica de escaneos.
+ */
+export function getScanTimeline() {
+  return loadJsonSafe(TIMELINE_PATH, []);
+}
+
 /**
  * Escribe el reporte Markdown, su JSON de conteos y, si el modulo tiene
  * elementos seleccionables, el JSON de items.
- *
- * `items` existe porque el frontend reconstruia la lista de opciones con
- * regex sobre el Markdown del reporte: cambiar la redaccion de una linea
- * rompia los checkboxes en silencio, y el indice del texto no siempre
- * coincidia con lo que la accion iba a tocar. El scan ya tiene estos arrays
- * en memoria; escribirlos cuesta nada y convierte el contrato en explicito.
  */
-export function finishReport({ reportPath, countsPath, itemsPath }, lines, counts, onOutput, items = null) {
+export function finishReport({ reportPath, countsPath, itemsPath, moduleKey }, lines, counts, onOutput, items = null) {
   writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
   writeFileSync(countsPath, JSON.stringify(counts, null, 2), 'utf-8');
   if (items) writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf-8');
+  if (moduleKey) recordScanSnapshot(moduleKey, counts);
   onOutput(`Reporte generado en: ${reportPath}`);
 }
 

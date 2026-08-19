@@ -11,7 +11,7 @@ import {
   validateModule, validateDate, validateTask, validateTime, validateFrequency,
   validateWeekdays, validateIntervalDays, validateBooleanField, validateIndexList,
   validateDays, validateMinRamMB, normalizeSchTaskStatus, loadJsonSafe,
-  findLatestReport, buildReportPath, safeHandler, loadItems,
+  findLatestReport, buildReportPath, safeHandler, loadItems, getScanTimeline,
 } from './lib/shared.js';
 import { listAllChanges, undoChange } from './lib/changes.js';
 import { runCleanupScanNative, runCleanupActionNative } from './lib/cleanup.js';
@@ -146,6 +146,14 @@ app.post('/api/restore/create', safeHandler(async (req, res) => {
     return res.status(500).json({ error: result.error });
   }
   res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════
+// GET /api/timeline — historial cronológico de escaneos
+// ═══════════════════════════════════════════════════════
+app.get('/api/timeline', safeHandler((_req, res) => {
+  const timeline = getScanTimeline();
+  res.json(timeline);
 }));
 
 // ═══════════════════════════════════════════════════════

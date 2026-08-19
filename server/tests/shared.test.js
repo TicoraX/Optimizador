@@ -5,6 +5,7 @@ import {
   validateDays, validateMinRamMB, validateTime, validateFrequency,
   validateWeekdays, validateIntervalDays, normalizeSchTaskStatus,
   parseCsvLine, parseIndexSelection, padRight, VALID_MODULES, localStamp,
+  recordScanSnapshot, getScanTimeline,
 } from '../lib/shared.js';
 
 function expectError(fn, statusCode, msgPart) {
@@ -131,5 +132,19 @@ describe('localStamp', () => {
   it('rellena con cero a la izquierda', () => {
     const d = new Date(2026, 0, 2, 3, 4, 5);
     assert.deepEqual(localStamp(d), { date: '2026-01-02', time: '03:04:05' });
+  });
+});
+
+describe('scan timeline (scan-timeline.json)', () => {
+  it('recordScanSnapshot registra una entrada válida y getScanTimeline la recupera', () => {
+    const snapshot = recordScanSnapshot('cleanup', { total_recoverable_mb: 500, temp_mb: 200 });
+    assert.ok(snapshot);
+    assert.equal(snapshot.module, 'cleanup');
+    assert.equal(snapshot.counts.total_recoverable_mb, 500);
+
+    const timeline = getScanTimeline();
+    assert.ok(Array.isArray(timeline));
+    assert.ok(timeline.length >= 1);
+    assert.equal(timeline[0].id, snapshot.id);
   });
 });
