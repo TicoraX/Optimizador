@@ -174,9 +174,19 @@
 - **Tests**: `server/tests/networkprivacy.test.js` (2 tests unitarios).
 - **Commit**: `8edcc22` — `feat(networkprivacy): add connected network telemetry and privacy optimizer with WiFi Sense, Spotlight, and Edge pre-fetching restrictions`.
 
+### Mejora 18: Gestor y Optimizador de Memoria Virtual y Archivo de Paginación (`pagefile`)
+- **Backend (`server/lib/pagefile.js`)**:
+  - Directivas de `Memory Management`: `DisablePagingExecutive` (fuerza kernel y controladores en RAM física, ideal para equipos >=16GB), `LargeSystemCache` (prioridad de RAM a juegos y aplicaciones) y `ClearPageFileAtShutdown` (apagado rápido sin sobrescrito de ceros en `pagefile.sys`).
+  - Detección de archivos de paginación existentes (`ExistingPageFiles`).
+  - Reversión atómica en `changes.json`.
+- **Frontend**:
+  - Módulo `pagefile` en `modules.js` e integración interactiva en `ReportViewer.jsx`.
+- **Tests**: `server/tests/pagefile.test.js` (2 tests unitarios).
+- **Commit**: `2f4a683` — `feat(pagefile): add virtual memory management and pagefile optimizer with DisablePagingExecutive and fast shutdown tweaks`.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios**: **184 / 184 tests pasando al 100%** (41 suites de test completas).
+- **Tests Unitarios**: **186 / 186 tests pasando al 100%** (42 suites de test completas).
 - **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados con Vite.
 - **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica.
