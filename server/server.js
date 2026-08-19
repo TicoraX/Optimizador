@@ -28,6 +28,7 @@ import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
 import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrity.js';
 import { runContextMenuScanNative, runContextMenuActionNative } from './lib/contextmenu.js';
 import { runOemDebloatScanNative, runOemDebloatActionNative } from './lib/oemdebloat.js';
+import { runTimersScanNative, runTimersActionNative } from './lib/timers.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -197,6 +198,7 @@ const SCAN_HANDLERS = {
   integrity: runIntegrityScanNative,
   contextmenu: runContextMenuScanNative,
   oemdebloat: runOemDebloatScanNative,
+  timers: runTimersScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -213,6 +215,7 @@ const ACTION_HANDLERS = {
   integrity: runIntegrityActionNative,
   contextmenu: runContextMenuActionNative,
   oemdebloat: runOemDebloatActionNative,
+  timers: runTimersActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -443,6 +446,19 @@ export function getConsolidatedStatus() {
         detectedCount: o.detectedCount || 0,
         autoCount: o.autoCount || 0,
         error: o.error,
+      };
+    })(),
+    timers: (() => {
+      const t = loadJsonSafe(
+        join(MODULES.timers.dir, 'reports', MODULES.timers.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 3, error: true },
+      );
+      return {
+        lastScan: t.date,
+        optimizedCount: t.optimizedCount || 0,
+        pendingCount: t.pendingCount || 0,
+        total: t.total || 3,
+        error: t.error,
       };
     })(),
   };

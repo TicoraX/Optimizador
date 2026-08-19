@@ -70,6 +70,16 @@ const REVERTERS = {
     return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
   },
 
+  async timers(change) {
+    const param = String(change.target || '').replace(/^BCD\\\{current\}\\/, '');
+    if (!change.previousValue || change.previousValue.startsWith('Default')) {
+      const r = await spawnCapture('bcdedit', ['/deletevalue', param]);
+      return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
+    }
+    const r = await spawnCapture('bcdedit', ['/set', param, change.previousValue]);
+    return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
+  },
+
   async startup(change) {
     // Tarea programada: el previousValue es su estado anterior.
     if (change.previousValue === 'Disabled' || change.newValue === 'Disabled') {

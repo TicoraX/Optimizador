@@ -144,6 +144,13 @@ export const MODULES = Object.freeze({
     taskName: 'OemDebloat_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  timers: Object.freeze({
+    dir: join(PROJECT_ROOT, 'timers-optimizer'),
+    countsFile: 'timers-counts.json',
+    reportPrefix: 'timers-report',
+    taskName: 'TimersOptimizer_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

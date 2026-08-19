@@ -25,6 +25,7 @@ const ICONS = {
   integrity: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
   contextmenu: 'M4 6h16M4 12h16M4 18h10',
   oemdebloat: 'M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55A1 1 0 0 1 20.38 20H3.62a1 1 0 0 1-.9-1.45L4 16',
+  timers: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
 };
 
 const fmtSize = (mb) => {
@@ -199,6 +200,16 @@ export const MODULES = {
       { label: 'En inicio automático', value: d.autoCount ?? 0,
         tone: tone(d.autoCount ?? 0, { warn: 1, danger: 4 }) },
       { label: 'Servicios detectados', value: d.detectedCount ?? 0 },
+    ],
+  },
+  timers: {
+    label: 'Temporizadores & Latencia BCD',
+    blurb: 'HPET, Dynamic Ticking y TSC de CPU',
+    icon: ICONS.timers,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 3}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 3) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
     ],
   },
 };

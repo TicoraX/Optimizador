@@ -77,6 +77,10 @@ export default function ReportViewer() {
   const [selectedOem, setSelectedOem] = useState({});
   const [oemMode, setOemMode] = useState('demand');
 
+  // Timers States
+  const [timerSettings, setTimerSettings] = useState([]);
+  const [selectedTimers, setSelectedTimers] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -166,6 +170,8 @@ export default function ReportViewer() {
       setContextMenuHandlers([]); setSelectedContextMenu({});
     } else if (module === 'oemdebloat') {
       setOemServices([]); setSelectedOem({});
+    } else if (module === 'timers') {
+      setTimerSettings([]); setSelectedTimers({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -221,6 +227,9 @@ export default function ReportViewer() {
     } else if (module === 'oemdebloat') {
       setOemServices(items || []);
       setSelectedOem(Object.fromEntries((items || []).map((it, i) => [i, it.recommendedManual === true])));
+    } else if (module === 'timers') {
+      setTimerSettings(items || []);
+      setSelectedTimers(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -338,6 +347,12 @@ export default function ReportViewer() {
         .filter(Boolean);
       body.services = checked.join(',');
       body.mode = oemMode;
+    } else if (module === 'timers') {
+      const checked = Object.keys(selectedTimers)
+        .filter(k => selectedTimers[k])
+        .map(k => timerSettings[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.settings = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -473,6 +488,7 @@ export default function ReportViewer() {
       case 'integrity': return 'Integridad y Salud del Sistema';
       case 'contextmenu': return 'Menú Contextual (Clic Derecho)';
       case 'oemdebloat': return 'Debloat de Fabricantes (OEM)';
+      case 'timers': return 'Temporizadores y Latencia de Reloj BCD';
       default: return 'Detalles del Módulo';
     }
   };
@@ -522,6 +538,7 @@ export default function ReportViewer() {
                   {module === 'integrity' && 'Verifica la salud del almacén de componentes (DISM), audita archivos protegidos (SFC) y limpia componentes obsoletos de WinSxS para recuperar espacio.'}
                   {module === 'contextmenu' && 'Audita y deshabilita extensiones de terceros en el menú de clic derecho del Explorador de Windows para acelerar su apertura.'}
                   {module === 'oemdebloat' && 'Identifica y optimiza servicios pesados de telemetría de fabricantes (Dell, HP, Lenovo, ASUS, Razer, Corsair) cambiándolos a inicio manual o desactivándolos.'}
+                  {module === 'timers' && 'Ajusta parámetros de reloj de bajo nivel (Dynamic Ticking, HPET, TSC) en el almacén de arranque de Windows (BCD) para reducir el micro-stuttering.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -985,6 +1002,33 @@ export default function ReportViewer() {
                       <strong style={{ color: 'var(--color-brand)' }}>[{item.oem}]</strong> {item.name}
                       <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {item.desc} · Actual: {item.startMode}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'timers' && timerSettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Ajustes BCD de temporizador:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná los parámetros de reloj a optimizar en el arranque de Windows:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {timerSettings.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedTimers[idx] || false}
+                      onChange={() => setSelectedTimers(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {item.desc} (Actual: {item.currentValue})
                       </span>
                     </span>
                   </label>
