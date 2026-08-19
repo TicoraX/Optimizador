@@ -124,13 +124,21 @@ export async function runPrivacyActionNative(envVars, onOutput, onProgress) {
   const tokens = rawSelection.split(',').map((s) => s.trim()).filter(Boolean);
 
   const targets = [];
+  const seenIds = new Set();
   for (const token of tokens) {
-    const num = parseInt(token, 10);
-    if (!isNaN(num) && num >= 1 && num <= PRIVACY_SETTINGS.length) {
-      targets.push(PRIVACY_SETTINGS[num - 1]);
+    let setting = null;
+    if (/^\d+$/.test(token)) {
+      const num = parseInt(token, 10);
+      if (num >= 1 && num <= PRIVACY_SETTINGS.length) {
+        setting = PRIVACY_SETTINGS[num - 1];
+      }
     } else {
-      const match = PRIVACY_SETTINGS.find((s) => s.id.toLowerCase() === token.toLowerCase());
-      if (match) targets.push(match);
+      setting = PRIVACY_SETTINGS.find((s) => s.id.toLowerCase() === token.toLowerCase()) || null;
+    }
+
+    if (setting && !seenIds.has(setting.id)) {
+      seenIds.add(setting.id);
+      targets.push(setting);
     }
   }
 

@@ -20,5 +20,6 @@ describe('Optimizador de Planes de Energía (power.js)', () => {
 
     assert.ok(logs.some((l) => l.includes('Cambio de plan de energía - inicio (SIMULACION)')));
     assert.ok(logs.some((l) => l.includes('Cambio de plan de energía - fin')));
+    assert.equal(progress, 100);
   });
 });

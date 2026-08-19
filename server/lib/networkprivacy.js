@@ -58,7 +58,7 @@ export const NETWORK_PRIVACY_SETTINGS = [
   {
     id: 'ncsi_passive',
     name: 'Desactivar Sondeo Activo de Conectividad (NCSI / msftconnecttest)',
-    desc: 'Previene el envío continuo de peticiones de telemetría a servidores de sondeo de Microsoft.',
+    desc: 'Previene el envío continuo de telemetría y pings a servidores de Microsoft, aunque desactivarlo puede afectar la detección de portales cautivos/WiFi y causar problemas de conexión en Outlook o descargas de Windows Update.',
     key: 'HKLM\\SYSTEM\\CurrentControlSet\\Services\\NlaSvc\\Parameters\\Internet',
     value: 'EnableActiveProbing',
     type: 'REG_DWORD',

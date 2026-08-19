@@ -23,22 +23,24 @@ export default function ItemCheckboxList({
 }) {
   if (!items || items.length === 0) return null;
 
-  const visibleItems = filterFn ? items.filter(filterFn) : items;
+  const visibleEntries = items
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item, originalIndex }) => (filterFn ? filterFn(item, originalIndex) : true));
 
   // Para checkboxes con clave por regPath (contextmenu) o por índice
-  const getKey = (item, idx) => item.regPath || item.id || idx;
-  const getChecked = (item, idx) => {
+  const getKey = (item, originalIndex) => item.regPath || item.id || originalIndex;
+  const getChecked = (item, originalIndex) => {
     // contextmenu usa regPath como clave
     if (item.regPath && selected[item.regPath] !== undefined) {
       return selected[item.regPath] || false;
     }
-    return selected[idx] || false;
+    return selected[originalIndex] || false;
   };
-  const handleToggle = (item, idx) => {
+  const handleToggle = (item, originalIndex) => {
     if (item.regPath && selected[item.regPath] !== undefined) {
       toggle(item.regPath);
     } else {
-      toggle(idx);
+      toggle(originalIndex);
     }
   };
 
@@ -51,17 +53,17 @@ export default function ItemCheckboxList({
         </p>
       )}
       <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-        {visibleItems.map((item, idx) => {
+        {visibleEntries.map(({ item, originalIndex }) => {
           const display = renderItem
-            ? renderItem(item, idx)
+            ? renderItem(item, originalIndex)
             : { title: item.name, subtitle: item.desc || item.status || '' };
 
           return (
-            <label key={getKey(item, idx)} className="checkbox-item">
+            <label key={getKey(item, originalIndex)} className="checkbox-item">
               <input
                 type="checkbox"
-                checked={getChecked(item, idx)}
-                onChange={() => handleToggle(item, idx)}
+                checked={getChecked(item, originalIndex)}
+                onChange={() => handleToggle(item, originalIndex)}
                 disabled={isRunning}
               />
               <span className="checkbox-label" title={display.title}>

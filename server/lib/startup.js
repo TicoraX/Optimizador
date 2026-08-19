@@ -379,17 +379,36 @@ export async function runStartupActionNative(envVars, onOutput, onProgress) {
 
   const isAdmin = await isAdminWindows();
 
-  // ── Reactivar programas deshabilitados (registro + accesos directos) ──
-  const disabledEntries = await getDisabledStartupItems();
   const enableProgramIds = parseIdSelection(envVars.ENABLE_PROGRAMS);
+  const enableTaskIds = parseIdSelection(envVars.ENABLE_TASKS);
+  const programIds = parseIdSelection(envVars.OPTIMIZE_PROGRAMS);
+  const taskIds = parseIdSelection(envVars.OPTIMIZE_TASKS);
+
+  const totalOps = enableProgramIds.length + enableTaskIds.length + programIds.length + taskIds.length;
+  let completedOps = 0;
+
+  const notifyProgress = () => {
+    completedOps++;
+    if (onProgress && totalOps > 0) {
+      onProgress(Math.min(100, Math.round((completedOps / totalOps) * 100)));
+    }
+  };
+
+  // ── Reactivar programas deshabilitados (registro + accesos directos) ──
   if (enableProgramIds.length > 0) {
+    const disabledEntries = await getDisabledStartupItems();
     const manifest = loadDisabledRegistryManifest();
     for (const id of enableProgramIds) {
       const e = disabledEntries.find((x) => startupItemId(x) === id);
-      if (!e) { writeLog(`OMITIDO (ya no esta deshabilitado): ${id}`); continue; }
+      if (!e) {
+        writeLog(`OMITIDO (ya no esta deshabilitado): ${id}`);
+        notifyProgress();
+        continue;
+      }
       if (e.type === 'registry') {
         if (e.keyPath.startsWith('HKLM') && !isAdmin) {
           writeLog(`OMITIDO (admin requerido para reactivar): ${e.name} desde ${e.keyPath}`);
+          notifyProgress();
           continue;
         }
         // El tipo sale del manifiesto, que lo guardo al deshabilitar. Sin el,
@@ -400,12 +419,11 @@ export async function runStartupActionNative(envVars, onOutput, onProgress) {
           () => spawnCapture('reg', ['add', e.keyPath, '/v', e.name, '/t', valueType, '/d', e.command, '/f']),
           { target: `${e.keyPath}\\${e.name}`, previousValue: null, newValue: e.command },
         );
-        if (r.simulated) continue;
-        if (r.ok) {
+        if (!r.simulated && r.ok) {
           const i = manifest.findIndex((m) => m.keyPath === e.keyPath && m.name === e.name);
           if (i >= 0) manifest.splice(i, 1);
           writeLog(`Reactivado (registry): ${e.name} en ${e.keyPath}`);
-        } else {
+        } else if (!r.simulated) {
           writeLog(`ERROR reactivando ${e.name}: ${errText(r)}`);
         }
       } else {
@@ -421,48 +439,62 @@ export async function runStartupActionNative(envVars, onOutput, onProgress) {
           },
           { target: e.restorePath, previousValue: e.disabledPath },
         );
-        if (r.simulated) continue;
-        writeLog(r.ok
-          ? `Reactivado (shortcut): ${e.name} -> ${e.restorePath}`
-          : `ERROR reactivando ${e.name}: ${r.stderr}`);
+        if (!r.simulated) {
+          writeLog(r.ok
+            ? `Reactivado (shortcut): ${e.name} -> ${e.restorePath}`
+            : `ERROR reactivando ${e.name}: ${r.stderr}`);
+        }
       }
+      notifyProgress();
+    }
     if (!dryRun) {
       saveDisabledRegistryManifest(manifest);
     }
   }
 
   // ── Reactivar tareas de logon deshabilitadas ──
-  const { tasks: logonTasksForEnable } = await getLogonScheduledTasks();
-  const disabledTasksForEnable = logonTasksForEnable.filter((t) => t.state === 'Disabled');
-  const enableTaskIds = parseIdSelection(envVars.ENABLE_TASKS);
-  for (const id of enableTaskIds) {
-    const t = disabledTasksForEnable.find((x) => x.taskName === id);
-    if (!t) { writeLog(`OMITIDO (ya no esta deshabilitada): ${id}`); continue; }
-    const r = await guard(
-      `Reactivar tarea programada ${t.taskName}`,
-      () => spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Enable']),
-      { target: t.taskName, previousValue: 'Disabled', newValue: 'Ready' },
-    );
-    if (r.simulated) continue;
-    writeLog(r.ok
-      ? `Tarea reactivada: ${t.taskName}`
-      : `ERROR reactivando ${t.taskName}: ${errText(r)}`);
+  if (enableTaskIds.length > 0) {
+    const { tasks: logonTasksForEnable } = await getLogonScheduledTasks();
+    const disabledTasksForEnable = logonTasksForEnable.filter((t) => t.state === 'Disabled');
+    for (const id of enableTaskIds) {
+      const t = disabledTasksForEnable.find((x) => x.taskName === id);
+      if (!t) {
+        writeLog(`OMITIDO (ya no esta deshabilitada): ${id}`);
+        notifyProgress();
+        continue;
+      }
+      const r = await guard(
+        `Reactivar tarea programada ${t.taskName}`,
+        () => spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Enable']),
+        { target: t.taskName, previousValue: 'Disabled', newValue: 'Ready' },
+      );
+      if (!r.simulated) {
+        writeLog(r.ok
+          ? `Tarea reactivada: ${t.taskName}`
+          : `ERROR reactivando ${t.taskName}: ${errText(r)}`);
+      }
+      notifyProgress();
+    }
   }
 
   // ── Deshabilitar programas seleccionados ──
-  const regEntries = await getRegistryStartupEntries();
-  const shortcutEntries = await getShortcutStartupEntries();
-  const allEntries = [...regEntries, ...shortcutEntries];
-
-  const programIds = parseIdSelection(envVars.OPTIMIZE_PROGRAMS);
   if (programIds.length > 0) {
+    const regEntries = await getRegistryStartupEntries();
+    const shortcutEntries = await getShortcutStartupEntries();
+    const allEntries = [...regEntries, ...shortcutEntries];
     const manifest = loadDisabledRegistryManifest();
+
     for (const id of programIds) {
       const e = allEntries.find((x) => startupItemId(x) === id);
-      if (!e) { writeLog(`OMITIDO (ya no existe en el inicio): ${id}`); continue; }
+      if (!e) {
+        writeLog(`OMITIDO (ya no existe en el inicio): ${id}`);
+        notifyProgress();
+        continue;
+      }
       if (e.type === 'registry') {
         if (e.keyPath.startsWith('HKLM') && !isAdmin) {
           writeLog(`OMITIDO (admin requerido): ${e.name} desde ${e.keyPath}`);
+          notifyProgress();
           continue;
         }
         const r = await guard(
@@ -470,16 +502,13 @@ export async function runStartupActionNative(envVars, onOutput, onProgress) {
           () => spawnCapture('reg', ['delete', e.keyPath, '/v', e.name, '/f']),
           { target: `${e.keyPath}\\${e.name}`, previousValue: e.command, valueType: e.valueType },
         );
-        if (r.simulated) continue;
-        if (r.ok) {
-          // valueType viaja al manifiesto: es lo que permite restaurar la
-          // entrada con su tipo original.
+        if (!r.simulated && r.ok) {
           manifest.push({
             name: e.name, command: e.command, valueType: e.valueType,
             keyPath: e.keyPath, source: e.source,
           });
           writeLog(`Deshabilitado (registry): ${e.name} desde ${e.keyPath}`);
-        } else {
+        } else if (!r.simulated) {
           writeLog(`ERROR deshabilitando ${e.name}: ${errText(r)}`);
         }
       } else {
@@ -498,32 +527,46 @@ export async function runStartupActionNative(envVars, onOutput, onProgress) {
           },
           { target: dest, previousValue: e.keyPath },
         );
-        if (r.simulated) continue;
-        writeLog(r.ok
-          ? `Deshabilitado (shortcut): ${e.name} -> ${dest}`
-          : `ERROR deshabilitando ${e.name}: ${r.stderr}`);
+        if (!r.simulated) {
+          writeLog(r.ok
+            ? `Deshabilitado (shortcut): ${e.name} -> ${dest}`
+            : `ERROR deshabilitando ${e.name}: ${r.stderr}`);
+        }
       }
+      notifyProgress();
     }
     if (!dryRun) {
       saveDisabledRegistryManifest(manifest);
     }
   }
 
-  const { tasks: logonTasks } = await getLogonScheduledTasks();
-  const enabledTasks = logonTasks.filter((t) => t.state !== 'Disabled');
-  const taskIds = parseIdSelection(envVars.OPTIMIZE_TASKS);
-  for (const id of taskIds) {
-    const t = enabledTasks.find((x) => x.taskName === id);
-    if (!t) { writeLog(`OMITIDO (ya no esta habilitada): ${id}`); continue; }
-    const r = await guard(
-      `Deshabilitar tarea programada ${t.taskName}`,
-      () => spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Disable']),
-      { target: t.taskName, previousValue: t.state, newValue: 'Disabled' },
-    );
-    if (r.simulated) continue;
-    writeLog(r.ok
-      ? `Tarea deshabilitada: ${t.taskName}`
-      : `ERROR deshabilitando ${t.taskName}: ${errText(r)}`);
+  // ── Deshabilitar tareas de logon seleccionadas ──
+  if (taskIds.length > 0) {
+    const { tasks: logonTasks } = await getLogonScheduledTasks();
+    const enabledTasks = logonTasks.filter((t) => t.state !== 'Disabled');
+    for (const id of taskIds) {
+      const t = enabledTasks.find((x) => x.taskName === id);
+      if (!t) {
+        writeLog(`OMITIDO (ya no esta habilitada): ${id}`);
+        notifyProgress();
+        continue;
+      }
+      const r = await guard(
+        `Deshabilitar tarea programada ${t.taskName}`,
+        () => spawnCapture('schtasks', ['/Change', '/TN', t.taskName, '/Disable']),
+        { target: t.taskName, previousValue: t.state, newValue: 'Disabled' },
+      );
+      if (!r.simulated) {
+        writeLog(r.ok
+          ? `Tarea deshabilitada: ${t.taskName}`
+          : `ERROR deshabilitando ${t.taskName}: ${errText(r)}`);
+      }
+      notifyProgress();
+    }
+  }
+
+  if (onProgress) {
+    onProgress(100);
   }
 
   writeLog('=== Optimizacion de inicio - fin ===');

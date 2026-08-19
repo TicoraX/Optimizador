@@ -21,10 +21,10 @@ Requisitos:
 
 Instalación:
 ```bash
-# 1. Instalar dependencias raíz y subproyectos
-npm install
-npm install --prefix server
-npm install --prefix frontend
+# 1. Instalar dependencias reproducibles desde lockfile
+npm ci
+npm --prefix server ci
+npm --prefix frontend ci
 
 # 2. Ejecutar frontend en modo desarrollo
 npm run dev --prefix frontend

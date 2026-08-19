@@ -234,7 +234,7 @@
 
 ### Mejora 21: Auditoría Modular Exhaustiva, Paralelización y Reversibilidad Ampliada
 - **Updates (`updates.js` y `updates.test.js`)**:
-  - Paralelización concurrente del escaneo de 4 gestores (`winget`, `pip`, `npm`, `choco`) con `Promise.all` y reporte de progreso individual (~60% de reducción en tiempo de escaneo).
+  - Paralelización concurrente del escaneo de 4 gestores (`winget`, `pip`, `npm`, `choco`) con `Promise.all` y reporte de progreso individual (reduciendo el tiempo total al estar acotado por el gestor individual más lento en lugar de la suma secuencial).
   - Soporte de modo simulación (`dryRun`) y polimorfismo de argumentos en `runUpdatesActionNative`.
   - Nueva suite de pruebas unitarias (`server/tests/updates.test.js`).
 - **Cleanup (`cleanup.js`)**:
