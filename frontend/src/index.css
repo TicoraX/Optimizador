@@ -144,6 +144,17 @@ a { color: var(--color-accent); }
 .nav-link:hover { background: var(--color-paper-3); color: var(--color-ink); }
 .nav-link.active { background: var(--color-accent-soft); color: var(--color-accent); }
 
+.nav-section-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--color-ink-3);
+  opacity: 0.75;
+  padding: var(--space-2) var(--space-3) 0.2rem;
+  margin-top: var(--space-2);
+}
+
 .theme-toggle {
   margin-top: var(--space-2);
   width: 100%;

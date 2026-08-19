@@ -73,20 +73,11 @@ export default function App() {
           {/* Rail con los 9 modulos. Antes eran dos links y llegar a un modulo
               exigia pasar por el dashboard. */}
           <div className="nav-links">
+            <span className="nav-section-title">Principal</span>
             <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>
               <ModuleIcon path="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" size={16} />
               Dashboard
             </NavLink>
-            {MODULE_KEYS.map((key) => (
-              <NavLink
-                key={key}
-                to={`/report/${key}`}
-                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              >
-                <ModuleIcon path={MODULES[key].icon} size={16} />
-                {MODULES[key].label}
-              </NavLink>
-            ))}
             <NavLink to="/historial" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <ModuleIcon path="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2" size={16} />
               Historial
@@ -103,6 +94,18 @@ export default function App() {
               <ModuleIcon path="M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" size={16} />
               Programador
             </NavLink>
+
+            <span className="nav-section-title">Módulos de Optimización</span>
+            {MODULE_KEYS.map((key) => (
+              <NavLink
+                key={key}
+                to={`/report/${key}`}
+                className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              >
+                <ModuleIcon path={MODULES[key].icon} size={16} />
+                {MODULES[key].label}
+              </NavLink>
+            ))}
           </div>
 
           {/* role=status para que un lector de pantalla anuncie el cambio de
