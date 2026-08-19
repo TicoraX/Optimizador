@@ -158,6 +158,13 @@ export const MODULES = Object.freeze({
     taskName: 'GhostDevices_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  searchindex: Object.freeze({
+    dir: join(PROJECT_ROOT, 'searchindex-optimizer'),
+    countsFile: 'searchindex-counts.json',
+    reportPrefix: 'searchindex-report',
+    taskName: 'SearchIndex_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

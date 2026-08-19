@@ -27,6 +27,7 @@ const ICONS = {
   oemdebloat: 'M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55A1 1 0 0 1 20.38 20H3.62a1 1 0 0 1-.9-1.45L4 16',
   timers: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
   ghostdevices: 'M12 2v20M8 5h8M7 9h10M9 22h6',
+  searchindex: 'M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z',
 };
 
 const fmtSize = (mb) => {
@@ -221,6 +222,16 @@ export const MODULES = {
       { label: 'Seguros de limpiar', value: d.safeCount ?? 0,
         tone: tone(d.safeCount ?? 0, { warn: 10, danger: 30 }) },
       { label: 'Total desconectados', value: d.totalCount ?? 0 },
+    ],
+  },
+  searchindex: {
+    label: 'Indexador & Búsqueda Windows',
+    blurb: 'Políticas de I/O y CPU de Windows Search',
+    icon: ICONS.searchindex,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
     ],
   },
 };

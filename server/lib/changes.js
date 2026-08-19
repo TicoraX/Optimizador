@@ -63,6 +63,10 @@ const REVERTERS = {
     return REVERTERS.privacy(change);
   },
 
+  async searchindex(change) {
+    return REVERTERS.privacy(change);
+  },
+
   async oemdebloat(change) {
     const serviceName = String(change.target || '').replace(/^Service\\/, '');
     const prev = change.previousValue || 'auto';

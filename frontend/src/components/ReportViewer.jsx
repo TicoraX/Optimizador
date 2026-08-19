@@ -85,6 +85,10 @@ export default function ReportViewer() {
   const [ghostDevices, setGhostDevices] = useState([]);
   const [selectedGhost, setSelectedGhost] = useState({});
 
+  // Search Index States
+  const [searchSettings, setSearchSettings] = useState([]);
+  const [selectedSearch, setSelectedSearch] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -178,6 +182,8 @@ export default function ReportViewer() {
       setTimerSettings([]); setSelectedTimers({});
     } else if (module === 'ghostdevices') {
       setGhostDevices([]); setSelectedGhost({});
+    } else if (module === 'searchindex') {
+      setSearchSettings([]); setSelectedSearch({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -239,6 +245,9 @@ export default function ReportViewer() {
     } else if (module === 'ghostdevices') {
       setGhostDevices(items || []);
       setSelectedGhost(Object.fromEntries((items || []).map((it, i) => [i, it.recommended === true])));
+    } else if (module === 'searchindex') {
+      setSearchSettings(items || []);
+      setSelectedSearch(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -368,6 +377,12 @@ export default function ReportViewer() {
         .map(k => ghostDevices[parseInt(k)]?.id)
         .filter(Boolean);
       body.devices = checked.join(',');
+    } else if (module === 'searchindex') {
+      const checked = Object.keys(selectedSearch)
+        .filter(k => selectedSearch[k])
+        .map(k => searchSettings[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.settings = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -505,6 +520,7 @@ export default function ReportViewer() {
       case 'oemdebloat': return 'Debloat de Fabricantes (OEM)';
       case 'timers': return 'Temporizadores y Latencia de Reloj BCD';
       case 'ghostdevices': return 'Dispositivos Fantasma Huérfanos (PnP)';
+      case 'searchindex': return 'Indexador y Búsqueda de Windows (WSearch)';
       default: return 'Detalles del Módulo';
     }
   };
@@ -556,6 +572,7 @@ export default function ReportViewer() {
                   {module === 'oemdebloat' && 'Identifica y optimiza servicios pesados de telemetría de fabricantes (Dell, HP, Lenovo, ASUS, Razer, Corsair) cambiándolos a inicio manual o desactivándolos.'}
                   {module === 'timers' && 'Ajusta parámetros de reloj de bajo nivel (Dynamic Ticking, HPET, TSC) en el almacén de arranque de Windows (BCD) para reducir el micro-stuttering.'}
                   {module === 'ghostdevices' && 'Detecta registros de periféricos y dispositivos USB desconectados acumulados en Windows y permite eliminarlos de forma segura.'}
+                  {module === 'searchindex' && 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -1073,6 +1090,33 @@ export default function ReportViewer() {
                       <strong style={{ color: 'var(--color-brand)' }}>[{item.className}]</strong> {item.name}
                       <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--color-ink-3)', wordBreak: 'break-all' }}>
                         {item.id}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'searchindex' && searchSettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Directivas de Windows Search:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las políticas de indexación y búsqueda a optimizar:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {searchSettings.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedSearch[idx] || false}
+                      onChange={() => setSelectedSearch(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {item.desc} (Estado: {item.currentLabel})
                       </span>
                     </span>
                   </label>

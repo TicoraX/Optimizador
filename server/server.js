@@ -30,6 +30,7 @@ import { runContextMenuScanNative, runContextMenuActionNative } from './lib/cont
 import { runOemDebloatScanNative, runOemDebloatActionNative } from './lib/oemdebloat.js';
 import { runTimersScanNative, runTimersActionNative } from './lib/timers.js';
 import { runGhostDevicesScanNative, runGhostDevicesActionNative } from './lib/ghostdevices.js';
+import { runSearchIndexScanNative, runSearchIndexActionNative } from './lib/searchindex.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -201,6 +202,7 @@ const SCAN_HANDLERS = {
   oemdebloat: runOemDebloatScanNative,
   timers: runTimersScanNative,
   ghostdevices: runGhostDevicesScanNative,
+  searchindex: runSearchIndexScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -219,6 +221,7 @@ const ACTION_HANDLERS = {
   oemdebloat: runOemDebloatActionNative,
   timers: runTimersActionNative,
   ghostdevices: runGhostDevicesActionNative,
+  searchindex: runSearchIndexActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -474,6 +477,19 @@ export function getConsolidatedStatus() {
         totalCount: g.totalCount || 0,
         safeCount: g.safeCount || 0,
         error: g.error,
+      };
+    })(),
+    searchindex: (() => {
+      const s = loadJsonSafe(
+        join(MODULES.searchindex.dir, 'reports', MODULES.searchindex.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 4, error: true },
+      );
+      return {
+        lastScan: s.date,
+        optimizedCount: s.optimizedCount || 0,
+        pendingCount: s.pendingCount || 0,
+        total: s.total || 4,
+        error: s.error,
       };
     })(),
   };
