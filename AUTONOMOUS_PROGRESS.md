@@ -146,9 +146,37 @@
   - Títulos de sección compactos con tipografía y tracking calibrados (`.nav-section-title`).
 - **Commit**: `e03c200` — `feat(ui): organize navigation rail into categorized sections with improved visual hierarchy`.
 
+### Mejora 15: Medidor y Optimizador de Windows Search & Indexer (`searchindex`)
+- **Backend (`server/lib/searchindex.js`)**:
+  - Ajustes de políticas de I/O y CPU: `PreventIndexingLowDiskSpaceMB` (margen de 5GB), `AllowIndexingEncryptedStoresOrItems` (protección de archivos cifrados), `PreventIndexingUncachedRemoteFiles` y `DisableWebSearch`.
+  - Auditoría de estado del servicio `WSearch`.
+  - Reversión atómica y registro en `changes.json`.
+- **Frontend**:
+  - Módulo `searchindex` en `modules.js` y selección granular en `ReportViewer.jsx`.
+- **Tests**: `server/tests/searchindex.test.js` (3 tests unitarios).
+- **Commit**: `da4aa4c` — `feat(searchindex): add Windows Search indexer optimizer with I/O policies, low-disk safeguards and web search disabling`.
+
+### Mejora 16: Monitor y Limpiador de Caché DNS y Pila de Red (`dnsflush`)
+- **Backend (`server/lib/dnsflush.js`)**:
+  - Consulta y análisis de entradas cacheadas con `ipconfig /displaydns`.
+  - Operaciones de mantenimiento: `ipconfig /flushdns`, `ipconfig /registerdns`, `nbtstat -R` (purga NetBIOS) y `nbtstat -RR` (liberación WINS).
+- **Frontend**:
+  - Módulo `dnsflush` en `modules.js` y selector de acciones en `ReportViewer.jsx`.
+- **Tests**: `server/tests/dnsflush.test.js` (3 tests unitarios).
+- **Commit**: `6f773c6` — `feat(dnsflush): add DNS resolver cache flush, NetBIOS table purging and WINS registration tool`.
+
+### Mejora 17: Optimizador de Privacidad en Red y Telemetría Conectada (`networkprivacy`)
+- **Backend (`server/lib/networkprivacy.js`)**:
+  - Bloqueo de telemetría de red: WiFi Sense auto-connect (`AutoConnectAllowedOEM`), descargas de fondo de Windows Spotlight (`DisableWindowsSpotlightFeatures`), apps promocionadas silenciosas (`DisableWindowsConsumerFeatures`) y pre-carga / pre-renderizado de Edge (`NetworkPredictionOptions`).
+  - Reversión atómica en `changes.json`.
+- **Frontend**:
+  - Módulo `networkprivacy` en `modules.js` e integración en `ReportViewer.jsx`.
+- **Tests**: `server/tests/networkprivacy.test.js` (2 tests unitarios).
+- **Commit**: `8edcc22` — `feat(networkprivacy): add connected network telemetry and privacy optimizer with WiFi Sense, Spotlight, and Edge pre-fetching restrictions`.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios**: **173 / 173 tests pasando al 100%** (38 suites de test completas).
+- **Tests Unitarios**: **184 / 184 tests pasando al 100%** (41 suites de test completas).
 - **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados con Vite.
 - **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica.
