@@ -122,9 +122,33 @@
 - **Tests**: `server/tests/exportreport.test.js` (2 tests unitarios).
 - **Commit**: `c48740f` — `feat(export): add technical system audit report generator with Markdown/JSON export and Dashboard download button`.
 
+### Mejora 12: Medidor y Optimizador de Temporizadores del Sistema (`timers` / BCD Clock)
+- **Backend (`server/lib/timers.js`)**:
+  - Ajustes de temporización y latencia de interrupciones DPC en arranque BCD: `disabledynamictick` (evita cambios bruscos de reloj en CPUs multi-core), `useplatformclock` (control de HPET vs TSC) y `tscsyncpolicy`.
+  - Reversión atómica y segura mediante `bcdedit /set` y `bcdedit /deletevalue`.
+- **Frontend**:
+  - Módulo `timers` en `modules.js` y selección granular en `ReportViewer.jsx`.
+- **Tests**: `server/tests/timers.test.js` (3 tests unitarios).
+- **Commit**: `3bcd0ef` — `feat(timers): add high-precision system timer & DPC latency optimizer with reversible bcdedit tweaks`.
+
+### Mejora 13: Limpiador de Drivers y Dispositivos Fantasma Huérfanos (`ghostdevices`)
+- **Backend (`server/lib/ghostdevices.js`)**:
+  - Identificación y purga segura de registros de periféricos y dispositivos USB desconectados acumulados mediante `pnputil /enum-devices /disconnected` y `pnputil /remove-device`.
+  - Filtro estricto de protección para excluir infraestructura crítica (`ACPI`, `ROOT`, `Processor`, `System`, `Firmware`).
+- **Frontend**:
+  - Módulo `ghostdevices` en `modules.js` y panel de selección en `ReportViewer.jsx`.
+- **Tests**: `server/tests/ghostdevices.test.js` (3 tests unitarios).
+- **Commit**: `2800635` — `feat(ghostdevices): add orphaned and disconnected PnP ghost devices auditor with safe peripheral cleanup`.
+
+### Mejora 14: Navegación Estructurada y Jerarquía Visual de Módulos
+- **Frontend (`frontend/src/App.jsx`, `frontend/src/index.css`)**:
+  - Organización del menú lateral (rail de navegación) en secciones semánticas (*Principal* vs *Módulos de Optimización*).
+  - Títulos de sección compactos con tipografía y tracking calibrados (`.nav-section-title`).
+- **Commit**: `e03c200` — `feat(ui): organize navigation rail into categorized sections with improved visual hierarchy`.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios**: **165 / 165 pasando al 100%** (36 suites de test).
-- **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados.
-- **Seguridad y Reversibilidad**: Todos los cambios de registro y servicios quedan anotados en `changes.json` con restauración atómica.
+- **Tests Unitarios**: **173 / 173 tests pasando al 100%** (38 suites de test completas).
+- **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados con Vite.
+- **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica.
