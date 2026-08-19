@@ -184,9 +184,18 @@
 - **Tests**: `server/tests/pagefile.test.js` (2 tests unitarios).
 - **Commit**: `2f4a683` — `feat(pagefile): add virtual memory management and pagefile optimizer with DisablePagingExecutive and fast shutdown tweaks`.
 
+### Mejora 19: Optimizador de Informes de Errores y Telemetría de Fallos WerFault (`werfault`)
+- **Backend (`server/lib/werfault.js`)**:
+  - Directivas de Windows Error Reporting: `Disabled` (previene pausas por recolección de volcados de memoria hacia Microsoft), `DontShowUI` (cierra procesos colgados sin cuadros de diálogo emergentes bloqueantes), `DontSendAdditionalData` (bloquea el envío de volcados de memoria y archivos personales) y `LoggingDisabled` (reduce la saturación de I/O en disco por logs de sucesos).
+  - Reversión atómica en `changes.json`.
+- **Frontend**:
+  - Módulo `werfault` en `modules.js` e integración interactiva en `ReportViewer.jsx`.
+- **Tests**: `server/tests/werfault.test.js` (2 tests unitarios).
+- **Commit**: `f350188` — `feat(werfault): add Windows Error Reporting and WerFault telemetry optimizer with crash dialog and minidump suppression`.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios**: **186 / 186 tests pasando al 100%** (42 suites de test completas).
+- **Tests Unitarios**: **188 / 188 tests pasando al 100%** (43 suites de test completas).
 - **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados con Vite.
 - **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica.
