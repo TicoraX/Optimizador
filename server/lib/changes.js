@@ -63,6 +63,13 @@ const REVERTERS = {
     return REVERTERS.privacy(change);
   },
 
+  async oemdebloat(change) {
+    const serviceName = String(change.target || '').replace(/^Service\\/, '');
+    const prev = change.previousValue || 'auto';
+    const r = await spawnCapture('sc', ['config', serviceName, `start= ${prev}`]);
+    return { ok: r.code === 0, detail: r.code === 0 ? null : errText(r) };
+  },
+
   async startup(change) {
     // Tarea programada: el previousValue es su estado anterior.
     if (change.previousValue === 'Disabled' || change.newValue === 'Disabled') {

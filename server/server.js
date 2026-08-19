@@ -27,6 +27,7 @@ import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from '.
 import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
 import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrity.js';
 import { runContextMenuScanNative, runContextMenuActionNative } from './lib/contextmenu.js';
+import { runOemDebloatScanNative, runOemDebloatActionNative } from './lib/oemdebloat.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -194,6 +195,7 @@ const SCAN_HANDLERS = {
   gaming: runGamingScanNative,
   integrity: runIntegrityScanNative,
   contextmenu: runContextMenuScanNative,
+  oemdebloat: runOemDebloatScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -209,6 +211,7 @@ const ACTION_HANDLERS = {
   gaming: runGamingActionNative,
   integrity: runIntegrityActionNative,
   contextmenu: runContextMenuActionNative,
+  oemdebloat: runOemDebloatActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -427,6 +430,18 @@ export function getConsolidatedStatus() {
         thirdPartyCount: c.thirdPartyCount || 0,
         activeThirdParty: c.activeThirdParty || 0,
         error: c.error,
+      };
+    })(),
+    oemdebloat: (() => {
+      const o = loadJsonSafe(
+        join(MODULES.oemdebloat.dir, 'reports', MODULES.oemdebloat.countsFile),
+        { date: null, detectedCount: 0, autoCount: 0, error: true },
+      );
+      return {
+        lastScan: o.date,
+        detectedCount: o.detectedCount || 0,
+        autoCount: o.autoCount || 0,
+        error: o.error,
       };
     })(),
   };

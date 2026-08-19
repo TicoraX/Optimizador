@@ -72,6 +72,11 @@ export default function ReportViewer() {
   const [contextMenuHandlers, setContextMenuHandlers] = useState([]);
   const [selectedContextMenu, setSelectedContextMenu] = useState({});
 
+  // OEM Debloat States
+  const [oemServices, setOemServices] = useState([]);
+  const [selectedOem, setSelectedOem] = useState({});
+  const [oemMode, setOemMode] = useState('demand');
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -159,6 +164,8 @@ export default function ReportViewer() {
       setIntegrityItems([]); setSelectedIntegrity({});
     } else if (module === 'contextmenu') {
       setContextMenuHandlers([]); setSelectedContextMenu({});
+    } else if (module === 'oemdebloat') {
+      setOemServices([]); setSelectedOem({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -211,6 +218,9 @@ export default function ReportViewer() {
     } else if (module === 'contextmenu') {
       setContextMenuHandlers(items || []);
       setSelectedContextMenu(Object.fromEntries((items || []).map((it, i) => [i, it.recommendedDisable === true])));
+    } else if (module === 'oemdebloat') {
+      setOemServices(items || []);
+      setSelectedOem(Object.fromEntries((items || []).map((it, i) => [i, it.recommendedManual === true])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -321,6 +331,13 @@ export default function ReportViewer() {
         .map(k => contextMenuHandlers[parseInt(k)]?.regPath)
         .filter(Boolean);
       body.handlers = checked.join(',');
+    } else if (module === 'oemdebloat') {
+      const checked = Object.keys(selectedOem)
+        .filter(k => selectedOem[k])
+        .map(k => oemServices[parseInt(k)]?.serviceName)
+        .filter(Boolean);
+      body.services = checked.join(',');
+      body.mode = oemMode;
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -455,6 +472,7 @@ export default function ReportViewer() {
       case 'gaming': return 'Optimización Gaming & GPU';
       case 'integrity': return 'Integridad y Salud del Sistema';
       case 'contextmenu': return 'Menú Contextual (Clic Derecho)';
+      case 'oemdebloat': return 'Debloat de Fabricantes (OEM)';
       default: return 'Detalles del Módulo';
     }
   };
@@ -503,6 +521,7 @@ export default function ReportViewer() {
                   {module === 'gaming' && 'Acelera el paso de frames, reduce la latencia de CPU-a-GPU (HAGS) y desactiva grabaciones en segundo plano para optimizar juegos.'}
                   {module === 'integrity' && 'Verifica la salud del almacén de componentes (DISM), audita archivos protegidos (SFC) y limpia componentes obsoletos de WinSxS para recuperar espacio.'}
                   {module === 'contextmenu' && 'Audita y deshabilita extensiones de terceros en el menú de clic derecho del Explorador de Windows para acelerar su apertura.'}
+                  {module === 'oemdebloat' && 'Identifica y optimiza servicios pesados de telemetría de fabricantes (Dell, HP, Lenovo, ASUS, Razer, Corsair) cambiándolos a inicio manual o desactivándolos.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -921,6 +940,55 @@ export default function ReportViewer() {
                       </span>
                     </label>
                   ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'oemdebloat' && oemServices.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Modo de optimización:</label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <button
+                  type="button"
+                  className={`btn ${oemMode === 'demand' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+                  onClick={() => setOemMode('demand')}
+                  disabled={isRunning}
+                >
+                  Manual (Recomendado)
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${oemMode === 'disable' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.75rem' }}
+                  onClick={() => setOemMode('disable')}
+                  disabled={isRunning}
+                >
+                  Deshabilitar
+                </button>
+              </div>
+
+              <label className="form-label">Servicios OEM detectados:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná los servicios a configurar en inicio {oemMode === 'demand' ? 'Manual' : 'Deshabilitado'}:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {oemServices.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedOem[idx] || false}
+                      onChange={() => setSelectedOem(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      <strong style={{ color: 'var(--color-brand)' }}>[{item.oem}]</strong> {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
+                        {item.desc} · Actual: {item.startMode}
+                      </span>
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
           )}

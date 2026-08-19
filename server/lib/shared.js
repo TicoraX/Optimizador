@@ -137,6 +137,13 @@ export const MODULES = Object.freeze({
     taskName: 'ContextMenu_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  oemdebloat: Object.freeze({
+    dir: join(PROJECT_ROOT, 'oemdebloat-optimizer'),
+    countsFile: 'oemdebloat-counts.json',
+    reportPrefix: 'oemdebloat-report',
+    taskName: 'OemDebloat_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(
