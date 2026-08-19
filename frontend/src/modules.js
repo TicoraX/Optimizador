@@ -23,6 +23,7 @@ const ICONS = {
   adblock: 'M4.9 4.9l14.2 14.2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
   gaming: 'M6 11h4M8 9v4M15 11h.01M18 11h.01M2 12a5 5 0 0 0 5 5h1a2 2 0 0 1 2 2 3 3 0 0 0 6 0 2 2 0 0 1 2-2h1a5 5 0 0 0 5-5V9a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v3z',
   integrity: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
+  contextmenu: 'M4 6h16M4 12h16M4 18h10',
 };
 
 const fmtSize = (mb) => {
@@ -176,6 +177,17 @@ export const MODULES = {
         tone: d.sfcStatus === 'INTEGRO' ? 'is-success' : 'is-danger' },
       { label: 'Estado global', value: d.healthy !== false ? 'Saludable' : 'Requiere atención',
         tone: d.healthy !== false ? 'is-success' : 'is-warning' },
+    ],
+  },
+  contextmenu: {
+    label: 'Menú Clic Derecho',
+    blurb: 'Extensiones del Explorador de Windows',
+    icon: ICONS.contextmenu,
+    metrics: (d) => [
+      { label: 'De terceros activas', value: d.activeThirdParty ?? 0,
+        tone: tone(d.activeThirdParty ?? 0, { warn: 5, danger: 10 }) },
+      { label: 'Total de terceros', value: d.thirdPartyCount ?? 0 },
+      { label: 'Total registradas', value: d.totalHandlers ?? 0 },
     ],
   },
 };

@@ -59,6 +59,10 @@ const REVERTERS = {
     return REVERTERS.privacy(change);
   },
 
+  async contextmenu(change) {
+    return REVERTERS.privacy(change);
+  },
+
   async startup(change) {
     // Tarea programada: el previousValue es su estado anterior.
     if (change.previousValue === 'Disabled' || change.newValue === 'Disabled') {

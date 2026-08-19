@@ -26,6 +26,7 @@ import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
 import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
 import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrity.js';
+import { runContextMenuScanNative, runContextMenuActionNative } from './lib/contextmenu.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -192,6 +193,7 @@ const SCAN_HANDLERS = {
   adblock: runAdblockScanNative,
   gaming: runGamingScanNative,
   integrity: runIntegrityScanNative,
+  contextmenu: runContextMenuScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -206,6 +208,7 @@ const ACTION_HANDLERS = {
   adblock: runAdblockActionNative,
   gaming: runGamingActionNative,
   integrity: runIntegrityActionNative,
+  contextmenu: runContextMenuActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -411,6 +414,19 @@ export function getConsolidatedStatus() {
         sfcStatus: i.sfcStatus || 'INTEGRO',
         healthy: i.healthy !== false,
         error: i.error,
+      };
+    })(),
+    contextmenu: (() => {
+      const c = loadJsonSafe(
+        join(MODULES.contextmenu.dir, 'reports', MODULES.contextmenu.countsFile),
+        { date: null, totalHandlers: 0, thirdPartyCount: 0, activeThirdParty: 0, error: true },
+      );
+      return {
+        lastScan: c.date,
+        totalHandlers: c.totalHandlers || 0,
+        thirdPartyCount: c.thirdPartyCount || 0,
+        activeThirdParty: c.activeThirdParty || 0,
+        error: c.error,
       };
     })(),
   };
