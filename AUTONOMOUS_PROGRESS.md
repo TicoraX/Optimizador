@@ -94,9 +94,37 @@
 - **Tests**: `server/tests/healthscore.test.js` (3 tests unitarios).
 - **Commit**: `63c2695` — `feat(healthscore): add Global Health Score gauge (0-100) with pillar breakdown and One-Click Quick Optimizer`.
 
+### Mejora 9: Gestor de Menú Contextual (Clic Derecho)
+- **Backend (`server/lib/contextmenu.js`)**:
+  - Escaneo de handlers de shell registrados en el registro (`HKCR\*\shellex\ContextMenuHandlers`, etc.).
+  - Detección de handlers nativos protegidos de Microsoft vs extensiones de terceros (WinRAR, 7-Zip, Notepad++, etc.).
+  - Desactivación y activación reversible (`changes.json`).
+- **Frontend**:
+  - Módulo `contextmenu` en `modules.js` y vista interactiva en `ReportViewer.jsx`.
+- **Tests**: `server/tests/contextmenu.test.js` (3 tests unitarios).
+- **Commit**: `1020fb6` — `feat(contextmenu): add Windows Explorer context menu handlers optimizer with reversible shell tweaks`.
+
+### Mejora 10: Auditor y Debloater OEM de Fabricantes
+- **Backend (`server/lib/oemdebloat.js`)**:
+  - Base de datos curada de firmas de telemetría de Dell, HP, Lenovo, ASUS, Razer y Corsair.
+  - Escaneo CSV de servicios en ejecución y cambio seguro a inicio `demand` (Manual) o `disabled` con reversión en `changes.json`.
+- **Frontend**:
+  - Módulo `oemdebloat` en `modules.js` y configuración por modo (Manual vs Deshabilitar) en `ReportViewer.jsx`.
+- **Tests**: `server/tests/oemdebloat.test.js` (3 tests unitarios).
+- **Commit**: `510f531` — `feat(oemdebloat): add OEM bloatware & manufacturer background services optimizer with manual/disable modes`.
+
+### Mejora 11: Exportador de Informes Técnicos del Sistema
+- **Backend (`server/lib/exportreport.js`)**:
+  - Consolidación de telemetría, health score, estado de módulos y diario de cambios en formatos Markdown y JSON.
+  - Endpoint `GET /api/system/export?format=markdown|json` con cabeceras de descarga `attachment`.
+- **Frontend**:
+  - Botón de descarga de informe `.md` en la cabecera de `Dashboard.jsx`.
+- **Tests**: `server/tests/exportreport.test.js` (2 tests unitarios).
+- **Commit**: `c48740f` — `feat(export): add technical system audit report generator with Markdown/JSON export and Dashboard download button`.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios**: **155 / 155 pasando al 100%** (33 suites de test).
-- **Build Frontend**: **0 errores / 0 advertencias de sintaxis**, chunks optimizados con Vite + React 19.
-- **Seguridad**: Sin vulnerabilidades de inyección de comandos, paths sanitizados con `realpath`, y reversibilidad atómica de todos los cambios de registro.
+- **Tests Unitarios**: **165 / 165 pasando al 100%** (36 suites de test).
+- **Compilación del Frontend**: **0 errores / 0 advertencias**, chunks optimizados.
+- **Seguridad y Reversibilidad**: Todos los cambios de registro y servicios quedan anotados en `changes.json` con restauración atómica.
