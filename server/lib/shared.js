@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { readFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { join, dirname, resolve, normalize } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -48,28 +48,20 @@ export const WINDIR = process.env.WINDIR || 'C:\\WINDOWS';
 export const MODULES = Object.freeze({
   updates: Object.freeze({
     dir: join(PROJECT_ROOT, 'update-checker'),
-    scan: 'Check-Updates.ps1',
-    action: 'Apply-Updates.ps1',
     countsFile: 'update-counts.json',
     reportPrefix: 'update-report',
     taskName: 'UpdateChecker_Weekly',
     logFile: 'apply-log.txt',
-    notifyScript: 'Notify-Updates.ps1',
   }),
   cleanup: Object.freeze({
     dir: join(PROJECT_ROOT, 'disk-cleanup'),
-    scan: 'Scan-Cleanup.ps1',
-    action: 'Clean-Disk.ps1',
     countsFile: 'cleanup-counts.json',
     reportPrefix: 'cleanup-report',
     taskName: 'DiskCleanup_Weekly',
     logFile: 'apply-log.txt',
-    notifyScript: 'Notify-Cleanup.ps1',
   }),
   startup: Object.freeze({
     dir: join(PROJECT_ROOT, 'startup-optimizer'),
-    scan: 'Scan-Startup.ps1',
-    action: 'Optimize-Startup.ps1',
     countsFile: 'startup-counts.json',
     reportPrefix: 'startup-report',
     taskName: 'StartupOptimizer_Weekly',
@@ -77,8 +69,6 @@ export const MODULES = Object.freeze({
   }),
   ram: Object.freeze({
     dir: join(PROJECT_ROOT, 'ram-optimizer'),
-    scan: 'Scan-RAM.ps1',
-    action: 'Free-RAM.ps1',
     countsFile: 'ram-counts.json',
     reportPrefix: 'ram-report',
     taskName: 'RAMOptimizer_Weekly',
@@ -86,8 +76,6 @@ export const MODULES = Object.freeze({
   }),
   network: Object.freeze({
     dir: join(PROJECT_ROOT, 'network-optimizer'),
-    scan: 'Scan-Network.ps1',
-    action: 'Optimize-Network.ps1',
     countsFile: 'network-counts.json',
     reportPrefix: 'network-report',
     taskName: 'NetworkOptimizer_Weekly',
@@ -95,8 +83,6 @@ export const MODULES = Object.freeze({
   }),
   services: Object.freeze({
     dir: join(PROJECT_ROOT, 'services-optimizer'),
-    scan: 'Scan-Services.ps1',
-    action: 'Optimize-Services.ps1',
     countsFile: 'services-counts.json',
     reportPrefix: 'services-report',
     taskName: 'ServicesOptimizer_Weekly',
@@ -104,8 +90,6 @@ export const MODULES = Object.freeze({
   }),
   power: Object.freeze({
     dir: join(PROJECT_ROOT, 'power-optimizer'),
-    scan: 'Scan-Power.ps1',
-    action: 'Optimize-Power.ps1',
     countsFile: 'power-counts.json',
     reportPrefix: 'power-report',
     taskName: 'PowerOptimizer_Weekly',
@@ -113,8 +97,6 @@ export const MODULES = Object.freeze({
   }),
   apps: Object.freeze({
     dir: join(PROJECT_ROOT, 'apps-manager'),
-    scan: 'Scan-Apps.ps1',
-    action: 'Optimize-Apps.ps1',
     countsFile: 'apps-counts.json',
     reportPrefix: 'apps-report',
     taskName: 'AppsManager_Weekly',
@@ -122,11 +104,93 @@ export const MODULES = Object.freeze({
   }),
   privacy: Object.freeze({
     dir: join(PROJECT_ROOT, 'privacy-optimizer'),
-    scan: 'Scan-Privacy.ps1',
-    action: 'Optimize-Privacy.ps1',
     countsFile: 'privacy-counts.json',
     reportPrefix: 'privacy-report',
     taskName: 'PrivacyOptimizer_Weekly',
+    logFile: 'optimize-log.txt',
+  }),
+  adblock: Object.freeze({
+    dir: join(PROJECT_ROOT, 'adblock'),
+    countsFile: 'adblock-counts.json',
+    reportPrefix: 'adblock-report',
+    taskName: 'AdBlock_Weekly',
+    logFile: 'optimize-log.txt',
+  }),
+  gaming: Object.freeze({
+    dir: join(PROJECT_ROOT, 'gaming-optimizer'),
+    countsFile: 'gaming-counts.json',
+    reportPrefix: 'gaming-report',
+    taskName: 'GamingOptimizer_Weekly',
+    logFile: 'optimize-log.txt',
+  }),
+  integrity: Object.freeze({
+    dir: join(PROJECT_ROOT, 'integrity-optimizer'),
+    countsFile: 'integrity-counts.json',
+    reportPrefix: 'integrity-report',
+    taskName: 'IntegrityOptimizer_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  contextmenu: Object.freeze({
+    dir: join(PROJECT_ROOT, 'contextmenu-optimizer'),
+    countsFile: 'contextmenu-counts.json',
+    reportPrefix: 'contextmenu-report',
+    taskName: 'ContextMenu_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  oemdebloat: Object.freeze({
+    dir: join(PROJECT_ROOT, 'oemdebloat-optimizer'),
+    countsFile: 'oemdebloat-counts.json',
+    reportPrefix: 'oemdebloat-report',
+    taskName: 'OemDebloat_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  timers: Object.freeze({
+    dir: join(PROJECT_ROOT, 'timers-optimizer'),
+    countsFile: 'timers-counts.json',
+    reportPrefix: 'timers-report',
+    taskName: 'TimersOptimizer_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  ghostdevices: Object.freeze({
+    dir: join(PROJECT_ROOT, 'ghostdevices-optimizer'),
+    countsFile: 'ghostdevices-counts.json',
+    reportPrefix: 'ghostdevices-report',
+    taskName: 'GhostDevices_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  searchindex: Object.freeze({
+    dir: join(PROJECT_ROOT, 'searchindex-optimizer'),
+    countsFile: 'searchindex-counts.json',
+    reportPrefix: 'searchindex-report',
+    taskName: 'SearchIndex_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  dnsflush: Object.freeze({
+    dir: join(PROJECT_ROOT, 'dnsflush-optimizer'),
+    countsFile: 'dnsflush-counts.json',
+    reportPrefix: 'dnsflush-report',
+    taskName: 'DnsFlush_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  networkprivacy: Object.freeze({
+    dir: join(PROJECT_ROOT, 'networkprivacy-optimizer'),
+    countsFile: 'networkprivacy-counts.json',
+    reportPrefix: 'networkprivacy-report',
+    taskName: 'NetworkPrivacy_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  pagefile: Object.freeze({
+    dir: join(PROJECT_ROOT, 'pagefile-optimizer'),
+    countsFile: 'pagefile-counts.json',
+    reportPrefix: 'pagefile-report',
+    taskName: 'Pagefile_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  werfault: Object.freeze({
+    dir: join(PROJECT_ROOT, 'werfault-optimizer'),
+    countsFile: 'werfault-counts.json',
+    reportPrefix: 'werfault-report',
+    taskName: 'WerFault_Monthly',
     logFile: 'optimize-log.txt',
   }),
 });
@@ -396,25 +460,246 @@ export function buildReportPath(moduleDir, prefix, date) {
 }
 
 // ═══════════════════════════════════════════════════════
-// Proceso externo — spawn helpers compartidos por los 4 modulos
+// Ciclo de vida de scan y accion
 //
-// Diagnostico (2026-06-19): spawn('powershell.exe', ['-File', scriptPath, ...])
-// invocado desde DENTRO de este servidor Express muere en ~150ms con exit code 1
-// y CERO salida en stdout/stderr, incluso en el primer request tras un arranque
-// limpio. El MISMO spawn ejecutado desde un script de Node suelto (sin servidor
-// HTTP) funciona siempre. No se identifico la causa raiz exacta. spawn() de
-// binarios nativos (winget.exe, schtasks.exe, taskkill.exe) SI funciona bien
-// desde este mismo servidor, y los -Command cortos de PowerShell tambien — por
-// eso cada modulo invoca sus binarios nativos directo, sin -File de PowerShell.
-//
-// spawnCapture() usa shell:false (Win32 CreateProcess directo, args como array
-// real — sin riesgo de inyeccion, valores con espacios funcionan bien). Solo
-// npm/pip/choco son wrappers .cmd en Windows que `spawn` sin shell no resuelve;
-// para esos se usa spawnCaptureShell(), que SI usa shell:true. Node no escapa
-// los argumentos en ese modo (advertencia DEP0190) — por eso spawnCaptureShell
-// solo se usa con literales fijos del codigo, nunca con datos que puedan tener
-// espacios o comillas (ej. nombres de programas o valores de registro).
+// Estos cuatro helpers reemplazan bloques que estaban copiados byte a byte en
+// los 9 modulos. Ademas de la duplicacion, esas copias habian divergido: cinco
+// modulos hardcodeaban 'optimize-log.txt' en vez de leer MODULES[x].logFile, asi
+// que GET /api/logs/:module podia leer un archivo distinto al que se escribia.
 // ═══════════════════════════════════════════════════════
+
+/** Directorio de reportes de un modulo, creandolo si falta. */
+function reportsDirOf(moduleKey) {
+  const dir = join(MODULES[moduleKey].dir, 'reports');
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Logger de accion: escribe al log del modulo y lo emite por SSE.
+ * El nombre del log sale siempre de la whitelist, nunca hardcodeado.
+ */
+export function makeLogger(moduleKey, onOutput) {
+  const logPath = join(reportsDirOf(moduleKey), MODULES[moduleKey].logFile);
+  return (message) => {
+    const { date, time } = localStamp();
+    const stamp = `${date} ${time}`;
+    const line = `[${stamp}] ${String(message).replace(/[\r\n]/g, ' ')}`;
+    try {
+      appendFileSync(logPath, line + '\n');
+    } catch {
+      // Continuar para no interrumpir la entrega SSE aunque falle la escritura a disco
+    }
+    onOutput(line);
+  };
+}
+
+/**
+ * Fecha y hora locales, no UTC.
+ *
+ * `toISOString()` devuelve UTC: en UTC-5, un escaneo de las 20:00 quedaba
+ * archivado con la fecha del dia siguiente y el dashboard mostraba un
+ * "ultimo escaneo" en el futuro. La app corre en la maquina del usuario,
+ * asi que la fecha que importa es la de su reloj.
+ */
+export function localStamp(date = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return {
+    date: `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`,
+    time: `${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`,
+  };
+}
+
+/** Rutas y fecha de un scan. */
+export function prepareReport(moduleKey) {
+  const dir = reportsDirOf(moduleKey);
+  const mod = MODULES[moduleKey];
+  const today = localStamp().date;
+  return {
+    moduleKey,
+    today,
+    reportPath: join(dir, `${mod.reportPrefix}-${today}.md`),
+    countsPath: join(dir, mod.countsFile),
+    itemsPath: join(dir, `${moduleKey}-items.json`),
+  };
+}
+
+/** Lee el JSON de items de un modulo. Devuelve null si el scan no lo escribio. */
+export function loadItems(moduleKey) {
+  return loadJsonSafe(join(MODULES[moduleKey].dir, 'reports', `${moduleKey}-items.json`), null);
+}
+
+const TIMELINE_PATH = join(PROJECT_ROOT, 'reports', 'scan-timeline.json');
+let timelineWriteLock = Promise.resolve();
+
+/**
+ * Registra un snapshot histórico de escaneo en la línea de tiempo unificada.
+ * Mantiene un máximo de 100 registros cronológicos ordenados de más reciente a más antiguo.
+ */
+export function recordScanSnapshot(moduleKey, counts) {
+  try {
+    const reportsDir = join(PROJECT_ROOT, 'reports');
+    if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
+
+    const currentTimeline = loadJsonSafe(TIMELINE_PATH, []);
+    const { date, time } = localStamp();
+    const entry = {
+      id: `scan_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: `${date} ${time}`,
+      date,
+      time,
+      module: moduleKey,
+      counts: counts || {},
+    };
+
+    const updated = [entry, ...(Array.isArray(currentTimeline) ? currentTimeline : [])].slice(0, 100);
+    writeFileSync(TIMELINE_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lee la línea de tiempo histórica de escaneos.
+ */
+export function getScanTimeline() {
+  return loadJsonSafe(TIMELINE_PATH, []);
+}
+
+/**
+ * Escribe el reporte Markdown, su JSON de conteos y, si el modulo tiene
+ * elementos seleccionables, el JSON de items.
+ */
+export function finishReport({ reportPath, countsPath, itemsPath, moduleKey }, lines, counts, onOutput, items = null) {
+  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
+  writeFileSync(countsPath, JSON.stringify(counts, null, 2), 'utf-8');
+  if (items) writeFileSync(itemsPath, JSON.stringify(items, null, 2), 'utf-8');
+  if (moduleKey) recordScanSnapshot(moduleKey, counts);
+  onOutput(`Reporte generado en: ${reportPath}`);
+}
+
+/** Mensaje de error acotado a partir del resultado de spawnCapture. */
+export function errText(r) {
+  return (r?.stderr || r?.stdout || '').trim().slice(0, 200);
+}
+
+// ═══════════════════════════════════════════════════════
+// Barrera para operaciones destructivas
+//
+// Todo lo que borra, mata, desinstala o pisa un valor del sistema pasa por
+// aca. Cumple tres funciones:
+//
+//   1. Simulacion: con dryRun no se ejecuta nada, solo se reporta que habria
+//      pasado. Es lo que alimenta la vista previa antes de confirmar.
+//   2. Diario: cada cambio aplicado queda registrado con su valor anterior,
+//      que es lo unico que permite revertir despues.
+//   3. Un solo lugar donde auditar que se toca el sistema.
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Anota un cambio aplicado en el diario del modulo.
+ *
+ * El valor anterior se COPIA a la fila, no se referencia: la fila describe lo
+ * que paso ese dia y nada que cambie despues puede reescribirla.
+ */
+export function changesPath(moduleKey) {
+  return join(reportsDirOf(moduleKey), 'changes.json');
+}
+
+/** Diario de cambios de un modulo, mas viejo primero. */
+export function readChanges(moduleKey) {
+  return loadJsonSafe(changesPath(moduleKey), []);
+}
+
+export function writeChanges(moduleKey, journal) {
+  writeFileSync(changesPath(moduleKey), JSON.stringify(journal, null, 2), 'utf-8');
+}
+
+export function appendChange(moduleKey, entry) {
+  const journal = readChanges(moduleKey);
+  const maxId = journal.reduce((acc, c) => (typeof c.id === 'number' ? Math.max(acc, c.id) : acc), -1);
+  const newId = maxId >= 0 ? maxId + 1 : journal.length;
+  journal.push({
+    id: newId,
+    at: new Date().toISOString(),
+    module: moduleKey,
+    ...entry,
+    reversible: entry.previousValue !== undefined,
+  });
+  writeChanges(moduleKey, journal);
+  return newId;
+}
+
+/**
+ * Devuelve `guard(descripcion, fn, meta)`:
+ *   - en dryRun registra la descripcion y NO ejecuta fn
+ *   - si no, ejecuta fn y, cuando devuelve ok, anota el cambio en el diario
+ *
+ * `meta` describe el cambio para poder revertirlo: al menos { target } y,
+ * cuando exista, { previousValue }. Sin previousValue el cambio se marca
+ * como irreversible en vez de fingir que se puede deshacer.
+ */
+export function makeGuard(moduleKey, { dryRun, writeLog }) {
+  return async function guard(description, fn, meta = {}) {
+    if (dryRun) {
+      writeLog(`[SIMULACION] ${description}`);
+      return { simulated: true, ok: true };
+    }
+    const result = await fn();
+    const ok = result?.ok ?? (result?.code === 0);
+    if (ok) {
+      appendChange(moduleKey, { action: description, ...meta });
+    }
+    return { ...result, ok, simulated: false };
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// Proceso externo — spawn helpers compartidos por los 4 modulos
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Mata el arbol completo de un proceso.
+ *
+ * proc.kill() manda SIGTERM solo al proceso directo. En Windows eso no toca a
+ * los hijos: winget, choco y npm dejan nietos corriendo despues del timeout,
+ * potencialmente a mitad de una instalacion. taskkill /T recorre el arbol.
+ */
+function killTree(proc) {
+  if (!proc?.pid) return;
+  try {
+    const child = spawn('taskkill', ['/T', '/F', '/PID', String(proc.pid)], {
+      windowsHide: true, shell: false, stdio: 'ignore',
+    });
+    child.on('error', () => {
+      try { proc.kill(); } catch { /* ya murio */ }
+    });
+  } catch {
+    try { proc.kill(); } catch { /* ya murio */ }
+  }
+}
+
+/**
+ * Consulta un valor en el Registro de Windows de forma segura y estructurada.
+ * Devuelve el valor casteado o null si la clave/valor no existe.
+ */
+export async function queryRegistryValue(key, value) {
+  const r = await spawnCapture('reg', ['query', key, '/v', value], 10000);
+  if (r.code !== 0 || !r.stdout) return null;
+  const escapedVal = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = r.stdout.match(new RegExp(`^\\s*${escapedVal}\\b\\s+(REG_[A-Z_]+)\\s+(.*)$`, 'mi'));
+  if (!match) return null;
+  const type = match[1];
+  const raw = match[2].trim();
+  if (type === 'REG_DWORD') {
+    return parseInt(raw, 16);
+  }
+  if (type === 'REG_SZ' || type === 'REG_EXPAND_SZ') {
+    return raw;
+  }
+  return raw;
+}
 
 export function spawnCapture(cmd, args, timeoutMs = 120000) {
   return new Promise((resolve) => {
@@ -425,7 +710,11 @@ export function spawnCapture(cmd, args, timeoutMs = 120000) {
     let settled = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      if (proc) { try { proc.kill(); } catch {} }
+      killTree(proc);
+      // Sin esto los listeners siguen acumulando salida de un proceso que ya
+      // nadie espera.
+      proc?.stdout?.removeAllListeners('data');
+      proc?.stderr?.removeAllListeners('data');
       resolve({ code: -1, stdout, stderr, timedOut: true });
     }, timeoutMs);
     try {

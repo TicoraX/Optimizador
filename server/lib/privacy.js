@@ -1,6 +1,6 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture } from './shared.js';
+import {
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
+} from './shared.js';
 
 const PRIVACY_SETTINGS = [
   { id: 'telemetry', name: 'Telemetría', desc: 'Envío de datos de diagnóstico',
@@ -53,12 +53,8 @@ function statusLabel(setting, currentValue) {
 }
 
 export async function runPrivacyScanNative(onOutput) {
-  const reportsDir = join(MODULES.privacy.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `privacy-report-${today}.md`);
-  const countsPath = join(reportsDir, 'privacy-counts.json');
+  const paths = prepareReport('privacy');
+  const { today, reportPath } = paths;
 
   let scanError = false, hardenedCount = 0;
   const results = [];
@@ -67,7 +63,15 @@ export async function runPrivacyScanNative(onOutput) {
   for (const setting of PRIVACY_SETTINGS) {
     const r = await readRegValue(setting.key, setting.value);
     let currentValue = null;
-    if (r.code === 0) currentValue = parseRegValue(setting, r.stdout);
+    if (r.code === 0) {
+      currentValue = parseRegValue(setting, r.stdout);
+    } else if (r.code === 1) {
+      // Exit code 1 de reg query significa clave o valor no encontrado (estado ausente legítimo)
+      currentValue = null;
+    } else {
+      // Error real de ejecución o timeout
+      scanError = true;
+    }
 
     const safe = isSafe(setting, currentValue);
     if (safe) hardenedCount++;
@@ -96,30 +100,25 @@ export async function runPrivacyScanNative(onOutput) {
   lines.push(`- Pendientes: ${PRIVACY_SETTINGS.length - hardenedCount}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     total_settings: PRIVACY_SETTINGS.length,
     hardened_count: hardenedCount,
     error: scanError,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput,
+  // `index` es 1-based y es exactamente lo que espera la accion.
+  results.map((s, i) => ({
+    index: i + 1, id: s.id, name: s.name, desc: s.desc,
+    currentValue: s.currentValue, safe: s.safe,
+  })));
 }
 
 export async function runPrivacyActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.privacy.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
+  const writeLog = makeLogger('privacy', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('privacy', { dryRun, writeLog });
 
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
-
-  writeLog('=== Protección de privacidad - inicio ===');
+  writeLog(`=== Protección de privacidad - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   const selection = envVars.OPTIMIZE_PRIVACY || '';
   const indices = selection.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1);
@@ -138,17 +137,40 @@ export async function runPrivacyActionNative(envVars, onOutput) {
       writeLog(`Índice ${idx} fuera de rango, ignorado.`);
       continue;
     }
-    writeLog(`Protegiendo: ${s.name} (${s.desc})...`);
-    const r = await spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.safeValue, '/f']);
-    if (r.code === 0) {
+
+    // `reg add /f` pisa el valor sin leerlo. Sin esta lectura previa no queda
+    // registro de como estaba, y desproteger (por ejemplo, volver a habilitar
+    // el microfono para Teams) es imposible desde la app.
+    const before = await readRegValue(s.key, s.value);
+    const previousValue = before.code === 0 ? parseRegValue(s, before.stdout) : null;
+
+    writeLog(`Protegiendo: ${s.name} (${s.desc})... [valor actual: ${previousValue ?? 'no definido'}]`);
+
+    const r = await guard(
+      `Proteger ${s.name}: ${s.key}\\${s.value} = ${s.safeValue}`,
+      () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.safeValue, '/f']),
+      {
+        target: `${s.key}\\${s.value}`,
+        settingId: s.id,
+        valueType: s.type,
+        newValue: s.safeValue,
+        previousValue,
+      },
+    );
+    if (r.simulated) continue;
+    if (r.ok) {
       hardened++;
       writeLog(`  Protegido: ${s.name}`);
     } else {
       errors++;
-      writeLog(`  ERROR protegiendo ${s.name}: ${(r.stderr || r.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`  ERROR protegiendo ${s.name}: ${errText(r)}`);
     }
   }
 
-  writeLog(`Resumen: ${hardened} protegidos, ${errors} errores`);
+  writeLog(
+    dryRun
+      ? `Simulacion: ${indices.length} ajustes se protegerian`
+      : `Resumen: ${hardened} protegidos, ${errors} errores`,
+  );
   writeLog('=== Protección de privacidad - fin ===');
 }

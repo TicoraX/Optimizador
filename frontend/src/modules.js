@@ -1,0 +1,298 @@
+/**
+ * Registro declarativo de los módulos del Optimizador.
+ *
+ * `span` controla el area en el Bento: los modulos no importan todos igual.
+ */
+
+// Iconos como path de SVG: el wrapper comun vive en <ModuleIcon>.
+const ICONS = {
+  updates: 'M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16',
+  cleanup: 'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6',
+  startup: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z',
+  ram: 'M6 19v2M10 19v2M14 19v2M18 19v2M4 15h16M5 5h14a2 2 0 0 1 2 2v8H3V7a2 2 0 0 1 2-2z',
+  network: 'M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01',
+  services: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10.6 3.09V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 16 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  power: 'M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10',
+  apps: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  privacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  adblock: 'M4.9 4.9l14.2 14.2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+  gaming: 'M6 11h4M8 9v4M15 11h.01M18 11h.01M2 12a5 5 0 0 0 5 5h1a2 2 0 0 1 2 2 3 3 0 0 0 6 0 2 2 0 0 1 2-2h1a5 5 0 0 0 5-5V9a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v3z',
+  integrity: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
+  contextmenu: 'M4 6h16M4 12h16M4 18h10',
+  oemdebloat: 'M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55A1 1 0 0 1 20.38 20H3.62a1 1 0 0 1-.9-1.45L4 16',
+  timers: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+  ghostdevices: 'M12 2v20M8 5h8M7 9h10M9 22h6',
+  searchindex: 'M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z',
+  dnsflush: 'M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9',
+  networkprivacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4m0 4h.01',
+  pagefile: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm4 3h8M8 12h8M8 15h4',
+  werfault: 'M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+};
+
+const fmtSize = (mb) => {
+  const n = Number(mb);
+  if (mb == null || Number.isNaN(n)) return '—';
+  return n < 1024 ? `${n.toFixed(1)} MB` : `${(n / 1024).toFixed(2)} GB`;
+};
+
+/** `tone` pinta el valor: se usa solo cuando el numero significa algo. */
+const tone = (value, { warn, danger }) => {
+  if (danger !== undefined && value >= danger) return 'is-danger';
+  if (warn !== undefined && value >= warn) return 'is-warning';
+  return null;
+};
+
+export const MODULES = {
+  updates: {
+    label: 'Actualizaciones',
+    blurb: 'winget, pip, npm global y Chocolatey',
+    description: 'Busca actualizaciones pendientes de winget, pip, npm y Chocolatey. No instala nada sin tu confirmación.',
+    icon: ICONS.updates,
+    metrics: (d) => [
+      { label: 'winget', value: d.winget?.count ?? 0, tone: tone(d.winget?.count ?? 0, { warn: 1 }) },
+      { label: 'pip', value: d.pip?.count ?? 0 },
+      { label: 'npm global', value: d.npm?.count ?? 0 },
+      { label: 'Chocolatey', value: d.choco?.count ?? 0 },
+    ],
+  },
+  cleanup: {
+    label: 'Limpieza de disco',
+    blurb: 'Temporales, caché, descargas y papelera',
+    description: 'Mide espacio recuperable en archivos temporales, caché de navegadores, descargas antiguas y papelera de reciclaje.',
+    icon: ICONS.cleanup,
+    metrics: (d) => [
+      { label: 'Temporales', value: fmtSize(d.temp?.total_mb), tone: tone(d.temp?.total_mb ?? 0, { warn: 1024, danger: 10240 }) },
+      { label: 'Caché de navegadores', value: fmtSize(d.browserCache?.total_mb) },
+      { label: 'Descargas viejas', value: `${d.downloads?.count ?? 0} archivos` },
+      { label: 'Papelera', value: `${d.recycleBin?.count ?? 0} elementos` },
+    ],
+  },
+  ram: {
+    label: 'Memoria RAM',
+    blurb: 'Procesos por consumo, en 4 niveles de riesgo',
+    description: 'Escanea procesos por consumo de RAM y clasifica cada uno en 4 niveles de riesgo (crítico, riesgoso, seguro, desconocido). Permite liberar memoria de forma selectiva.',
+    icon: ICONS.ram,
+    span: 'full',
+    metrics: (d) => [
+      { label: 'En uso', value: `${d.usagePercent ?? 0}%`, tone: tone(d.usagePercent ?? 0, { warn: 75, danger: 90 }) },
+      { label: 'Total', value: fmtSize(d.totalMB) },
+      { label: 'Libre', value: fmtSize(d.freeMB) },
+      { label: 'Procesos', value: d.totalProcesses ?? 0 },
+      { label: 'Seguros de liberar', value: d.knownProcesses ?? 0, tone: 'is-success' },
+      { label: 'Sin identificar', value: d.unknownProcesses ?? 0 },
+      { label: 'No recomendados', value: d.riskyProcesses ?? 0, tone: 'is-warning' },
+      { label: 'Críticos (no se tocan)', value: d.criticalProcesses ?? 0 },
+    ],
+  },
+  startup: {
+    label: 'Inicio de sesión',
+    blurb: 'Programas, servicios y tareas al arrancar',
+    description: 'Analiza programas, servicios y tareas programadas que se inician con tu sesión de Windows. Todo es reversible.',
+    icon: ICONS.startup,
+    metrics: (d) => [
+      { label: 'Programas de inicio', value: d.startupPrograms?.count ?? 0, tone: tone(d.startupPrograms?.count ?? 0, { warn: 10, danger: 20 }) },
+      { label: 'Servicios automáticos', value: d.autoServices?.count ?? 0 },
+      { label: 'De terceros', value: d.autoServices?.nonMicrosoft ?? 0 },
+      { label: 'Tareas al iniciar sesión', value: d.logonTasks?.count ?? 0 },
+    ],
+  },
+  services: {
+    label: 'Servicios',
+    blurb: 'Automáticos, separando Microsoft de terceros',
+    description: 'Lista servicios con inicio automático separando Microsoft de terceros por ruta de archivo. Permite detener y deshabilitar servicios de terceros que no necesites.',
+    icon: ICONS.services,
+    metrics: (d) => [
+      { label: 'De terceros', value: d.thirdPartyTotal ?? 0 },
+      { label: 'Ejecutándose', value: d.thirdPartyRunning ?? 0, tone: tone(d.thirdPartyRunning ?? 0, { warn: 10 }) },
+      { label: 'Memoria que ocupan', value: fmtSize(d.thirdPartyMemoryMB) },
+      { label: 'Del sistema', value: d.systemTotal ?? 0 },
+    ],
+  },
+  network: {
+    label: 'Red',
+    blurb: 'Jitter, pérdida, ruta por saltos y DNS',
+    description: 'Diagnostica dónde se agrega la latencia: jitter y pérdida sostenidos, latencia por salto hasta el destino, MTU, ahorro de energía del adaptador y comparación de servidores DNS. No baja el ping: eso requiere cambiar la ruta y no se puede hacer localmente.',
+    icon: ICONS.network,
+    metrics: (d) => [
+      { label: 'Latencia (mediana)', value: d.avgPingMs != null ? `${d.avgPingMs} ms` : '—', tone: tone(d.avgPingMs ?? 0, { warn: 80, danger: 150 }) },
+      { label: 'Jitter', value: d.jitterMs != null ? `${d.jitterMs} ms` : '—', tone: tone(d.jitterMs ?? 0, { warn: 10, danger: 30 }) },
+      { label: 'Pérdida de paquetes', value: `${d.packetLoss ?? 0}%`, tone: tone(d.packetLoss ?? 0, { warn: 1, danger: 10 }) },
+      { label: 'Primer salto (router)', value: d.firstHopMs != null ? `${d.firstHopMs} ms` : '—', tone: tone(d.firstHopMs ?? 0, { warn: 5, danger: 20 }) },
+      { label: 'Adaptadores con ahorro', value: d.powerSavingAdapters ?? 0, tone: tone(d.powerSavingAdapters ?? 0, { warn: 1 }) },
+    ],
+  },
+  power: {
+    label: 'Energía',
+    blurb: 'Plan activo, batería y consumo estimado',
+    description: 'Muestra el plan de energía activo con su descripción, batería y consumo estimado en watts. Permite cambiar de plan al instante.',
+    icon: ICONS.power,
+    metrics: (d) => [
+      { label: 'Plan activo', value: d.activePlan ?? '—' },
+      { label: 'Consumo estimado', value: d.totalEstWatts != null ? `${d.totalEstWatts} W` : '—' },
+      ...(d.batteryPresent
+        ? [{ label: 'Batería', value: `${d.batteryPct ?? 0}% · ${d.batteryStatus ?? ''}` }]
+        : [{ label: 'Batería', value: 'Sin batería' }]),
+    ],
+  },
+  apps: {
+    label: 'Aplicaciones',
+    blurb: 'Instaladas vía winget',
+    description: 'Lista aplicaciones instaladas vía winget con ID, versión y origen. Desinstala múltiples apps de forma silenciosa.',
+    icon: ICONS.apps,
+    metrics: (d) => [
+      { label: 'Instaladas', value: d.appsCount ?? 0 },
+    ],
+  },
+  adblock: {
+    label: 'Anuncios',
+    blurb: 'Bloqueo por dominio en el archivo hosts',
+    description: 'Aplica bloqueo de anuncios y telemetría por dominios en el archivo hosts de Windows con fuentes verificadas.',
+    icon: ICONS.adblock,
+    metrics: (d) => [
+      { label: 'Estado', value: d.activo ? 'Activo' : 'Inactivo',
+        tone: d.activo ? 'is-success' : null },
+      { label: 'Dominios bloqueados', value: d.blockedDomains ?? 0 },
+      { label: 'Lista descargada', value: d.listDomains ? `${d.listDomains} dominios` : '—' },
+      { label: 'Antigüedad de la lista',
+        value: d.listAgeDays == null ? '—' : `${d.listAgeDays} días`,
+        tone: tone(d.listAgeDays ?? 0, { warn: 30 }) },
+    ],
+  },
+  privacy: {
+    label: 'Privacidad',
+    blurb: '8 ajustes de telemetría y permisos',
+    description: 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.',
+    icon: ICONS.privacy,
+    metrics: (d) => [
+      { label: 'Protegidos', value: `${d.hardenedCount ?? 0} / ${d.totalSettings ?? 0}`,
+        tone: (d.hardenedCount ?? 0) < (d.totalSettings ?? 0) ? 'is-warning' : 'is-success' },
+    ],
+  },
+  gaming: {
+    label: 'Gaming & GPU',
+    blurb: 'Aceleración HAGS, Game Mode y baja latencia',
+    description: 'Acelera el paso de frames, reduce la latencia de CPU-a-GPU (HAGS) y desactiva grabaciones en segundo plano para optimizar juegos.',
+    icon: ICONS.gaming,
+    metrics: (d) => [
+      { label: 'GPU', value: d.gpu ? d.gpu.slice(0, 24) : 'GPU Detectada' },
+      { label: 'Ajustes optimizados', value: `${d.optimizedCount ?? 0} / ${d.total ?? 6}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 6) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  integrity: {
+    label: 'Integridad del Sistema',
+    blurb: 'DISM, SFC y mantenimiento de almacén WinSxS',
+    description: 'Verifica la salud del almacén de componentes (DISM), audita archivos protegidos (SFC) y limpia componentes obsoletos de WinSxS para recuperar espacio.',
+    icon: ICONS.integrity,
+    metrics: (d) => [
+      { label: 'DISM (Componentes)', value: d.dismStatus || 'SALUDABLE',
+        tone: d.dismStatus === 'SALUDABLE' ? 'is-success' : 'is-danger' },
+      { label: 'SFC (Archivos de Sistema)', value: d.sfcStatus || 'INTEGRO',
+        tone: d.sfcStatus === 'INTEGRO' ? 'is-success' : 'is-danger' },
+      { label: 'Estado global', value: d.healthy !== false ? 'Saludable' : 'Requiere atención',
+        tone: d.healthy !== false ? 'is-success' : 'is-warning' },
+    ],
+  },
+  contextmenu: {
+    label: 'Menú Clic Derecho',
+    blurb: 'Extensiones del Explorador de Windows',
+    description: 'Audita y deshabilita extensiones de terceros en el menú de clic derecho del Explorador de Windows para acelerar su apertura.',
+    icon: ICONS.contextmenu,
+    metrics: (d) => [
+      { label: 'De terceros activas', value: d.activeThirdParty ?? 0,
+        tone: tone(d.activeThirdParty ?? 0, { warn: 5, danger: 10 }) },
+      { label: 'Total de terceros', value: d.thirdPartyCount ?? 0 },
+      { label: 'Total registradas', value: d.totalHandlers ?? 0 },
+    ],
+  },
+  oemdebloat: {
+    label: 'Debloat Fabricantes (OEM)',
+    blurb: 'Servicios de Dell, HP, Lenovo, ASUS, Razer',
+    description: 'Identifica y optimiza servicios pesados de telemetría de fabricantes (Dell, HP, Lenovo, ASUS, Razer, Corsair) cambiándolos a inicio manual o desactivándolos.',
+    icon: ICONS.oemdebloat,
+    metrics: (d) => [
+      { label: 'En inicio automático', value: d.autoCount ?? 0,
+        tone: tone(d.autoCount ?? 0, { warn: 1, danger: 4 }) },
+      { label: 'Servicios detectados', value: d.detectedCount ?? 0 },
+    ],
+  },
+  timers: {
+    label: 'Temporizadores & Latencia BCD',
+    blurb: 'HPET, Dynamic Ticking y TSC de CPU',
+    description: 'Ajusta parámetros de reloj de bajo nivel (Dynamic Ticking, HPET, TSC) en el almacén de arranque de Windows (BCD) para reducir el micro-stuttering.',
+    icon: ICONS.timers,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 3}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 3) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  ghostdevices: {
+    label: 'Dispositivos Fantasma PnP',
+    blurb: 'Registros de USB y periféricos desconectados',
+    description: 'Detecta registros de periféricos y dispositivos USB desconectados acumulados en Windows y permite eliminarlos de forma segura.',
+    icon: ICONS.ghostdevices,
+    metrics: (d) => [
+      { label: 'Seguros de limpiar', value: d.safeCount ?? 0,
+        tone: tone(d.safeCount ?? 0, { warn: 10, danger: 30 }) },
+      { label: 'Total desconectados', value: d.totalCount ?? 0 },
+    ],
+  },
+  searchindex: {
+    label: 'Indexador & Búsqueda Windows',
+    blurb: 'Políticas de I/O y CPU de Windows Search',
+    description: 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.',
+    icon: ICONS.searchindex,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  dnsflush: {
+    label: 'Caché DNS & Red LAN',
+    blurb: 'Vaciado DNS, NetBIOS y registro WINS',
+    description: 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.',
+    icon: ICONS.dnsflush,
+    metrics: (d) => [
+      { label: 'Dominios en caché', value: d.cachedCount ?? 0 },
+      { label: 'Acciones listas', value: d.totalActions ?? 4, tone: 'is-success' },
+    ],
+  },
+  networkprivacy: {
+    label: 'Privacidad en Red & Telemetría',
+    blurb: 'WiFi Sense, Spotlight y pre-carga Edge',
+    description: 'Bloquea la telemetría transmitida por red: descargas de Spotlight, WiFi Sense, apps promocionadas y pre-carga de Microsoft Edge.',
+    icon: ICONS.networkprivacy,
+    metrics: (d) => [
+      { label: 'Protegidos', value: `${d.protectedCount ?? 0}/${d.total ?? 4}`,
+        tone: (d.protectedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
+      { label: 'Expuestos', value: d.exposedCount ?? 0 },
+    ],
+  },
+  pagefile: {
+    label: 'Memoria Virtual & Pagefile',
+    blurb: 'Kernel en RAM física y Paginación',
+    description: 'Optimiza el Administrador de Memoria de Windows: mantiene el núcleo y controladores en RAM física (DisablePagingExecutive), prioriza memoria para programas y acelera el apagado.',
+    icon: ICONS.pagefile,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 3}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 3) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  werfault: {
+    label: 'Reporte de Errores & WerFault',
+    blurb: 'Volcados y Telemetría de Fallos',
+    description: 'Administra directivas de Windows Error Reporting: suprime bloqueos por recolección de minidumps, desactiva la telemetría de fallos hacia servidores de Microsoft y cierra procesos silenciosamente.',
+    icon: ICONS.werfault,
+    metrics: (d) => [
+      { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,
+        tone: (d.optimizedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
+      { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+};
+
+export const MODULE_KEYS = Object.keys(MODULES);

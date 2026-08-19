@@ -1,6 +1,6 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture } from './shared.js';
+import {
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, errText,
+} from './shared.js';
 
 function parseWingetList(stdout) {
   const apps = [];
@@ -24,12 +24,8 @@ function parseWingetList(stdout) {
 }
 
 export async function runAppsScanNative(onOutput) {
-  const reportsDir = join(MODULES.apps.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `apps-report-${today}.md`);
-  const countsPath = join(reportsDir, 'apps-counts.json');
+  const paths = prepareReport('apps');
+  const { today, reportPath } = paths;
 
   let scanError = false;
   onOutput('Listando aplicaciones instaladas (winget)...');
@@ -57,29 +53,48 @@ export async function runAppsScanNative(onOutput) {
   lines.push(`- Total: ${apps.length}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     apps_count: apps.length,
     error: scanError,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput,
+  // `protected` viaja calculado: el frontend no deberia reimplementar la
+  // lista de paquetes criticos para poder deshabilitar el checkbox.
+  apps.map((a) => ({
+    id: a.id, name: a.name, version: a.version, source: a.source,
+    protected: isProtectedApp(a.id),
+  })));
 }
 
-export async function runAppsActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.apps.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
+// Paquetes que NUNCA se desinstalan desde aca. Desinstalar un runtime o un
+// driver no rompe "una app": rompe todo lo que depende de el, y winget lo hace
+// en silencio con --silent. Se comparan en minusculas contra el ID de winget.
+//
+// La lista es deliberadamente conservadora: ante la duda, se omite. Desinstalar
+// esto sigue siendo posible desde el propio Windows, que si avisa.
+const PROTECTED_APP_PATTERNS = [
+  'microsoft.vclibs', 'microsoft.vcredist', 'microsoft.visualcpp',
+  'microsoft.dotnet', 'microsoft.netframework', 'microsoft.aspnetcore',
+  'microsoft.windowsappruntime', 'microsoft.ui.xaml', 'microsoft.winget',
+  'microsoft.desktopappinstaller', 'microsoft.edgewebview',
+  'microsoft.powershell', 'microsoft.windowsterminal',
+  'nvidia.', 'intel.', 'amd.', 'realtek.',
+  'microsoft.windows', 'microsoft.storeexperiencehost',
+];
 
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+/** Un paquete esta protegido si su ID empieza con o contiene un patron de la lista. */
+export function isProtectedApp(id) {
+  const s = String(id || '').toLowerCase();
+  if (!s) return true;
+  return PROTECTED_APP_PATTERNS.some((p) => s.includes(p));
+}
 
-  writeLog('=== Desinstalacion de aplicaciones - inicio ===');
+export async function runAppsActionNative(envVars, onOutput, onProgress) {
+  const writeLog = makeLogger('apps', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('apps', { dryRun, writeLog });
+
+  writeLog(`=== Desinstalacion de aplicaciones - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   const selection = envVars.OPTIMIZE_APPS || '';
   const ids = selection.split(',').map((s) => s.trim()).filter(Boolean);
@@ -90,20 +105,44 @@ export async function runAppsActionNative(envVars, onOutput) {
     return;
   }
 
-  let uninstalled = 0, errors = 0;
+  let uninstalled = 0, errors = 0, skipped = 0;
 
-  for (const id of ids) {
+  for (const [i, id] of ids.entries()) {
+    // Desinstalar varias apps con winget tarda minutos; sin esto la unica
+    // senial de avance eran las lineas del log.
+    onProgress?.({
+      current: i + 1,
+      total: ids.length,
+      percentage: Math.round(((i + 1) / ids.length) * 100),
+    });
+
+    if (isProtectedApp(id)) {
+      skipped++;
+      writeLog(`OMITIDO (paquete protegido del sistema): ${id}`);
+      continue;
+    }
+
     writeLog(`Desinstalando: ${id}...`);
-    const ur = await spawnCapture('winget', ['uninstall', '--id', id, '--silent', '--accept-source-agreements']);
-    if (ur.code === 0) {
+    const r = await guard(
+      `Desinstalar ${id}`,
+      () => spawnCapture('winget', ['uninstall', '--id', id, '--silent', '--accept-source-agreements']),
+      // Sin previousValue: desinstalar no se puede deshacer desde la app.
+      { target: id },
+    );
+    if (r.simulated) continue;
+    if (r.ok) {
       uninstalled++;
       writeLog(`  Desinstalado: ${id}`);
     } else {
       errors++;
-      writeLog(`  ERROR desinstalando ${id}: ${(ur.stderr || ur.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`  ERROR desinstalando ${id}: ${errText(r)}`);
     }
   }
 
-  writeLog(`Resumen: ${uninstalled} desinstalados, ${errors} errores`);
+  writeLog(
+    dryRun
+      ? `Simulacion: ${ids.length - skipped} se desinstalarian, ${skipped} omitidos por proteccion`
+      : `Resumen: ${uninstalled} desinstalados, ${skipped} omitidos por proteccion, ${errors} errores`,
+  );
   writeLog('=== Desinstalacion de aplicaciones - fin ===');
 }

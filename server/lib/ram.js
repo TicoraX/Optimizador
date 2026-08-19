@@ -1,6 +1,7 @@
-import { existsSync, writeFileSync, appendFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture, isAdminWindows, parseCsvLine } from './shared.js';
+import {
+  spawnCapture, isAdminWindows, parseCsvLine,
+  makeLogger, makeGuard, prepareReport, finishReport, errText,
+} from './shared.js';
 
 // ═══════════════════════════════════════════════════════
 // RAM optimizer — ejecucion nativa en Node (sin powershell.exe)
@@ -214,12 +215,8 @@ function classifyProcessTier(name, hasWindow) {
 }
 
 export async function runRamScanNative(cleanMode, minMB, onOutput) {
-  const reportsDir = join(MODULES.ram.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `ram-report-${today}.md`);
-  const countsPath = join(reportsDir, 'ram-counts.json');
+  const paths = prepareReport('ram');
+  const { today, reportPath } = paths;
 
   onOutput('Obteniendo memoria del sistema...');
 
@@ -348,10 +345,8 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
   lines.push(`- Procesos criticos (no tocar): ${criticalProcs.length}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-
   const top5 = topCandidates.slice(0, 5).map((p) => ({ name: p.name, pid: p.pid, mb: p.memMB, desc: p.knownDesc }));
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     total_mb: totalRamMB, used_mb: usedRamMB, free_mb: freeRamMB,
     usage_percent: usagePercent,
@@ -360,27 +355,27 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
     unknown_processes: unknownProcs.length,
     risky_processes: riskyProcs.length,
     critical_processes: criticalProcs.length,
-    top_processes: top5, error: false,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
-  onOutput(`Conteos generados en: ${countsPath}`);
+    top_processes: top5,
+    // Antes esto era `false` fijo: el dashboard no podia distinguir "no hay
+    // procesos" de "el escaneo fallo".
+    error: processes.length === 0,
+  }, onOutput,
+  // Por PID, no por indice: la accion re-valida el tier del PID en vivo antes
+  // de matar nada. Los criticos no viajan, no son seleccionables.
+  {
+    known: knownProcs.map((p) => ({ pid: p.pid, name: p.name, memMB: p.memMB, desc: p.knownDesc })),
+    unknown: unknownProcs.map((p) => ({ pid: p.pid, name: p.name, memMB: p.memMB })),
+    risky: riskyProcs.map((p) => ({ pid: p.pid, name: p.name, memMB: p.memMB })),
+  });
 }
 
 /** Termina procesos seleccionados por el usuario (via taskkill). */
 export async function runRamActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.ram.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, MODULES.ram.logFile);
+  const writeLog = makeLogger('ram', onOutput);
+  const dryRun = envVars.DRY_RUN === 'true';
+  const guard = makeGuard('ram', { dryRun, writeLog });
 
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
-
-  writeLog('=== Liberacion de RAM - inicio ===');
+  writeLog(`=== Liberacion de RAM - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
   // Re-escanear procesos actuales (mismas columnas/criterio que el scan)
   const procResult = await spawnCapture('tasklist', ['/V', '/FO', 'CSV', '/NH']);
@@ -447,14 +442,20 @@ export async function runRamActionNative(envVars, onOutput) {
       writeLog(`OMITIDO (clasificacion cambio a '${p.tier}', ya no es seguro liberarlo automaticamente): ${p.name} (PID: ${pid})`);
       return;
     }
-    const r = await spawnCapture('taskkill', ['/PID', String(pid), '/F']);
-    if (r.code === 0) {
+    const r = await guard(
+      `Terminar ${p.name} (PID ${pid}, ${p.memMB} MB)`,
+      () => spawnCapture('taskkill', ['/PID', String(pid), '/F']),
+      // Sin previousValue: un proceso terminado no se puede restaurar.
+      { target: `${p.name} (PID ${pid})`, memMB: p.memMB, tier: p.tier },
+    );
+    if (r.simulated) return;
+    if (r.ok) {
       killed++;
       freedMB += p.memMB;
       writeLog(`Liberado${label}: ${p.name} (PID: ${pid}) - ${p.memMB} MB`);
     } else {
       errors++;
-      writeLog(`ERROR liberando ${p.name} (PID: ${pid}): ${(r.stderr || r.stdout || '').trim().slice(0, 200)}`);
+      writeLog(`ERROR liberando ${p.name} (PID: ${pid}): ${errText(r)}`);
     }
   }
 
@@ -477,12 +478,24 @@ export async function runRamActionNative(envVars, onOutput) {
   // Liberar memoria standby via EmptyWorkingSet (mueve paginas de cada
   // proceso a la standby list - no reduce el "RAM en uso" reportado por si
   // solo, ver vaciado real de standby list mas abajo).
+  //
+  // Pasa por el guard igual que taskkill: aunque no mata nada, MUTA el estado
+  // de memoria de todos los procesos del sistema. Antes corria incluso en
+  // simulacion, o sea que "Ver que va a pasar" en RAM vaciaba working sets de
+  // verdad — justo lo que la simulacion promete no hacer.
   writeLog('Liberando working sets...');
-  const standbyResult = await spawnCapture('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-Command',
-    'Get-Process | ForEach-Object { try { $_.EmptyWorkingSet() } catch {} }',
-  ]);
-  writeLog(standbyResult.code === 0 ? 'Working sets liberados.' : 'Error al liberar working sets.');
+  const standbyResult = await guard(
+    'Vaciar el working set de todos los procesos (EmptyWorkingSet)',
+    () => spawnCapture('powershell.exe', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      'Get-Process | ForEach-Object { try { $_.EmptyWorkingSet() } catch {} }',
+    ]),
+    // Sin previousValue: el estado de memoria previo no se puede restaurar.
+    { target: 'working sets del sistema' },
+  );
+  if (!standbyResult.simulated) {
+    writeLog(standbyResult.ok ? 'Working sets liberados.' : 'Error al liberar working sets.');
+  }
 
   // Vaciado real de la standby list (requiere administrador). Esto SI baja
   // el % de uso de RAM reportado, a diferencia de EmptyWorkingSet.
@@ -491,17 +504,23 @@ export async function runRamActionNative(envVars, onOutput) {
     writeLog('Vaciar lista en espera: OMITIDO (requiere ejecutar el servidor como administrador).');
   } else {
     writeLog('Vaciando lista en espera (standby list)...');
-    const purgeResult = await spawnCapture('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-Command', PURGE_STANDBY_LIST_SCRIPT,
-    ]);
-    const m = (purgeResult.stdout || '').match(/NTSTATUS:(-?\d+)\|(True|False)\|(True|False)/);
-    const status = m ? parseInt(m[1], 10) : null;
-    if (purgeResult.code === 0 && status === 0) {
-      writeLog('Lista en espera vaciada correctamente.');
-    } else if (m && (m[2] === 'False' || m[3] === 'False')) {
-      writeLog(`ERROR vaciando lista en espera: el token de administrador no tiene el privilegio necesario (SeProfileSingleProcessPrivilege=${m[2]}, SeIncreaseQuotaPrivilege=${m[3]}). Revisa la directiva de seguridad local "Asignacion de derechos de usuario".`);
-    } else {
-      writeLog(`ERROR vaciando lista en espera (NTSTATUS=${status ?? 'desconocido'}): ${(purgeResult.stderr || '').trim().slice(0, 200)}`);
+    const purgeResult = await guard(
+      'Vaciar la lista en espera de memoria (standby list)',
+      () => spawnCapture('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command', PURGE_STANDBY_LIST_SCRIPT,
+      ]),
+      { target: 'standby list del sistema' },
+    );
+    if (!purgeResult.simulated) {
+      const m = (purgeResult.stdout || '').match(/NTSTATUS:(-?\d+)\|(True|False)\|(True|False)/);
+      const status = m ? parseInt(m[1], 10) : null;
+      if (purgeResult.code === 0 && status === 0) {
+        writeLog('Lista en espera vaciada correctamente.');
+      } else if (m && (m[2] === 'False' || m[3] === 'False')) {
+        writeLog(`ERROR vaciando lista en espera: el token de administrador no tiene el privilegio necesario (SeProfileSingleProcessPrivilege=${m[2]}, SeIncreaseQuotaPrivilege=${m[3]}). Revisa la directiva de seguridad local "Asignacion de derechos de usuario".`);
+      } else {
+        writeLog(`ERROR vaciando lista en espera (NTSTATUS=${status ?? 'desconocido'}): ${(purgeResult.stderr || '').trim().slice(0, 200)}`);
+      }
     }
   }
 

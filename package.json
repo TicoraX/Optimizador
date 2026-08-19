@@ -1,6 +1,6 @@
 {
   "name": "optimizador",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -19,8 +19,18 @@
       "server/package.json",
       "frontend/dist/**"
     ],
-    "win": { "target": "nsis" },
-    "publish": { "provider": "github", "owner": "TicoraX", "repo": "Optimizador" }
+    "extraResources": [
+      "scripts/Notify.ps1",
+      "scripts/Apply-Hosts.ps1"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "TicoraX",
+      "repo": "Optimizador"
+    }
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -29,6 +39,7 @@
   "dependencies": {
     "electron-updater": "^6.3.0",
     "express": "^4.21.0",
-    "cors": "^2.8.5"
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0"
   }
 }

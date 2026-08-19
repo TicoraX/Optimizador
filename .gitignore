@@ -15,3 +15,5 @@ dist-ssr/
 *.bak
 *.bak-*
 test_output.txt
+reports/
+*/reports/

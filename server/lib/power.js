@@ -1,6 +1,27 @@
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MODULES, spawnCapture } from './shared.js';
+import {
+  spawnCapture, makeLogger, prepareReport, finishReport, errText,
+} from './shared.js';
+
+// Una sola consulta para bateria, CPU, GPU, RAM y discos.
+//
+// Antes esto eran 4 invocaciones separadas de PowerShell, cada una pagando
+// ~200 ms solo en arrancar el interprete. Y la de CPU devolvia 4 valores en
+// lineas sueltas que se leian POR POSICION: si LoadPercentage venia vacio, el
+// array se corria y cpuName terminaba siendo el numero de nucleos. Devolver un
+// objeto JSON resuelve las dos cosas.
+const SYSTEM_INFO_PS = `$ErrorActionPreference='SilentlyContinue'
+$bat = Get-CimInstance Win32_Battery | Select-Object -First 1
+$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+$gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1
+$mem = @(Get-CimInstance Win32_PhysicalMemory)
+[pscustomobject]@{
+  battery = if($bat){@{pct=$bat.EstimatedChargeRemaining;runtime=$bat.EstimatedRunTime;status=$bat.BatteryStatus;full=$bat.FullChargeCapacity;design=$bat.DesignCapacity;volt=$bat.DesignVoltage}}else{$null}
+  cpu = @{load=$cpu.LoadPercentage;name=$cpu.Name;cores=$cpu.NumberOfCores}
+  gpu = if($gpu){@{name=$gpu.Name;ram=$gpu.AdapterRAM}}else{$null}
+  ramBytes = ($mem | Measure-Object -Property Capacity -Sum).Sum
+  ramSticks = $mem.Count
+  diskCount = @(Get-CimInstance Win32_DiskDrive).Count
+} | ConvertTo-Json -Compress -Depth 4`;
 
 function fmtMinutes(totalMin) {
   if (!totalMin || totalMin <= 0) return 'N/A';
@@ -10,12 +31,8 @@ function fmtMinutes(totalMin) {
 }
 
 export async function runPowerScanNative(onOutput) {
-  const reportsDir = join(MODULES.power.dir, 'reports');
-  if (!existsSync(reportsDir)) mkdirSync(reportsDir, { recursive: true });
-
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = join(reportsDir, `power-report-${today}.md`);
-  const countsPath = join(reportsDir, 'power-counts.json');
+  const paths = prepareReport('power');
+  const { today, reportPath } = paths;
 
   let scanError = false;
   onOutput('Obteniendo plan de energía activo...');
@@ -39,79 +56,87 @@ export async function runPowerScanNative(onOutput) {
         plans.push({ guid: guidM[1], name: nameM[1], active: line.includes('*') });
       }
     }
-  } else { scanError = true; }
+  } else {
+    scanError = true;
+    onOutput(`Error listando planes de energía: ${errText(listResult)}`);
+  }
 
   let batteryPct = null, batteryStatus = '', runtimeMin = null, powerWatts = null;
   let capFull = null, capDesign = null, wearPct = null;
-  onOutput('Consultando batería...');
-  const batResult = await spawnCapture('powershell', [
-    '-NoProfile', '-NonInteractive',
-    '-Command',
-    'Get-CimInstance Win32_Battery | Select-Object -First 1 | Select-Object EstimatedChargeRemaining,EstimatedRunTime,BatteryStatus,FullChargeCapacity,DesignCapacity,DesignVoltage | ConvertTo-Json -Compress',
+  onOutput('Consultando hardware del sistema...');
+  const sysResult = await spawnCapture('powershell', [
+    '-NoProfile', '-NonInteractive', '-Command', SYSTEM_INFO_PS,
   ]);
-  if (batResult.code === 0 && batResult.stdout.trim()) {
+  let sysInfo = null;
+  if (sysResult.code === 0 && sysResult.stdout.trim()) {
     try {
-      const b = JSON.parse(batResult.stdout.trim());
-      if (b && b.EstimatedChargeRemaining != null) {
-        batteryPct = parseInt(b.EstimatedChargeRemaining, 10);
-        if (!Number.isFinite(batteryPct)) batteryPct = null;
+      sysInfo = JSON.parse(sysResult.stdout.trim());
+    } catch (e) {
+      onOutput(`Error parseando informacion del sistema: ${e.message}`);
+      scanError = true;
+    }
+  } else {
+    scanError = true;
+    onOutput(`Error consultando hardware: ${errText(sysResult)}`);
+  }
 
-        const rawRunTime = parseInt(b.EstimatedRunTime, 10);
-        if (rawRunTime === 4294967295 || !Number.isFinite(rawRunTime) || rawRunTime <= 0) {
-          runtimeMin = null;
+  const b = sysInfo?.battery;
+  if (b && b.pct != null) {
+    batteryPct = parseInt(b.pct, 10);
+    if (!Number.isFinite(batteryPct)) batteryPct = null;
+
+    const rawRunTime = parseInt(b.runtime, 10);
+    if (rawRunTime === 4294967295 || !Number.isFinite(rawRunTime) || rawRunTime <= 0) {
+      runtimeMin = null;
+    } else {
+      // EstimatedRunTime está documentado en segundos, pero algunos drivers reportan minutos.
+      // Si rawRunTime > 3600 (>1h en segundos) → seguro son segundos.
+      // Si rawRunTime < 600 (<10min en segundos) → podría ser minutos (ej. 180 = 3h).
+      if (rawRunTime > 3600) {
+        runtimeMin = Math.round(rawRunTime / 60);
+      } else {
+        // Valor ambiguo: asumir segundos. Si la batería tiene >50% y el runtime
+        // en minutos da <5, el valor probablemente son minutos.
+        const mins = Math.round(rawRunTime / 60);
+        if (mins < 5 && batteryPct !== null && batteryPct > 50) {
+          runtimeMin = Math.round(rawRunTime);
         } else {
-          // EstimatedRunTime está documentado en segundos, pero algunos drivers reportan minutos.
-          // Si rawRunTime > 3600 (>1h en segundos) → seguro son segundos.
-          // Si rawRunTime < 600 (<10min en segundos) → podría ser minutos (ej. 180 = 3h).
-          if (rawRunTime > 3600) {
-            runtimeMin = Math.round(rawRunTime / 60);
-          } else {
-            // Valor ambiguo: asumir segundos. Si la batería tiene >50% y el runtime
-            // en minutos da <5, el valor probablemente son minutos.
-            const mins = Math.round(rawRunTime / 60);
-            if (mins < 5 && batteryPct !== null && batteryPct > 50) {
-              runtimeMin = Math.round(rawRunTime);
-            } else {
-              runtimeMin = mins;
-            }
-          }
-        }
-
-        const bs = parseInt(b.BatteryStatus, 10);
-        if (bs === 1) batteryStatus = 'Descargando';
-        else if (bs === 2 || bs === 3) batteryStatus = 'En CA';
-        else if (bs === 4) batteryStatus = 'Batería baja';
-        else if (bs === 5) batteryStatus = 'Batería crítica';
-        else if (bs >= 6 && bs <= 9) batteryStatus = 'Cargando';
-        else if (bs === 10) batteryStatus = 'Cargando';
-        else if (bs === 11) batteryStatus = 'Parcialmente cargada';
-        else batteryStatus = 'Conectado';
-
-        capFull = parseInt(b.FullChargeCapacity, 10);
-        capDesign = parseInt(b.DesignCapacity, 10);
-        if (!Number.isFinite(capFull) || capFull <= 0) capFull = null;
-        if (!Number.isFinite(capDesign) || capDesign <= 0) capDesign = null;
-
-        // Desgaste de batería (si tenemos ambas capacidades)
-        if (capFull && capDesign && capDesign > 0) {
-          wearPct = Math.round((1 - capFull / capDesign) * 100);
-          if (wearPct < 0) wearPct = 0;
-        }
-
-        // Consumo estimado: disponible siempre que tengamos batería y datos suficientes
-        if (capFull && batteryPct !== null) {
-          const currentMWh = capFull * (batteryPct / 100);
-          if (bs === 1 && runtimeMin > 0 && runtimeMin !== null) {
-            // Descargando con runtime conocido → cálculo preciso
-            powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
-          } else if (runtimeMin && runtimeMin > 0) {
-            // En CA pero con runtime del último descargo → estimado
-            powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
-          }
+          runtimeMin = mins;
         }
       }
-    } catch (e) {
-      onOutput(`Error parseando batería: ${e.message}`);
+    }
+
+    const bs = parseInt(b.status, 10);
+    if (bs === 1) batteryStatus = 'Descargando';
+    else if (bs === 2 || bs === 3) batteryStatus = 'En CA';
+    else if (bs === 4) batteryStatus = 'Batería baja';
+    else if (bs === 5) batteryStatus = 'Batería crítica';
+    else if (bs >= 6 && bs <= 9) batteryStatus = 'Cargando';
+    else if (bs === 10) batteryStatus = 'Cargando';
+    else if (bs === 11) batteryStatus = 'Parcialmente cargada';
+    else batteryStatus = 'Conectado';
+
+    capFull = parseInt(b.full, 10);
+    capDesign = parseInt(b.design, 10);
+    if (!Number.isFinite(capFull) || capFull <= 0) capFull = null;
+    if (!Number.isFinite(capDesign) || capDesign <= 0) capDesign = null;
+
+    // Desgaste de batería (si tenemos ambas capacidades)
+    if (capFull && capDesign && capDesign > 0) {
+      wearPct = Math.round((1 - capFull / capDesign) * 100);
+      if (wearPct < 0) wearPct = 0;
+    }
+
+    // Consumo estimado: disponible siempre que tengamos batería y datos suficientes
+    if (capFull && batteryPct !== null) {
+      const currentMWh = capFull * (batteryPct / 100);
+      if (bs === 1 && runtimeMin > 0 && runtimeMin !== null) {
+        // Descargando con runtime conocido → cálculo preciso
+        powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
+      } else if (runtimeMin && runtimeMin > 0) {
+        // En CA pero con runtime del último descargo → estimado
+        powerWatts = Math.round(currentMWh / 1000 / (runtimeMin / 60));
+      }
     }
   }
 
@@ -124,17 +149,11 @@ export async function runPowerScanNative(onOutput) {
   let diskCount = 0, diskWatts = 0;
   let moboWatts = 15, otherWatts = 5;
 
-  onOutput('Consultando componentes del sistema...');
-
-  const cpuResult = await spawnCapture('powershell', [
-    '-NoProfile', '-NonInteractive', '-Command',
-    '(Get-CimInstance Win32_Processor | Select-Object -First 1).LoadPercentage; (Get-CimInstance Win32_Processor | Select-Object -First 1).Name; (Get-CimInstance Win32_Processor | Select-Object -First 1).NumberOfCores; (Get-Counter "\\Processor(_Total)\\ % Processor Time" -MaxSamples 1).CounterSamples.CookedValue',
-  ]);
-  if (cpuResult.code === 0 && cpuResult.stdout.trim()) {
-    const ps = cpuResult.stdout.trim().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    const lp = parseFloat(ps[0]);
+  // Los datos ya vinieron en la consulta batcheada de arriba.
+  if (sysInfo?.cpu) {
+    const lp = parseFloat(sysInfo.cpu.load);
     if (Number.isFinite(lp) && lp >= 0) cpuLoad = Math.round(lp);
-    if (ps.length > 1) cpuName = ps[1] || '';
+    cpuName = String(sysInfo.cpu.name || '').trim();
     // Estimar TDP por modelo
     const cn = cpuName.toLowerCase();
     if (cn.includes('i9') || cn.includes('9 99') || cn.includes('threadripper') || cn.includes('5950') || cn.includes('7950')) cpuTDP = 125;
@@ -159,17 +178,13 @@ export async function runPowerScanNative(onOutput) {
       gpuMethod = 'real';
     }
   }
-  // Fallback GPU: WMI para nombre + estimación por TDP
+  // Fallback GPU: nombre del batch + estimación por TDP
   if (!gpuWattsVal) {
-    const wmiResult = await spawnCapture('powershell', [
-      '-NoProfile', '-NonInteractive', '-Command',
-      'Get-CimInstance Win32_VideoController | Select-Object -First 1 | Select-Object Name,AdapterRAM | ConvertTo-Json -Compress',
-    ]);
-    if (wmiResult.code === 0 && wmiResult.stdout.trim()) {
-      try {
-        const v = JSON.parse(wmiResult.stdout.trim());
-        if (v && v.Name) {
-          gpuName = v.Name;
+    {
+      {
+        const v = sysInfo?.gpu;
+        if (v && v.name) {
+          gpuName = v.name;
           const gn = gpuName.toLowerCase();
           // RTX 40 series
           if (gn.includes('rtx 4090')) gpuTDP = 450;
@@ -214,34 +229,21 @@ export async function runPowerScanNative(onOutput) {
 
           gpuMethod = gpuTDP > 0 ? 'tdp' : 'shared';
         }
-      } catch (_) {}
+      }
     }
   }
 
-  // RAM
-  const ramResult = await spawnCapture('powershell', [
-    '-NoProfile', '-NonInteractive', '-Command',
-    '$m = Get-CimInstance Win32_PhysicalMemory; Write-Output ($m | Measure-Object -Property Capacity -Sum).Sum; $m.Count',
-  ]);
-  if (ramResult.code === 0 && ramResult.stdout.trim()) {
-    const parts = ramResult.stdout.trim().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-    if (parts.length > 0) {
-      const totalBytes = parseFloat(parts[0]);
-      if (Number.isFinite(totalBytes) && totalBytes > 0) ramGB = Math.round(totalBytes / (1024 * 1024 * 1024));
-    }
-    if (parts.length > 1) ramSticks = parseInt(parts[1], 10);
+  // RAM y discos: tambien del batch.
+  if (sysInfo) {
+    const totalBytes = parseFloat(sysInfo.ramBytes);
+    if (Number.isFinite(totalBytes) && totalBytes > 0) ramGB = Math.round(totalBytes / (1024 * 1024 * 1024));
+    ramSticks = parseInt(sysInfo.ramSticks, 10);
     if (!Number.isFinite(ramSticks) || ramSticks < 1) ramSticks = Math.max(1, Math.round(ramGB / 8));
     ramWatts = ramSticks * 3;
-  }
 
-  // Discos físicos
-  const diskResult = await spawnCapture('powershell', [
-    '-NoProfile', '-NonInteractive', '-Command',
-    '(Get-CimInstance Win32_DiskDrive).Count',
-  ]);
-  if (diskResult.code === 0 && diskResult.stdout.trim()) {
-    diskCount = parseInt(diskResult.stdout.trim(), 10);
+    diskCount = parseInt(sysInfo.diskCount, 10);
     if (Number.isFinite(diskCount) && diskCount > 0) diskWatts = diskCount * 5;
+    else diskCount = 0;
   }
 
   // Armar desglose de componentes
@@ -371,9 +373,7 @@ export async function runPowerScanNative(onOutput) {
   if (diskCount > 0) lines.push(`- Discos: ${diskCount}`);
   lines.push('');
 
-  writeFileSync(reportPath, lines.join('\n') + '\n', 'utf-8');
-
-  writeFileSync(countsPath, JSON.stringify({
+  finishReport(paths, lines, {
     date: today, reportPath,
     active_plan: activeName || 'Unknown',
     active_guid: activeGuid,
@@ -408,45 +408,47 @@ export async function runPowerScanNative(onOutput) {
     plan_cooling: null,
     plan_sleep_standby: null,
     error: scanError,
-  }, null, 2), 'utf-8');
-
-  onOutput(`Reporte generado en: ${reportPath}`);
+  }, onOutput,
+  // `guid` es lo que la accion usa para resolver el plan. `index` queda solo
+  // para numerar la lista en el reporte.
+  plans.map((p, i) => ({ index: i + 1, guid: p.guid, name: p.name, active: p.active })));
 }
 
 export async function runPowerActionNative(envVars, onOutput) {
-  const logDir = join(MODULES.power.dir, 'reports');
-  if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
-  const logPath = join(logDir, 'optimize-log.txt');
-
-  const writeLog = (message) => {
-    const stamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const line = `[${stamp}] ${message.replace(/[\r\n]/g, ' ')}`;
-    appendFileSync(logPath, line + '\n');
-    onOutput(line);
-  };
+  const writeLog = makeLogger('power', onOutput);
 
   writeLog('=== Cambio de plan de energía - inicio ===');
 
-  const planIndex = parseInt(envVars.PLAN_INDEX, 10);
-  if (!planIndex || planIndex < 1) {
+  // Por GUID, no por posicion. `powercfg /list` puede cambiar de orden si se
+  // crea o borra un plan entre el escaneo y el clic, y ahi el indice N pasa a
+  // apuntar a otro plan. El GUID identifica al plan sin ambiguedad.
+  const planGuid = String(envVars.PLAN_GUID || '').trim().toLowerCase();
+  if (!planGuid) {
     writeLog('No se seleccionó un plan válido.');
     writeLog('=== Cambio de plan de energía - fin ===');
     return;
   }
 
-  // Re-escanear planes
+  // Re-escanear planes.
+  //
+  // Antes esto exigia el literal ingles /^Power Scheme GUID:/. En un Windows en
+  // español la linea dice "GUID del plan de energía:", asi que la lista quedaba
+  // vacia y la accion respondia "Indice fuera de rango" SIEMPRE: el modulo era
+  // inutilizable en el idioma para el que esta escrita toda la app. Se usa el
+  // mismo regex agnostico de idioma que ya usaba el scan.
   const listResult = await spawnCapture('powercfg', ['/list']);
   const plans = [];
   if (listResult.code === 0) {
     for (const line of listResult.stdout.split(/\r?\n/)) {
-      const m = line.match(/^Power Scheme GUID:\s+(\S+)\s+\((.+?)\)/);
-      if (m) plans.push({ guid: m[1], name: m[2] });
+      const guidM = line.match(/([\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12})/);
+      const nameM = line.match(/\((.+?)\)/);
+      if (guidM && nameM) plans.push({ guid: guidM[1], name: nameM[1] });
     }
   }
 
-  const target = plans[planIndex - 1];
+  const target = plans.find((p) => p.guid.toLowerCase() === planGuid);
   if (!target) {
-    writeLog(`Índice ${planIndex} fuera de rango.`);
+    writeLog(`El plan ${planGuid} ya no existe en este equipo. Volvé a escanear.`);
     writeLog('=== Cambio de plan de energía - fin ===');
     return;
   }
@@ -456,7 +458,7 @@ export async function runPowerActionNative(envVars, onOutput) {
   if (setResult.code === 0) {
     writeLog(`Plan activado: ${target.name}`);
   } else {
-    writeLog(`ERROR al cambiar plan: ${(setResult.stderr || setResult.stdout || '').trim().slice(0, 200)}`);
+    writeLog(`ERROR al cambiar plan: ${errText(setResult)}`);
   }
 
   writeLog('=== Cambio de plan de energía - fin ===');

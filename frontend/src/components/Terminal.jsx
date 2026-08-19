@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function Terminal({ logs, isRunning, onAbort, progress }) {
   const terminalEndRef = useRef(null);
@@ -31,10 +31,21 @@ export default function Terminal({ logs, isRunning, onAbort, progress }) {
         )}
       </div>
 
-      {/* Progress bar — only shown when backend emits progress events */}
+      {/* Solo aparece cuando el modulo emite eventos `progress`.
+          La etiqueta va FUERA del riel: el riel mide 3px con overflow hidden,
+          asi que adentro el texto quedaba recortado y no se leia nunca. */}
       {hasProgress && (
-        <div className="terminal-progress-wrap">
-          <div className="terminal-progress-bar" style={{ width: `${progress.percentage}%` }} />
+        <div className="terminal-progress">
+          <div className="terminal-progress-wrap">
+            <div
+              className="terminal-progress-bar"
+              style={{ width: `${progress.percentage}%` }}
+              role="progressbar"
+              aria-valuenow={progress.percentage}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
           <span className="terminal-progress-label">
             {progress.total
               ? `Paso ${progress.current} de ${progress.total} — ${progress.percentage}%`

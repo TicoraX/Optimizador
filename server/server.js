@@ -1,5 +1,7 @@
 import express from 'express';
-import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { readFileSync, existsSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
@@ -9,8 +11,9 @@ import {
   validateModule, validateDate, validateTask, validateTime, validateFrequency,
   validateWeekdays, validateIntervalDays, validateBooleanField, validateIndexList,
   validateDays, validateMinRamMB, normalizeSchTaskStatus, loadJsonSafe,
-  findLatestReport, buildReportPath, safeHandler,
+  findLatestReport, buildReportPath, safeHandler, loadItems, getScanTimeline,
 } from './lib/shared.js';
+import { listAllChanges, undoChange } from './lib/changes.js';
 import { runCleanupScanNative, runCleanupActionNative } from './lib/cleanup.js';
 import { runUpdatesScanNative, runUpdatesActionNative } from './lib/updates.js';
 import { runStartupScanNative, runStartupActionNative } from './lib/startup.js';
@@ -20,19 +23,168 @@ import { runServicesScanNative, runServicesActionNative } from './lib/services.j
 import { runPowerScanNative, runPowerActionNative } from './lib/power.js';
 import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
+import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
+import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
+import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrity.js';
+import { runContextMenuScanNative, runContextMenuActionNative } from './lib/contextmenu.js';
+import { runOemDebloatScanNative, runOemDebloatActionNative } from './lib/oemdebloat.js';
+import { runTimersScanNative, runTimersActionNative } from './lib/timers.js';
+import { runGhostDevicesScanNative, runGhostDevicesActionNative } from './lib/ghostdevices.js';
+import { runSearchIndexScanNative, runSearchIndexActionNative } from './lib/searchindex.js';
+import { runDnsFlushScanNative, runDnsFlushActionNative } from './lib/dnsflush.js';
+import { runNetworkPrivacyScanNative, runNetworkPrivacyActionNative } from './lib/networkprivacy.js';
+import { runPagefileScanNative, runPagefileActionNative } from './lib/pagefile.js';
+import { runWerFaultScanNative, runWerFaultActionNative } from './lib/werfault.js';
+import { getSystemTelemetry } from './lib/system.js';
+import { getRestorePoints, createRestorePoint } from './lib/restore.js';
+import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
+import { calculateHealthScore } from './lib/healthscore.js';
+import { generateSystemExport } from './lib/exportreport.js';
 
 const app = express();
+app.disable('x-powered-by');
 
-// ── CORS: restringir origen en produccion si se desea ──
-app.use(cors());
+const PORT = process.env.PORT || 3001;
+
+// ═══════════════════════════════════════════════════════
+// Seguridad
+// ═══════════════════════════════════════════════════════
+// El backend escucha en 127.0.0.1, pero eso NO es una frontera de seguridad:
+// cualquier pagina abierta en el navegador del usuario puede hacer fetch a
+// localhost. Sin esta defensa, una web arbitraria dispara POST /api/action/*
+// y mata procesos, desinstala apps o borra archivos.
+//
+// Se corto la dependencia `cors` a proposito: la app se sirve del mismo origen
+// que su API, asi que no necesita headers CORS. Y `cors()` sin opciones emitia
+// Access-Control-Allow-Origin: * en todas las rutas, incluidas las destructivas.
+//
+// La defensa son dos headers que el JS de una pagina NO puede falsificar ni
+// omitir: `Origin` y `Sec-Fetch-Site`. Un token de sesion no agregaria nada
+// contra este atacante, y solo cubriria a un proceso local que ya corre con
+// los privilegios del usuario.
+const ALLOWED_ORIGINS = new Set([
+  `http://127.0.0.1:${PORT}`,
+  `http://localhost:${PORT}`,
+  'http://127.0.0.1:5173', // vite dev
+  'http://localhost:5173',
+]);
+
+app.use((req, res, next) => {
+  // Los GET de solo lectura no cambian estado; el navegador ya impide leer la
+  // respuesta cross-origin sin CORS, que es justamente lo que ya no emitimos.
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+
+  const site = req.get('sec-fetch-site');
+  const origin = req.get('origin');
+  const crossSite = site && site !== 'same-origin' && site !== 'none';
+  const badOrigin = origin && !ALLOWED_ORIGINS.has(origin);
+
+  if (crossSite || badOrigin) {
+    console.warn(`[seguridad] ${req.method} ${req.path} rechazado (origin=${origin || '-'} sec-fetch-site=${site || '-'})`);
+    return res.status(403).json({ error: 'Origen no permitido' });
+  }
+  next();
+});
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      // Vite inyecta el CSS del bundle como <style>; los reportes no aportan CSS.
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      fontSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'none'"],
+      // La app se sirve por http://127.0.0.1; forzar el upgrade a https no
+      // aporta nada aca y solo puede romper la carga.
+      upgradeInsecureRequests: null,
+    },
+  },
+  // La app es local y se sirve por http; HSTS forzaria https y la romperia.
+  hsts: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+// ── Rate limiting ──
+// El frontend dispara varios requests por vista, de ahi el global holgado.
+// Los escaneos spawnean winget/pip/npm/choco; las acciones modifican el sistema.
+const limiterMsg = (retryMin) => ({
+  error: `Demasiadas peticiones. Espera ${retryMin} minutos e intenta de nuevo.`,
+});
+const onLimit = (req, res, _next, options) => {
+  console.warn(`[seguridad] rate limit excedido: ${req.method} ${req.originalUrl}`);
+  res.status(options.statusCode).json(options.message);
+};
+
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 400, message: limiterMsg(15), handler: onLimit,
+}));
+app.use('/api/scan', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 30, message: limiterMsg(15), handler: onLimit,
+}));
+app.use('/api/action', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10, message: limiterMsg(15), handler: onLimit,
+}));
 
 // ── Limitar tamanio del body JSON para mitigar DoS ──
 app.use(express.json({ limit: '16kb' }));
 
 // ═══════════════════════════════════════════════════════
 // GET /api/health — health check rapido
+// GET /api/system/metrics — telemetría en tiempo real (CPU, RAM, Discos)
 // ═══════════════════════════════════════════════════════
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
+app.get('/api/system/metrics', safeHandler(async (_req, res) => {
+  const telemetry = await getSystemTelemetry();
+  res.json(telemetry);
+}));
+
+// ═══════════════════════════════════════════════════════
+// Puntos de Restauración de Windows
+// ═══════════════════════════════════════════════════════
+app.get('/api/restore/points', safeHandler(async (_req, res) => {
+  const result = await getRestorePoints();
+  res.json(result);
+}));
+
+app.post('/api/restore/create', safeHandler(async (req, res) => {
+  const description = req.body?.description;
+  const result = await createRestorePoint(description);
+  if (!result.ok) {
+    return res.status(500).json({ error: result.error });
+  }
+  res.json(result);
+}));
+
+// ═══════════════════════════════════════════════════════
+// GET /api/timeline — historial cronológico de escaneos
+// ═══════════════════════════════════════════════════════
+app.get('/api/timeline', safeHandler((_req, res) => {
+  const timeline = getScanTimeline();
+  res.json(timeline);
+}));
+
+// ═══════════════════════════════════════════════════════
+// Buscador de Archivos Gigantes
+// ═══════════════════════════════════════════════════════
+app.get('/api/large-files', safeHandler(async (req, res) => {
+  const minSizeMB = Math.max(50, Math.min(10000, Number(req.query.minSizeMB) || 250));
+  const result = await findLargeFiles(minSizeMB);
+  res.json(result);
+}));
+
+app.post('/api/large-files/reveal', safeHandler(async (req, res) => {
+  const filePath = req.body?.filePath;
+  if (!filePath) return res.status(400).json({ error: 'Ruta de archivo no proporcionada' });
+  await revealInExplorer(filePath);
+  res.json({ ok: true });
+}));
 
 // ═══════════════════════════════════════════════════════
 // MODULE_HANDLERS — mapa handlers scan/action
@@ -47,6 +199,18 @@ const SCAN_HANDLERS = {
   power: runPowerScanNative,
   apps: runAppsScanNative,
   privacy: runPrivacyScanNative,
+  adblock: runAdblockScanNative,
+  gaming: runGamingScanNative,
+  integrity: runIntegrityScanNative,
+  contextmenu: runContextMenuScanNative,
+  oemdebloat: runOemDebloatScanNative,
+  timers: runTimersScanNative,
+  ghostdevices: runGhostDevicesScanNative,
+  searchindex: runSearchIndexScanNative,
+  dnsflush: runDnsFlushScanNative,
+  networkprivacy: runNetworkPrivacyScanNative,
+  pagefile: runPagefileScanNative,
+  werfault: runWerFaultScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -58,12 +222,24 @@ const ACTION_HANDLERS = {
   power: runPowerActionNative,
   apps: runAppsActionNative,
   privacy: runPrivacyActionNative,
+  adblock: runAdblockActionNative,
+  gaming: runGamingActionNative,
+  integrity: runIntegrityActionNative,
+  contextmenu: runContextMenuActionNative,
+  oemdebloat: runOemDebloatActionNative,
+  timers: runTimersActionNative,
+  ghostdevices: runGhostDevicesActionNative,
+  searchindex: runSearchIndexActionNative,
+  dnsflush: runDnsFlushActionNative,
+  networkprivacy: runNetworkPrivacyActionNative,
+  pagefile: runPagefileActionNative,
+  werfault: runWerFaultActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
 // GET /api/status — estado consolidado (solo lectura)
 // ═══════════════════════════════════════════════════════
-app.get('/api/status', safeHandler((_req, res) => {
+export function getConsolidatedStatus() {
   const emptyMetrics = { count: 0, error: false };
 
   const updateCounts = loadJsonSafe(
@@ -91,7 +267,7 @@ app.get('/api/status', safeHandler((_req, res) => {
     { date: null, total_mb: 0, used_mb: 0, free_mb: 0, usage_percent: 0, total_processes: 0, known_processes: 0, unknown_processes: 0, risky_processes: 0, critical_processes: 0, top_processes: [], error: true },
   );
 
-  res.json({
+  return {
     timestamp: new Date().toISOString(),
     updates: {
       lastScan: updateCounts.date,
@@ -138,6 +314,13 @@ app.get('/api/status', safeHandler((_req, res) => {
         lastScan: n.date,
         dnsCacheEntries: n.dns_cache_entries || 0,
         avgPingMs: n.avg_ping_ms,
+        jitterMs: n.jitter_ms ?? null,
+        p95PingMs: n.p95_ping_ms ?? null,
+        firstHopMs: n.first_hop_ms ?? null,
+        mtu: n.mtu ?? null,
+        powerSavingAdapters: n.power_saving_adapters || 0,
+        bufferbloatDeltaMs: n.bufferbloat_delta_ms ?? null,
+        bestDns: n.best_dns ?? null,
         packetLoss: n.packet_loss || 0,
         activeAdapters: n.active_adapters || 0,
         disconnectedAdapters: n.disconnected_adapters || 0,
@@ -167,7 +350,7 @@ app.get('/api/status', safeHandler((_req, res) => {
       return {
         lastScan: p.date,
         activePlan: p.active_plan || 'N/A',
-        batteryPresent: p.battery_present,
+        batteryPresent: p.battery_present || false,
         batteryPct: p.battery_pct,
         batteryStatus: p.battery_status,
         runtimeMin: p.runtime_min,
@@ -217,6 +400,241 @@ app.get('/api/status', safeHandler((_req, res) => {
         error: p.error,
       };
     })(),
+    adblock: (() => {
+      const a = loadJsonSafe(
+        join(MODULES.adblock.dir, 'reports', MODULES.adblock.countsFile),
+        { date: null, activo: false, blockedDomains: 0, listDomains: 0, listAgeDays: null, error: true },
+      );
+      return {
+        lastScan: a.date,
+        activo: a.activo === true,
+        blockedDomains: a.blockedDomains || 0,
+        listDomains: a.listDomains || 0,
+        listAgeDays: a.listAgeDays,
+        error: a.error,
+      };
+    })(),
+    gaming: (() => {
+      const g = loadJsonSafe(
+        join(MODULES.gaming.dir, 'reports', MODULES.gaming.countsFile),
+        { date: null, gpu: null, optimizedCount: 0, pendingCount: 0, total: 6, error: true },
+      );
+      return {
+        lastScan: g.date,
+        gpu: g.gpu || null,
+        optimizedCount: g.optimizedCount || 0,
+        pendingCount: g.pendingCount || 0,
+        total: g.total || 6,
+        error: g.error,
+      };
+    })(),
+    integrity: (() => {
+      const i = loadJsonSafe(
+        join(MODULES.integrity.dir, 'reports', MODULES.integrity.countsFile),
+        { date: null, dismStatus: 'DESCONOCIDO', sfcStatus: 'DESCONOCIDO', healthy: true, error: true },
+      );
+      return {
+        lastScan: i.date,
+        dismStatus: i.dismStatus || 'DESCONOCIDO',
+        sfcStatus: i.sfcStatus || 'DESCONOCIDO',
+        healthy: i.healthy !== false,
+        error: i.error,
+      };
+    })(),
+    contextmenu: (() => {
+      const c = loadJsonSafe(
+        join(MODULES.contextmenu.dir, 'reports', MODULES.contextmenu.countsFile),
+        { date: null, totalHandlers: 0, thirdPartyCount: 0, activeThirdParty: 0, error: true },
+      );
+      return {
+        lastScan: c.date,
+        totalHandlers: c.totalHandlers || 0,
+        thirdPartyCount: c.thirdPartyCount || 0,
+        activeThirdParty: c.activeThirdParty || 0,
+        error: c.error,
+      };
+    })(),
+    oemdebloat: (() => {
+      const o = loadJsonSafe(
+        join(MODULES.oemdebloat.dir, 'reports', MODULES.oemdebloat.countsFile),
+        { date: null, detectedCount: 0, autoCount: 0, error: true },
+      );
+      return {
+        lastScan: o.date,
+        detectedCount: o.detectedCount || 0,
+        autoCount: o.autoCount || 0,
+        error: o.error,
+      };
+    })(),
+    timers: (() => {
+      const t = loadJsonSafe(
+        join(MODULES.timers.dir, 'reports', MODULES.timers.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 3, error: true },
+      );
+      return {
+        lastScan: t.date,
+        optimizedCount: t.optimizedCount || 0,
+        pendingCount: t.pendingCount || 0,
+        total: t.total || 3,
+        error: t.error,
+      };
+    })(),
+    ghostdevices: (() => {
+      const g = loadJsonSafe(
+        join(MODULES.ghostdevices.dir, 'reports', MODULES.ghostdevices.countsFile),
+        { date: null, totalCount: 0, safeCount: 0, error: true },
+      );
+      return {
+        lastScan: g.date,
+        totalCount: g.totalCount || 0,
+        safeCount: g.safeCount || 0,
+        error: g.error,
+      };
+    })(),
+    searchindex: (() => {
+      const s = loadJsonSafe(
+        join(MODULES.searchindex.dir, 'reports', MODULES.searchindex.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 4, error: true },
+      );
+      return {
+        lastScan: s.date,
+        optimizedCount: s.optimizedCount || 0,
+        pendingCount: s.pendingCount || 0,
+        total: s.total || 4,
+        error: s.error,
+      };
+    })(),
+    dnsflush: (() => {
+      const d = loadJsonSafe(
+        join(MODULES.dnsflush.dir, 'reports', MODULES.dnsflush.countsFile),
+        { date: null, cachedCount: 0, totalActions: 4, error: true },
+      );
+      return {
+        lastScan: d.date,
+        cachedCount: d.cachedCount || 0,
+        totalActions: d.totalActions || 4,
+        error: d.error,
+      };
+    })(),
+    networkprivacy: (() => {
+      const n = loadJsonSafe(
+        join(MODULES.networkprivacy.dir, 'reports', MODULES.networkprivacy.countsFile),
+        { date: null, protectedCount: 0, exposedCount: 0, total: 4, error: true },
+      );
+      return {
+        lastScan: n.date,
+        protectedCount: n.protectedCount || 0,
+        exposedCount: n.exposedCount || 0,
+        total: n.total || 4,
+        error: n.error,
+      };
+    })(),
+    pagefile: (() => {
+      const p = loadJsonSafe(
+        join(MODULES.pagefile.dir, 'reports', MODULES.pagefile.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 3, error: true },
+      );
+      return {
+        lastScan: p.date,
+        optimizedCount: p.optimizedCount || 0,
+        pendingCount: p.pendingCount || 0,
+        total: p.total || 3,
+        error: p.error,
+      };
+    })(),
+    werfault: (() => {
+      const w = loadJsonSafe(
+        join(MODULES.werfault.dir, 'reports', MODULES.werfault.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 4, error: true },
+      );
+      return {
+        lastScan: w.date,
+        optimizedCount: w.optimizedCount || 0,
+        pendingCount: w.pendingCount || 0,
+        total: w.total || 4,
+        error: w.error,
+      };
+    })(),
+  };
+}
+
+app.get('/api/status', safeHandler((_req, res) => {
+  res.json(getConsolidatedStatus());
+}));
+
+app.get('/api/system/export', safeHandler(async (req, res) => {
+  const format = req.query.format === 'json' ? 'json' : 'markdown';
+  const status = getConsolidatedStatus();
+  const content = await generateSystemExport(status, format);
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  if (format === 'json') {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="d1-system-report-${dateStr}.json"`);
+  } else {
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="d1-system-report-${dateStr}.md"`);
+  }
+  res.send(content);
+}));
+
+// ═══════════════════════════════════════════════════════
+// GET /api/health-score & POST /api/quick-optimize
+// ═══════════════════════════════════════════════════════
+app.get('/api/health-score', safeHandler(async (_req, res) => {
+  const status = getConsolidatedStatus();
+  const telemetry = await getSystemTelemetry();
+  const health = calculateHealthScore(status, telemetry);
+  res.json({
+    ...health,
+    timestamp: new Date().toISOString(),
+  });
+}));
+
+app.post('/api/quick-optimize', rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10, message: limiterMsg(15), handler: onLimit,
+}), safeHandler(async (req, res) => {
+  const dryRun = req.body?.dryRun === true;
+  const rawActions = req.body?.actions;
+  if (rawActions !== undefined && !Array.isArray(rawActions)) {
+    const err = new Error('El campo actions debe ser una lista.');
+    err.statusCode = 400;
+    throw err;
+  }
+  const actions = Array.isArray(rawActions) ? rawActions.map(String) : ['cleanup', 'privacy', 'gaming'];
+
+  const status = getConsolidatedStatus();
+  const health = calculateHealthScore(status);
+  const selectedFixes = health.quickFixes.filter((f) => actions.includes(f.id));
+
+  const results = [];
+  for (const fix of selectedFixes) {
+    const handler = ACTION_HANDLERS[fix.module];
+    if (handler) {
+      const logs = [];
+      try {
+        const env = { DRY_RUN: dryRun ? 'true' : 'false' };
+        if (fix.module === 'cleanup') env.CLEAN_CATEGORIES = 'temp,recycle,cache';
+        else if (fix.module === 'privacy') env.OPTIMIZE_PRIVACY = '1,2,3,4,5,6,7,8';
+        else if (fix.module === 'gaming') env.SETTINGS = 'hags,gamemode,gamedvr,fse,networkThrottle,systemResponsiveness';
+        else if (fix.module === 'dnsflush') env.FLUSH_DNS = 'true';
+        else if (fix.module === 'networkprivacy') env.SETTINGS = 'telemetry_diag,ceip_optin,advertising_id,smartscreen_p2p';
+        else if (fix.module === 'pagefile') env.SETTINGS = 'disablepagingexecutive,largesystemcache,clearpagefile';
+        else if (fix.module === 'werfault') env.SETTINGS = 'disableerrorreporting,disablecrashdumps,disablecer,disablesqmlogger';
+
+        await handler(env, (msg) => logs.push(msg));
+        results.push({ id: fix.id, module: fix.module, success: true, logs });
+      } catch (err) {
+        results.push({ id: fix.id, module: fix.module, success: false, error: err.message });
+      }
+    }
+  }
+
+  res.json({
+    ok: true,
+    dryRun,
+    executedCount: results.length,
+    results,
   });
 }));
 
@@ -232,6 +650,40 @@ app.get('/api/reports/:module/latest', safeHandler((req, res) => {
   const content = readFileSync(reportPath, 'utf-8');
   const dateMatch = reportPath.match(/(\d{4}-\d{2}-\d{2})/);
   res.json({ module: req.params.module, date: dateMatch ? dateMatch[0] : null, content });
+}));
+
+// ═══════════════════════════════════════════════════════
+// GET  /api/changes            — diario de todo lo que la app cambio
+// POST /api/changes/:module/:id/undo — revertir un cambio
+// ═══════════════════════════════════════════════════════
+app.get('/api/changes', safeHandler((_req, res) => {
+  res.json({ changes: listAllChanges() });
+}));
+
+app.post('/api/changes/:module/:id/undo', safeHandler(async (req, res) => {
+  validateModule(req.params.module);
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 0) {
+    const err = new Error('id de cambio invalido');
+    err.statusCode = 400;
+    throw err;
+  }
+  const result = await undoChange(req.params.module, id);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true, change: result.change });
+}));
+
+// Elementos seleccionables del ultimo escaneo, ya estructurados.
+//
+// Va ANTES de /:date a proposito: Express matchea en orden y 'items' seria
+// capturado como fecha (y rechazado por validateDate) si fuera despues.
+app.get('/api/reports/:module/items', safeHandler((req, res) => {
+  validateModule(req.params.module);
+  const items = loadItems(req.params.module);
+  if (!items) {
+    return res.status(404).json({ error: 'Este modulo no tiene elementos seleccionables o no se ha escaneado' });
+  }
+  res.json({ module: req.params.module, items });
 }));
 
 app.get('/api/reports/:module/:date', safeHandler((req, res) => {
@@ -286,7 +738,9 @@ function runNativeOverSSE(res, task, timeoutMs = 120000) {
     res.end();
   }, timeoutMs);
 
-  task((line) => send('output', line))
+  // Segundo canal: los modulos con pasos contables reportan avance por aca.
+  // El frontend ya dibujaba la barra; hasta ahora nadie emitia el evento.
+  task((line) => send('output', line), (p) => send('progress', p))
     .then(() => {
       if (settled) return;
       settled = true;
@@ -318,6 +772,12 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
     extraArgs = [ageDays];
   }
 
+  if (req.params.module === 'network') {
+    // El test de saturacion no modifica nada, pero ocupa el enlace unos
+    // segundos: va apagado por defecto y el frontend avisa antes.
+    extraArgs = [validateBooleanField(req.body?.bufferbloat ?? false, 'bufferbloat')];
+  }
+
   if (req.params.module === 'ram') {
     const cleanMode = req.body?.cleanMode === 'deep' ? 'deep' : 'soft';
     const minMB = req.body?.minRamMB !== undefined
@@ -326,34 +786,86 @@ app.post('/api/scan/:module', safeHandler((req, res) => {
     extraArgs = [cleanMode, minMB];
   }
 
-  runNativeOverSSE(res, (onOutput) => handler(...extraArgs, onOutput));
+  // El diagnostico de red encadena ping sostenido, traceroute, MTU y DNS: pasa
+  // holgadamente del minuto y medio por defecto.
+  const timeout = req.params.module === 'network' ? 300000 : undefined;
+  runNativeOverSSE(res, (onOutput, onProgress) => handler(...extraArgs, onOutput, onProgress), timeout);
 }));
 
 // ═══════════════════════════════════════════════════════
 // POST /api/action/:module — ejecuta accion, SSE stream
 // ═══════════════════════════════════════════════════════
 app.post('/api/action/:module', safeHandler((req, res) => {
-  const mod = validateModule(req.params.module);
-
-  if (!mod.action) {
-    return res.status(400).json({ error: 'Este modulo no tiene script de accion' });
-  }
+  validateModule(req.params.module);
+  // El guard `if (!mod.action)` que estaba aca leia metadata de los .ps1, que
+  // ya no existen. La comprobacion real es ACTION_HANDLERS, mas abajo.
 
   const envVars = {};
 
+  // Se elimino `autoConfirm`: el backend lo validaba y lo traducia a
+  // AUTO_CONFIRM, pero ningun modulo lo leia nunca. Era una confirmacion
+  // decorativa. El gate real es la seleccion explicita del usuario, validada
+  // mas abajo: una accion destructiva sin nada seleccionado se rechaza.
+
+  // Simulacion: corre la accion sin tocar nada y reporta exactamente que
+  // HARIA. Alimenta la vista previa antes de confirmar.
+  if (validateBooleanField(req.body?.dryRun ?? false, 'dryRun')) {
+    envVars.DRY_RUN = 'true';
+  }
+
   // ── Validacion estricta de body params ──
-  if (req.body?.autoConfirm !== undefined) {
-    if (validateBooleanField(req.body.autoConfirm, 'autoConfirm')) {
-      envVars.AUTO_CONFIRM = 'true';
+
+  // Startup: IDENTIFICADORES, no indices. Un id es `HKCU\...\Run\Nombre` para
+  // el registro o la ruta del .lnk para un acceso directo. Antes eran indices
+  // sobre la lista del reporte: si entre el escaneo y el clic se agregaba o
+  // quitaba una entrada, el indice apuntaba a otra y se deshabilitaba lo que no
+  // era. Mismo bug que ya habia mordido en services.
+  //
+  // Separador `|` y no coma: un nombre de valor del registro puede contener
+  // comas, una barra vertical no puede aparecer en una ruta de Windows.
+  const validateIdList = (value, field) => {
+    const raw = Array.isArray(value) ? value : String(value || '').split('|');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((id) => id.length > 512 || /[\r\n|]/.test(id));
+    if (bad.length > 0) {
+      const err = new Error(`${field}: identificadores invalidos`);
+      err.statusCode = 400;
+      throw err;
     }
+    return [...new Set(picked)].join('|');
+  };
+
+  // Adblock: la accion es un enum cerrado y las fuentes se validan contra la
+  // whitelist del modulo. Nada de esto se concatena en una URL ni en un
+  // comando; solo indexa objetos.
+  if (req.body?.adblockAction !== undefined) {
+    const a = String(req.body.adblockAction);
+    if (a !== 'apply' && a !== 'remove') {
+      const err = new Error('adblockAction: debe ser apply o remove');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.ADBLOCK_ACTION = a;
+  }
+
+  if (req.body?.sources !== undefined) {
+    const picked = (Array.isArray(req.body.sources) ? req.body.sources : [])
+      .map((s) => String(s).trim());
+    const bad = picked.filter((s) => !FUENTES_VALIDAS.includes(s));
+    if (bad.length > 0) {
+      const err = new Error(`sources: fuente no permitida (${bad.join(', ')})`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.ADBLOCK_SOURCES = [...new Set(picked)].join(',');
   }
 
   if (req.body?.programs !== undefined) {
-    envVars.OPTIMIZE_PROGRAMS = validateIndexList(req.body.programs, 'programs');
+    envVars.OPTIMIZE_PROGRAMS = validateIdList(req.body.programs, 'programs');
   }
 
   if (req.body?.tasks !== undefined) {
-    envVars.OPTIMIZE_TASKS = validateIndexList(req.body.tasks, 'tasks');
+    envVars.OPTIMIZE_TASKS = validateIdList(req.body.tasks, 'tasks');
   }
 
   if (req.body?.processes !== undefined) {
@@ -364,34 +876,55 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     envVars.UNKNOWN_PROCESSES = validateIndexList(req.body.unknownProcesses, 'unknownProcesses');
   }
 
-  // Services: indices de servicios de terceros a deshabilitar.
+  // Services: NOMBRES de servicios de terceros a deshabilitar.
+  // Antes eran indices sobre la lista del reporte, pero el scan la ordenaba por
+  // memoria y la accion no: el indice apuntaba a otro servicio. El nombre es
+  // estable entre scan y accion.
   if (req.body?.services !== undefined) {
-    envVars.OPTIMIZE_SERVICES = validateIndexList(req.body.services, 'services');
-  }
-
-  // Power: indice del plan de energía a activar (1-based, entero).
-  if (req.params.module === 'power' && req.body?.planIndex !== undefined) {
-    const n = Number(req.body.planIndex);
-    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 20) {
-      const err = new Error('planIndex debe ser entero entre 1 y 20');
+    const raw = Array.isArray(req.body.services)
+      ? req.body.services
+      : String(req.body.services || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    // Los nombres de servicio de Windows no llevan coma ni comillas.
+    const bad = picked.filter((n) => !/^[A-Za-z0-9_.\-$ ]{1,256}$/.test(n));
+    if (bad.length > 0) {
+      const err = new Error(`Nombres de servicio invalidos: ${bad.slice(0, 3).join(', ')}`);
       err.statusCode = 400;
       throw err;
     }
-    envVars.PLAN_INDEX = String(n);
+    envVars.OPTIMIZE_SERVICES = [...new Set(picked)].join(',');
+  }
+
+  // Power: GUID del plan a activar. Antes era un indice sobre la lista del
+  // reporte, que se desplaza si se crea o borra un plan entre el escaneo y el
+  // clic. El GUID identifica al plan sin ambiguedad.
+  if (req.params.module === 'power' && req.body?.planGuid !== undefined) {
+    const guid = String(req.body.planGuid || '').trim();
+    if (!/^[\da-fA-F]{8}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{4}-[\da-fA-F]{12}$/.test(guid)) {
+      const err = new Error('planGuid debe ser un GUID valido');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.PLAN_GUID = guid;
   }
 
   // Apps: IDs de paquetes winget a desinstalar, separados por coma.
   if (req.body?.apps !== undefined) {
-    const s = String(req.body.apps || '').trim();
-    if (s === '') {
-      envVars.OPTIMIZE_APPS = '';
-    } else if (/^[a-zA-Z\d._\-]+(,[a-zA-Z\d._\-]+)*$/.test(s)) {
-      envVars.OPTIMIZE_APPS = s;
-    } else {
-      const err = new Error('apps debe ser IDs de paquetes winget separados por coma');
+    const raw = Array.isArray(req.body.apps) ? req.body.apps : String(req.body.apps || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    // El charset anterior no admitia `+`, asi que IDs reales de winget como
+    // `Notepad++.Notepad++` daban 400. Tampoco `\`, que llevan los IDs MSIX
+    // (`MSIX\Microsoft.Microsoft3DViewer_1.0.125.0_x64__8wekyb3d8bbwe`), ni el
+    // espacio ni `&`, que aparecen en IDs publicados. Nada de esto es riesgoso:
+    // spawn corre con shell:false y los argumentos van como array.
+    // La coma queda fuera a proposito: es el separador.
+    const bad = picked.filter((id) => !/^[A-Za-z0-9._+&\-\\ ]{1,200}$/.test(id));
+    if (bad.length > 0) {
+      const err = new Error(`IDs de paquete invalidos: ${bad.slice(0, 3).join(', ')}`);
       err.statusCode = 400;
       throw err;
     }
+    envVars.OPTIMIZE_APPS = [...new Set(picked)].join(',');
   }
 
   // Privacy: indices de ajustes de privacidad a proteger.
@@ -409,15 +942,34 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // deshabilitados). Indices referidos a la lista de "deshabilitados", no a la
   // lista de "activos" que usan programs/tasks arriba.
   if (req.body?.enablePrograms !== undefined) {
-    envVars.ENABLE_PROGRAMS = validateIndexList(req.body.enablePrograms, 'enablePrograms');
+    envVars.ENABLE_PROGRAMS = validateIdList(req.body.enablePrograms, 'enablePrograms');
   }
 
   if (req.body?.enableTasks !== undefined) {
-    envVars.ENABLE_TASKS = validateIndexList(req.body.enableTasks, 'enableTasks');
+    envVars.ENABLE_TASKS = validateIdList(req.body.enableTasks, 'enableTasks');
   }
 
   // DownloadsAgeDays: solo aplica al modulo cleanup. Se pasa via env var
   // (el script lee $env:DOWNLOADS_AGE_DAYS como override de su parametro -DownloadsAgeDays)
+  // Cleanup: categorias a borrar. Sin esto el modulo borraba las 4 sin condicion.
+  if (req.params.module === 'cleanup' && req.body?.cleanCategories !== undefined) {
+    const VALID_CATEGORIES = [
+      'temp', 'windowsUpdate', 'crashDumps', 'devCache', 'shaderCache',
+      'browserCache', 'cache', 'thumbnails', 'recycle', 'downloads',
+    ];
+    const raw = Array.isArray(req.body.cleanCategories)
+      ? req.body.cleanCategories
+      : String(req.body.cleanCategories || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const invalid = picked.filter((c) => !VALID_CATEGORIES.includes(c));
+    if (invalid.length > 0) {
+      const err = new Error(`cleanCategories invalidas: ${invalid.join(', ')}. Validas: ${VALID_CATEGORIES.join(', ')}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.CLEAN_CATEGORIES = [...new Set(picked)].join(',');
+  }
+
   if (req.params.module === 'cleanup' && req.body?.downloadsAgeDays !== undefined) {
     const days = validateDays(req.body.downloadsAgeDays);
     envVars.DOWNLOADS_AGE_DAYS = String(days);
@@ -443,16 +995,37 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // que el default de runNativeOverSSE (2 min, pensado para escaneos).
   const ACTION_TIMEOUT_MS = 600000;
 
+  // Estos modulos solo actuan sobre lo que el usuario selecciono. Una peticion
+  // sin seleccion no es un no-op inofensivo: es la firma de una llamada que no
+  // vino del frontend. Se rechaza en vez de ejecutarse en vacio.
+  const SELECTION_FIELDS = {
+    cleanup: ['CLEAN_CATEGORIES'],
+    startup: ['OPTIMIZE_PROGRAMS', 'OPTIMIZE_TASKS', 'ENABLE_PROGRAMS', 'ENABLE_TASKS'],
+    ram: ['OPTIMIZE_PROCESSES', 'UNKNOWN_PROCESSES', 'RISKY_PROCESSES'],
+    services: ['OPTIMIZE_SERVICES'],
+    apps: ['OPTIMIZE_APPS'],
+    privacy: ['OPTIMIZE_PRIVACY'],
+    power: ['PLAN_GUID'],
+    // `remove` no lleva fuentes: quitar el bloqueo no necesita seleccion.
+    adblock: ['ADBLOCK_SOURCES', 'ADBLOCK_ACTION'],
+  };
+  const required = SELECTION_FIELDS[req.params.module];
+  if (required && !required.some((k) => envVars[k])) {
+    const err = new Error('La accion requiere al menos un elemento seleccionado');
+    err.statusCode = 400;
+    throw err;
+  }
+
   const handler = ACTION_HANDLERS[req.params.module];
   if (!handler) return res.status(400).json({ error: 'Modulo sin handler de accion' });
 
   // updates no recibe envVars (no tiene params de seleccion)
   if (req.params.module === 'updates') {
-    runNativeOverSSE(res, (onOutput) => handler(onOutput), ACTION_TIMEOUT_MS);
+    runNativeOverSSE(res, (onOutput, onProgress) => handler(onOutput, onProgress), ACTION_TIMEOUT_MS);
     return;
   }
 
-  runNativeOverSSE(res, (onOutput) => handler(envVars, onOutput), ACTION_TIMEOUT_MS);
+  runNativeOverSSE(res, (onOutput, onProgress) => handler(envVars, onOutput, onProgress), ACTION_TIMEOUT_MS);
 }));
 
 // ═══════════════════════════════════════════════════════
@@ -548,19 +1121,50 @@ app.post('/api/scheduler/:task/toggle', safeHandler((req, res) => {
 //
 // schtasks /Change NO permite cambiar /SC, /D ni /MO (frecuencia/dias) —
 // solo /Create lo permite, por lo que esto recrea la tarea con /F (force
-// overwrite) preservando el mismo /TN y el mismo /TR (el Notify-*.ps1 de
-// cada modulo, fijo en MODULES — nunca viene de input del usuario).
+// overwrite) preservando el mismo /TN.
+//
+// El /TR apunta a un unico scripts/Notify.ps1 parametrizado por modulo. Antes
+// usaba mod.notifyScript, que solo estaba declarado para updates y cleanup:
+// para los otros 7 modulos join(dir, undefined) tiraba TypeError y la ruta
+// respondia 500. El modulo sale de la whitelist, nunca de input del usuario.
 // ═══════════════════════════════════════════════════════
 app.post('/api/scheduler/:task/reschedule', safeHandler((req, res) => {
   const task = validateTask(req.params.task);
-  const mod = TASK_TO_MODULE[task];
+  const moduleKey = VALID_MODULES.find((k) => MODULES[k].taskName === task);
   const frequency = validateFrequency(req.body?.frequency);
   const time = validateTime(req.body?.time);
+
+  // PROJECT_ROOT sale de OPTIMIZADOR_DATA_DIR, que en el paquete apunta a
+  // userData (ruta con espacios). Sin las comillas, schtasks corta el -File
+  // en el primer espacio.
+  //
+  // `-Port` va explicito: el server puede escuchar en otro puerto via la
+  // variable PORT, y Notify.ps1 por si solo asumiria 3001 y sondearia un
+  // backend que no existe.
+  //
+  // Alias cortos (-ep/-nop/-w) en vez de los nombres completos: el /TR de
+  // schtasks tiene un limite duro de 261 caracteres y la ruta puede ser larga
+  // (userData de un usuario con nombre largo). Ahorran ~30.
+  // La carpeta de scripts no es la de datos: la setea Electron (fuera del asar
+  // cuando esta empaquetado). El fallback cubre correr el server suelto.
+  const scriptsDir = process.env.OPTIMIZADOR_SCRIPTS_DIR || join(PROJECT_ROOT, 'scripts');
+  const notifyPath = join(scriptsDir, 'Notify.ps1');
+  const trCommand = `powershell.exe -ep Bypass -nop -w Hidden -File "${notifyPath}" -Module ${moduleKey} -Port ${PORT}`;
+
+  const TR_MAX = 261;
+  if (trCommand.length > TR_MAX) {
+    const err = new Error(
+      `La ruta de instalacion es demasiado larga para el Programador de tareas de Windows `
+      + `(${trCommand.length} de ${TR_MAX} caracteres). Instala Optimizador en una ruta mas corta.`,
+    );
+    err.statusCode = 400;
+    throw err;
+  }
 
   const args = [
     '/Create', '/F',
     '/TN', task,
-    '/TR', `powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ${join(mod.dir, mod.notifyScript)}`,
+    '/TR', trCommand,
     '/SC', frequency === 'daily' ? 'DAILY' : 'WEEKLY',
     '/ST', time,
   ];
@@ -673,12 +1277,22 @@ app.use((err, _req, res, _next) => {
 // ═══════════════════════════════════════════════════════
 // Start — BIND SOLO A LOCALHOST
 // ═══════════════════════════════════════════════════════
-const PORT = process.env.PORT || 3001;
 const HOST = '127.0.0.1'; // Previene exposicion a LAN / internet
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`D1 Automation Server en http://${HOST}:${PORT}`);
   console.log(`Root: ${PROJECT_ROOT}`);
   console.log(`Modulos: ${VALID_MODULES.join(', ')}`);
   console.log('Aceptando conexiones solo de localhost');
+});
+
+// Sin esto, una segunda instancia lanza un 'error' no manejado y la ventana
+// queda en ERR_CONNECTION_REFUSED sin explicacion.
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`El puerto ${PORT} ya esta en uso: probablemente Optimizador ya esta abierto.`);
+  } else {
+    console.error(`Error del servidor: ${err.message}`);
+  }
+  process.exit(1);
 });

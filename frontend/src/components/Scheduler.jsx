@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { API_BASE } from '../config';
 const WEEKDAYS = [
   { value: 'MON', label: 'Lun' },
@@ -24,23 +24,26 @@ export default function Scheduler() {
   const [days, setDays] = useState(['MON']);
   const [intervalDays, setIntervalDays] = useState(1);
 
-  const fetchTasks = async () => {
+  const fetchTasks = async (signal) => {
     try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE}/scheduler`);
+      const res = await fetch(`${API_BASE}/scheduler`, { signal });
       if (!res.ok) throw new Error('Error al cargar tareas programadas');
       const data = await res.json();
       setTasks(data.tasks || []);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      if (err.name !== 'AbortError') {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTasks();
+    const ctrl = new AbortController();
+    fetchTasks(ctrl.signal);
+    return () => { ctrl.abort(); };
   }, []);
 
   const handleToggle = async (taskName, currentStatus) => {
@@ -130,9 +133,9 @@ export default function Scheduler() {
   if (error) {
     return (
       <div className="error-wrapper glass-panel">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--warning)', marginBottom: '1rem'}}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--color-warning)', marginBottom: '1rem'}}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <h3>Error al consultar el Programador de Tareas</h3>
-        <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>{error}</p>
+        <p style={{ color: 'var(--color-ink-3)', marginTop: '0.5rem' }}>{error}</p>
         <button className="btn btn-secondary" style={{ marginTop: '1.5rem', width: 'auto' }} onClick={fetchTasks}>
           Reintentar
         </button>
@@ -143,13 +146,13 @@ export default function Scheduler() {
   return (
     <div className="glass-panel" style={{ padding: '2rem', overflowX: 'auto' }}>
       <h2 className="panel-title">Programador de Tareas de Windows</h2>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+      <p style={{ color: 'var(--color-ink-3)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
         Activa, desactiva o reprograma cuándo corre automáticamente cada automatización.
       </p>
 
       {tasks.length === 0 ? (
         <div className="empty-wrapper">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--text-muted)', marginBottom: '1rem'}}><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--color-ink-3)', marginBottom: '1rem'}}><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
           <p>No se encontraron tareas registradas.</p>
         </div>
       ) : (
@@ -167,15 +170,15 @@ export default function Scheduler() {
               const isEnabled = task.status.toLowerCase() === 'ready' || task.status.toLowerCase() === 'running';
               const isEditing = editingTask === task.name;
               return (
-                <React.Fragment key={task.name}>
+                <Fragment key={task.name}>
                   <tr>
                     <td style={{ fontWeight: '500' }}>
                       {task.name.replace('_Weekly', '')}
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal', marginTop: '0.2rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', fontWeight: 'normal', marginTop: '0.2rem' }}>
                         {task.name}
                       </div>
                     </td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                    <td style={{ color: 'var(--color-ink-3)', fontSize: '0.9rem' }}>
                       {task.nextRun || 'No programada'}
                     </td>
                     <td>
@@ -183,33 +186,38 @@ export default function Scheduler() {
                         style={{
                           fontSize: '0.8rem',
                           fontWeight: '600',
-                          color: isEnabled ? 'var(--success)' : 'var(--text-muted)',
-                          background: isEnabled ? 'var(--success-glow)' : 'rgba(255, 255, 255, 0.02)',
+                          color: isEnabled ? 'var(--color-success)' : 'var(--color-ink-3)',
+                          background: isEnabled ? 'var(--color-success-soft)' : 'var(--color-paper-3)',
                           padding: '0.2rem 0.5rem',
                           borderRadius: '4px',
-                          border: `1px solid ${isEnabled ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-color)'}`
+                          border: `1px solid ${isEnabled ? 'var(--color-success)' : 'var(--color-rule)'}`
                         }}
                       >
                         {task.status}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right', display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', alignItems: 'center' }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                        onClick={() => isEditing ? closeSchedule() : openSchedule(task.name)}
-                      >
-                        {isEditing ? 'Cerrar' : 'Configurar horario'}
-                      </button>
-                      <label className="switch">
-                        <input
-                          type="checkbox"
-                          checked={isEnabled}
-                          disabled={toggling[task.name]}
-                          onChange={() => handleToggle(task.name, task.status)}
-                        />
-                        <span className="slider"></span>
-                      </label>
+                    {/* El flex va en un div, no en el <td>: `display:flex` sobre una
+                        celda la saca del layout de tabla y su borde queda corrido
+                        respecto del resto de la fila. */}
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                          onClick={() => isEditing ? closeSchedule() : openSchedule(task.name)}
+                        >
+                          {isEditing ? 'Cerrar' : 'Configurar horario'}
+                        </button>
+                        <label className="switch">
+                          <input
+                            type="checkbox"
+                            checked={isEnabled}
+                            disabled={toggling[task.name]}
+                            onChange={() => handleToggle(task.name, task.status)}
+                          />
+                          <span className="slider"></span>
+                        </label>
+                      </div>
                     </td>
                   </tr>
                   {isEditing && (
@@ -276,7 +284,7 @@ export default function Scheduler() {
                           )}
 
                           {scheduleError && (
-                            <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{scheduleError}</p>
+                            <p style={{ color: 'var(--color-danger)', fontSize: '0.85rem', margin: '0.5rem 0 0' }}>{scheduleError}</p>
                           )}
 
                           <div className="schedule-editor-row" style={{ justifyContent: 'flex-end', marginTop: '0.5rem' }}>
@@ -293,7 +301,7 @@ export default function Scheduler() {
                       </td>
                     </tr>
                   )}
-                </React.Fragment>
+                </Fragment>
               );
             })}
           </tbody>

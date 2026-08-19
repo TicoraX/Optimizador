@@ -13,7 +13,7 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-color, #ddd)' }}>
+        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-ink, #ddd)' }}>
           <h2>Algo sali&oacute; mal</h2>
           <p style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '1.5rem' }}>
             {this.state.error?.message || 'Error inesperado en la interfaz'}
@@ -22,7 +22,7 @@ export default class ErrorBoundary extends React.Component {
             onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }}
             style={{
               padding: '0.5rem 1.5rem', border: 'none', borderRadius: '6px',
-              background: 'var(--accent-color, #7c5cfc)', color: '#fff',
+              background: 'var(--color-accent, #7c5cfc)', color: '#fff',
               cursor: 'pointer', fontSize: '0.9rem',
             }}
           >

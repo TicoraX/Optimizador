@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../config';
 
 function classifyLine(line) {
@@ -15,24 +15,33 @@ export default function LogViewer({ module }) {
   const [error, setError]       = useState(null);
   const [clearing, setClearing] = useState(false);
 
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (signal) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${API_BASE}/logs/${module}`);
+      const res = await fetch(`${API_BASE}/logs/${module}`, { signal });
       if (res.status === 404) { setLines([]); setSize(0); return; }
       if (!res.ok) throw new Error('No se pudo leer el log');
       const data = await res.json();
       setLines(data.lines || []);
       setSize(data.size || 0);
     } catch (err) {
-      setError(err.message);
+      if (err.name !== 'AbortError') {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   }, [module]);
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    setLines([]);
+    setSize(0);
+    setError(null);
+    const ctrl = new AbortController();
+    fetchLogs(ctrl.signal);
+    return () => { ctrl.abort(); };
+  }, [fetchLogs]);
 
   const handleClear = async (rotate = false) => {
     if (!confirm(rotate ? '¿Rotar y vaciar el log? Se guardará una copia .bak' : '¿Vaciar el log de acciones?')) return;
@@ -57,13 +66,13 @@ export default function LogViewer({ module }) {
       <div className="log-viewer-header">
         <span className="log-viewer-title">
           ACTION LOG — {module.toUpperCase()}
-          {size > 0 && <span style={{ color: 'rgba(255,255,255,0.25)', marginLeft: '1rem', fontWeight: 400 }}>{(size / 1024).toFixed(1)} KB</span>}
+          {size > 0 && <span style={{ color: 'var(--color-ink-3)', marginLeft: '1rem', fontWeight: 400 }}>{(size / 1024).toFixed(1)} KB</span>}
         </span>
         <div style={{ display: 'flex', gap: '0.6rem' }}>
           <button
             className="btn btn-secondary"
             style={{ width: 'auto', padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}
-            onClick={fetchLogs}
+            onClick={() => fetchLogs()}
             disabled={loading || clearing}
           >
             Actualizar
@@ -89,11 +98,11 @@ export default function LogViewer({ module }) {
 
       <div className="log-viewer-body">
         {loading ? (
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>Cargando...</span>
+          <span style={{ color: 'var(--color-ink-3)' }}>Cargando...</span>
         ) : error ? (
           <span className="log-line-err">[ERROR] {error}</span>
         ) : lines.length === 0 ? (
-          <span style={{ color: 'rgba(255,255,255,0.2)' }}>Sin entradas en el log.</span>
+          <span style={{ color: 'var(--color-ink-3)' }}>Sin entradas en el log.</span>
         ) : (
           lines.map((line, i) => {
             const cls = classifyLine(line);
