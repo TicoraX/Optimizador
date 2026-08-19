@@ -151,6 +151,13 @@ export const MODULES = Object.freeze({
     taskName: 'TimersOptimizer_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  ghostdevices: Object.freeze({
+    dir: join(PROJECT_ROOT, 'ghostdevices-optimizer'),
+    countsFile: 'ghostdevices-counts.json',
+    reportPrefix: 'ghostdevices-report',
+    taskName: 'GhostDevices_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

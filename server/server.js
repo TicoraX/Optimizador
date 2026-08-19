@@ -29,6 +29,7 @@ import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrit
 import { runContextMenuScanNative, runContextMenuActionNative } from './lib/contextmenu.js';
 import { runOemDebloatScanNative, runOemDebloatActionNative } from './lib/oemdebloat.js';
 import { runTimersScanNative, runTimersActionNative } from './lib/timers.js';
+import { runGhostDevicesScanNative, runGhostDevicesActionNative } from './lib/ghostdevices.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -199,6 +200,7 @@ const SCAN_HANDLERS = {
   contextmenu: runContextMenuScanNative,
   oemdebloat: runOemDebloatScanNative,
   timers: runTimersScanNative,
+  ghostdevices: runGhostDevicesScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -216,6 +218,7 @@ const ACTION_HANDLERS = {
   contextmenu: runContextMenuActionNative,
   oemdebloat: runOemDebloatActionNative,
   timers: runTimersActionNative,
+  ghostdevices: runGhostDevicesActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -459,6 +462,18 @@ export function getConsolidatedStatus() {
         pendingCount: t.pendingCount || 0,
         total: t.total || 3,
         error: t.error,
+      };
+    })(),
+    ghostdevices: (() => {
+      const g = loadJsonSafe(
+        join(MODULES.ghostdevices.dir, 'reports', MODULES.ghostdevices.countsFile),
+        { date: null, totalCount: 0, safeCount: 0, error: true },
+      );
+      return {
+        lastScan: g.date,
+        totalCount: g.totalCount || 0,
+        safeCount: g.safeCount || 0,
+        error: g.error,
       };
     })(),
   };
