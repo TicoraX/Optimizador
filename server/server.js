@@ -647,7 +647,10 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   // (el script lee $env:DOWNLOADS_AGE_DAYS como override de su parametro -DownloadsAgeDays)
   // Cleanup: categorias a borrar. Sin esto el modulo borraba las 4 sin condicion.
   if (req.params.module === 'cleanup' && req.body?.cleanCategories !== undefined) {
-    const VALID_CATEGORIES = ['temp', 'cache', 'downloads', 'recycle'];
+    const VALID_CATEGORIES = [
+      'temp', 'windowsUpdate', 'crashDumps', 'devCache', 'shaderCache',
+      'browserCache', 'cache', 'thumbnails', 'recycle', 'downloads',
+    ];
     const raw = Array.isArray(req.body.cleanCategories)
       ? req.body.cleanCategories
       : String(req.body.cleanCategories || '').split(',');

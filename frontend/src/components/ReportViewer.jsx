@@ -6,13 +6,17 @@ import LogViewer from './LogViewer';
 import { API_BASE } from '../config';
 import { renderReport } from '../lib/markdown';
 
-// Las 4 categorias que borra el modulo cleanup. Antes se borraban todas sin
-// que el usuario pudiera elegir.
+// Las 9 categorías de limpieza y optimización segura de almacenamiento
 const CLEAN_CATEGORIES = [
-  { key: 'temp', label: 'Archivos temporales', hint: '%TEMP%, Windows\\Temp y Prefetch' },
-  { key: 'cache', label: 'Caché de navegadores', hint: 'Chrome, Edge y Firefox' },
-  { key: 'downloads', label: 'Descargas antiguas', hint: 'según la antigüedad de abajo' },
-  { key: 'recycle', label: 'Papelera de reciclaje', hint: 'vacía la papelera' },
+  { key: 'temp', label: 'Archivos temporales', hint: '%TEMP% y Windows\\Temp', safety: 'SAFE' },
+  { key: 'windowsUpdate', label: 'Windows Update Cache', hint: 'Instaladores descargados ya aplicados', safety: 'SAFE' },
+  { key: 'crashDumps', label: 'Volcados de error y WER', hint: 'Crash dumps y reportes pasados', safety: 'SAFE' },
+  { key: 'devCache', label: 'Cachés de desarrollo', hint: 'npm, pip, yarn, nuget, vscode', safety: 'SAFE' },
+  { key: 'shaderCache', label: 'Caché de Shaders GPU', hint: 'DirectX, Vulkan, NVIDIA, AMD', safety: 'SAFE' },
+  { key: 'browserCache', label: 'Caché de navegadores', hint: 'Chrome, Edge, Brave y Firefox (sin cookies)', safety: 'SAFE' },
+  { key: 'thumbnails', label: 'Miniaturas de Explorer', hint: 'Caché de vistas previas de archivos', safety: 'SAFE' },
+  { key: 'recycle', label: 'Papelera de reciclaje', hint: 'Vacía la papelera del sistema', safety: 'CAUTION' },
+  { key: 'downloads', label: 'Descargas antiguas', hint: 'Archivos viejos en la carpeta Descargas', safety: 'CAUTION' },
 ];
 
 export default function ReportViewer() {
@@ -478,19 +482,59 @@ export default function ReportViewer() {
 
           {module === 'cleanup' && (
             <div className="form-group">
-              <label className="form-label">Qué borrar:</label>
-              <div className="checkbox-list">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>Qué liberar:</label>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', width: 'auto' }}
+                    onClick={() => {
+                      const next = {};
+                      CLEAN_CATEGORIES.forEach((c) => { if (c.safety === 'SAFE') next[c.key] = true; });
+                      setSelectedCategories(next);
+                    }}
+                    disabled={isRunning}
+                  >
+                    Solo Seguras
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', width: 'auto' }}
+                    onClick={() => setSelectedCategories({})}
+                    disabled={isRunning}
+                  >
+                    Limpiar
+                  </button>
+                </div>
+              </div>
+              <div className="checkbox-list" style={{ maxHeight: '320px' }}>
                 {CLEAN_CATEGORIES.map((cat) => (
-                  <label key={cat.key} className="checkbox-item">
+                  <label key={cat.key} className="checkbox-item" style={{ alignItems: 'flex-start' }}>
                     <input
                       type="checkbox"
                       checked={selectedCategories[cat.key] || false}
                       onChange={() => setSelectedCategories((prev) => ({ ...prev, [cat.key]: !prev[cat.key] }))}
                       disabled={isRunning}
+                      style={{ marginTop: '3px' }}
                     />
-                    <span className="checkbox-label">
-                      {cat.label}
-                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
+                    <span className="checkbox-label" style={{ flex: 1 }}>
+                      <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 500 }}>{cat.label}</span>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '4px',
+                          background: cat.safety === 'SAFE' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                          color: cat.safety === 'SAFE' ? '#10b981' : '#f59e0b',
+                          border: `1px solid ${cat.safety === 'SAFE' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                          fontWeight: 600,
+                        }}>
+                          {cat.safety === 'SAFE' ? 'Seguro' : 'Precaución'}
+                        </span>
+                      </span>
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--color-ink-3)', marginTop: '2px' }}>
                         {cat.hint}
                       </span>
                     </span>
@@ -500,7 +544,7 @@ export default function ReportViewer() {
             </div>
           )}
 
-          {module === 'cleanup' && (
+          {module === 'cleanup' && selectedCategories.downloads && (
             <div className="form-group">
               <label className="form-label">Antigüedad de descargas a borrar:</label>
               <input 
