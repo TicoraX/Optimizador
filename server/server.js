@@ -29,6 +29,7 @@ import { runIntegrityScanNative, runIntegrityActionNative } from './lib/integrit
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
+import { calculateHealthScore } from './lib/healthscore.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -210,7 +211,7 @@ const ACTION_HANDLERS = {
 // ═══════════════════════════════════════════════════════
 // GET /api/status — estado consolidado (solo lectura)
 // ═══════════════════════════════════════════════════════
-app.get('/api/status', safeHandler((_req, res) => {
+export function getConsolidatedStatus() {
   const emptyMetrics = { count: 0, error: false };
 
   const updateCounts = loadJsonSafe(
@@ -238,7 +239,7 @@ app.get('/api/status', safeHandler((_req, res) => {
     { date: null, total_mb: 0, used_mb: 0, free_mb: 0, usage_percent: 0, total_processes: 0, known_processes: 0, unknown_processes: 0, risky_processes: 0, critical_processes: 0, top_processes: [], error: true },
   );
 
-  res.json({
+  return {
     timestamp: new Date().toISOString(),
     updates: {
       lastScan: updateCounts.date,
@@ -321,7 +322,7 @@ app.get('/api/status', safeHandler((_req, res) => {
       return {
         lastScan: p.date,
         activePlan: p.active_plan || 'N/A',
-        batteryPresent: p.battery_present,
+        batteryPresent: p.battery_present || false,
         batteryPct: p.battery_pct,
         batteryStatus: p.battery_status,
         runtimeMin: p.runtime_min,
@@ -412,6 +413,53 @@ app.get('/api/status', safeHandler((_req, res) => {
         error: i.error,
       };
     })(),
+  };
+}
+
+app.get('/api/status', safeHandler((_req, res) => {
+  res.json(getConsolidatedStatus());
+}));
+
+// ═══════════════════════════════════════════════════════
+// GET /api/health-score & POST /api/quick-optimize
+// ═══════════════════════════════════════════════════════
+app.get('/api/health-score', safeHandler(async (_req, res) => {
+  const status = getConsolidatedStatus();
+  const telemetry = await getSystemTelemetry();
+  const health = calculateHealthScore(status, telemetry);
+  res.json({
+    ...health,
+    timestamp: new Date().toISOString(),
+  });
+}));
+
+app.post('/api/quick-optimize', safeHandler(async (req, res) => {
+  const dryRun = req.body?.dryRun === true;
+  const actions = req.body?.actions || ['cleanup', 'privacy', 'gaming'];
+
+  const status = getConsolidatedStatus();
+  const health = calculateHealthScore(status);
+  const selectedFixes = health.quickFixes.filter((f) => actions.includes(f.id));
+
+  const results = [];
+  for (const fix of selectedFixes) {
+    const handler = ACTION_HANDLERS[fix.module];
+    if (handler) {
+      const logs = [];
+      try {
+        await handler({ DRY_RUN: dryRun ? 'true' : 'false' }, (msg) => logs.push(msg));
+        results.push({ id: fix.id, module: fix.module, success: true, logs });
+      } catch (err) {
+        results.push({ id: fix.id, module: fix.module, success: false, error: err.message });
+      }
+    }
+  }
+
+  res.json({
+    ok: true,
+    dryRun,
+    executedCount: results.length,
+    results,
   });
 }));
 

@@ -4,6 +4,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { MODULES, MODULE_KEYS } from '../modules';
 import { ModuleIcon } from './ModuleIcon';
 import SystemTelemetry from './SystemTelemetry';
+import HealthScoreCard from './HealthScoreCard';
 import { API_BASE } from '../config';
 
 // recharts pesa ~500 KB y alimenta un solo grafico que ni siquiera se muestra
@@ -248,6 +249,8 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
           ))}
         </div>
       )}
+
+      <HealthScoreCard onOptimized={onRefreshStatus} />
 
       <SystemTelemetry />
 
