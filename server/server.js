@@ -31,6 +31,7 @@ import { runOemDebloatScanNative, runOemDebloatActionNative } from './lib/oemdeb
 import { runTimersScanNative, runTimersActionNative } from './lib/timers.js';
 import { runGhostDevicesScanNative, runGhostDevicesActionNative } from './lib/ghostdevices.js';
 import { runSearchIndexScanNative, runSearchIndexActionNative } from './lib/searchindex.js';
+import { runDnsFlushScanNative, runDnsFlushActionNative } from './lib/dnsflush.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -203,6 +204,7 @@ const SCAN_HANDLERS = {
   timers: runTimersScanNative,
   ghostdevices: runGhostDevicesScanNative,
   searchindex: runSearchIndexScanNative,
+  dnsflush: runDnsFlushScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -222,6 +224,7 @@ const ACTION_HANDLERS = {
   timers: runTimersActionNative,
   ghostdevices: runGhostDevicesActionNative,
   searchindex: runSearchIndexActionNative,
+  dnsflush: runDnsFlushActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -490,6 +493,18 @@ export function getConsolidatedStatus() {
         pendingCount: s.pendingCount || 0,
         total: s.total || 4,
         error: s.error,
+      };
+    })(),
+    dnsflush: (() => {
+      const d = loadJsonSafe(
+        join(MODULES.dnsflush.dir, 'reports', MODULES.dnsflush.countsFile),
+        { date: null, cachedCount: 0, totalActions: 4, error: true },
+      );
+      return {
+        lastScan: d.date,
+        cachedCount: d.cachedCount || 0,
+        totalActions: d.totalActions || 4,
+        error: d.error,
       };
     })(),
   };

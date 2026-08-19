@@ -89,6 +89,10 @@ export default function ReportViewer() {
   const [searchSettings, setSearchSettings] = useState([]);
   const [selectedSearch, setSelectedSearch] = useState({});
 
+  // DNS Flush States
+  const [dnsActions, setDnsActions] = useState([]);
+  const [selectedDns, setSelectedDns] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -184,6 +188,8 @@ export default function ReportViewer() {
       setGhostDevices([]); setSelectedGhost({});
     } else if (module === 'searchindex') {
       setSearchSettings([]); setSelectedSearch({});
+    } else if (module === 'dnsflush') {
+      setDnsActions([]); setSelectedDns({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -248,6 +254,9 @@ export default function ReportViewer() {
     } else if (module === 'searchindex') {
       setSearchSettings(items || []);
       setSelectedSearch(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
+    } else if (module === 'dnsflush') {
+      setDnsActions(items || []);
+      setSelectedDns(Object.fromEntries((items || []).map((it, i) => [i, it.recommended === true])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -383,6 +392,12 @@ export default function ReportViewer() {
         .map(k => searchSettings[parseInt(k)]?.id)
         .filter(Boolean);
       body.settings = checked.join(',');
+    } else if (module === 'dnsflush') {
+      const checked = Object.keys(selectedDns)
+        .filter(k => selectedDns[k])
+        .map(k => dnsActions[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.actions = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -521,6 +536,7 @@ export default function ReportViewer() {
       case 'timers': return 'Temporizadores y Latencia de Reloj BCD';
       case 'ghostdevices': return 'Dispositivos Fantasma Huérfanos (PnP)';
       case 'searchindex': return 'Indexador y Búsqueda de Windows (WSearch)';
+      case 'dnsflush': return 'Caché DNS y Pila de Red LAN';
       default: return 'Detalles del Módulo';
     }
   };
@@ -573,6 +589,7 @@ export default function ReportViewer() {
                   {module === 'timers' && 'Ajusta parámetros de reloj de bajo nivel (Dynamic Ticking, HPET, TSC) en el almacén de arranque de Windows (BCD) para reducir el micro-stuttering.'}
                   {module === 'ghostdevices' && 'Detecta registros de periféricos y dispositivos USB desconectados acumulados en Windows y permite eliminarlos de forma segura.'}
                   {module === 'searchindex' && 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.'}
+                  {module === 'dnsflush' && 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -1117,6 +1134,33 @@ export default function ReportViewer() {
                       {item.name}
                       <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
                         {item.desc} (Estado: {item.currentLabel})
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'dnsflush' && dnsActions.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Acciones de refresco de red:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las operaciones de limpieza y registro de red a ejecutar:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {dnsActions.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedDns[idx] || false}
+                      onChange={() => setSelectedDns(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
+                        {item.desc}
                       </span>
                     </span>
                   </label>

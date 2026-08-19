@@ -28,6 +28,7 @@ const ICONS = {
   timers: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
   ghostdevices: 'M12 2v20M8 5h8M7 9h10M9 22h6',
   searchindex: 'M21 21l-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0z',
+  dnsflush: 'M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9',
 };
 
 const fmtSize = (mb) => {
@@ -232,6 +233,15 @@ export const MODULES = {
       { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,
         tone: (d.optimizedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
       { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  dnsflush: {
+    label: 'Caché DNS & Red LAN',
+    blurb: 'Vaciado DNS, NetBIOS y registro WINS',
+    icon: ICONS.dnsflush,
+    metrics: (d) => [
+      { label: 'Dominios en caché', value: d.cachedCount ?? 0 },
+      { label: 'Acciones listas', value: d.totalActions ?? 4, tone: 'is-success' },
     ],
   },
 };

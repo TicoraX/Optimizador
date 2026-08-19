@@ -165,6 +165,13 @@ export const MODULES = Object.freeze({
     taskName: 'SearchIndex_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  dnsflush: Object.freeze({
+    dir: join(PROJECT_ROOT, 'dnsflush-optimizer'),
+    countsFile: 'dnsflush-counts.json',
+    reportPrefix: 'dnsflush-report',
+    taskName: 'DnsFlush_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(
