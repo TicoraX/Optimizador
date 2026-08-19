@@ -238,5 +238,8 @@
 - **Tests Unitarios Backend**: **190 / 190 tests pasando al 100%** (43 suites de test completas).
 - **Tests Unitarios Frontend**: **7 / 7 tests pasando al 100%**.
 - **Total Tests Automatizados**: **197 / 197 tests pasando exitosamente**.
-- **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite optimizados.
+- **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite v8.0.16 optimizados.
+- **Empaquetado Electron (v1.3.0)**:
+  - Ejecutable binario descomprimido generado en `dist/win-unpacked/Optimizador.exe`.
+  - Instalador autónomo final generado en `dist/Optimizador Setup 1.3.0.exe` (83.5 MB).
 - **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica y soporte para modo simulación (`dryRun`).
