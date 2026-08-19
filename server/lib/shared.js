@@ -186,6 +186,13 @@ export const MODULES = Object.freeze({
     taskName: 'Pagefile_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  werfault: Object.freeze({
+    dir: join(PROJECT_ROOT, 'werfault-optimizer'),
+    countsFile: 'werfault-counts.json',
+    reportPrefix: 'werfault-report',
+    taskName: 'WerFault_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

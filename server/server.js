@@ -34,6 +34,7 @@ import { runSearchIndexScanNative, runSearchIndexActionNative } from './lib/sear
 import { runDnsFlushScanNative, runDnsFlushActionNative } from './lib/dnsflush.js';
 import { runNetworkPrivacyScanNative, runNetworkPrivacyActionNative } from './lib/networkprivacy.js';
 import { runPagefileScanNative, runPagefileActionNative } from './lib/pagefile.js';
+import { runWerFaultScanNative, runWerFaultActionNative } from './lib/werfault.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -209,6 +210,7 @@ const SCAN_HANDLERS = {
   dnsflush: runDnsFlushScanNative,
   networkprivacy: runNetworkPrivacyScanNative,
   pagefile: runPagefileScanNative,
+  werfault: runWerFaultScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -231,6 +233,7 @@ const ACTION_HANDLERS = {
   dnsflush: runDnsFlushActionNative,
   networkprivacy: runNetworkPrivacyActionNative,
   pagefile: runPagefileActionNative,
+  werfault: runWerFaultActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -537,6 +540,19 @@ export function getConsolidatedStatus() {
         pendingCount: p.pendingCount || 0,
         total: p.total || 3,
         error: p.error,
+      };
+    })(),
+    werfault: (() => {
+      const w = loadJsonSafe(
+        join(MODULES.werfault.dir, 'reports', MODULES.werfault.countsFile),
+        { date: null, optimizedCount: 0, pendingCount: 0, total: 4, error: true },
+      );
+      return {
+        lastScan: w.date,
+        optimizedCount: w.optimizedCount || 0,
+        pendingCount: w.pendingCount || 0,
+        total: w.total || 4,
+        error: w.error,
       };
     })(),
   };

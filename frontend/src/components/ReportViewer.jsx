@@ -101,6 +101,10 @@ export default function ReportViewer() {
   const [pagefileSettings, setPagefileSettings] = useState([]);
   const [selectedPagefile, setSelectedPagefile] = useState({});
 
+  // WerFault / Error Reporting States
+  const [werfaultSettings, setWerfaultSettings] = useState([]);
+  const [selectedWerfault, setSelectedWerfault] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -202,6 +206,8 @@ export default function ReportViewer() {
       setNetworkPrivacySettings([]); setSelectedNetworkPrivacy({});
     } else if (module === 'pagefile') {
       setPagefileSettings([]); setSelectedPagefile({});
+    } else if (module === 'werfault') {
+      setWerfaultSettings([]); setSelectedWerfault({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -275,6 +281,9 @@ export default function ReportViewer() {
     } else if (module === 'pagefile') {
       setPagefileSettings(items || []);
       setSelectedPagefile(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
+    } else if (module === 'werfault') {
+      setWerfaultSettings(items || []);
+      setSelectedWerfault(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -428,6 +437,12 @@ export default function ReportViewer() {
         .map(k => pagefileSettings[parseInt(k)]?.id)
         .filter(Boolean);
       body.settings = checked.join(',');
+    } else if (module === 'werfault') {
+      const checked = Object.keys(selectedWerfault)
+        .filter(k => selectedWerfault[k])
+        .map(k => werfaultSettings[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.settings = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -569,6 +584,7 @@ export default function ReportViewer() {
       case 'dnsflush': return 'Caché DNS y Pila de Red LAN';
       case 'networkprivacy': return 'Privacidad en Red y Telemetría Conectada';
       case 'pagefile': return 'Memoria Virtual y Archivo de Paginación';
+      case 'werfault': return 'Reporte de Errores y WerFault';
       default: return 'Detalles del Módulo';
     }
   };
@@ -624,6 +640,7 @@ export default function ReportViewer() {
                   {module === 'dnsflush' && 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.'}
                   {module === 'networkprivacy' && 'Bloquea la telemetría transmitida por red: descargas de Spotlight, WiFi Sense, apps promocionadas y pre-carga de Microsoft Edge.'}
                   {module === 'pagefile' && 'Optimiza el Administrador de Memoria de Windows: mantiene el núcleo y controladores en RAM física (DisablePagingExecutive), prioriza memoria para programas y acelera el apagado.'}
+                  {module === 'werfault' && 'Administra directivas de Windows Error Reporting: suprime bloqueos por recolección de minidumps, desactiva la telemetría de fallos hacia servidores de Microsoft y cierra procesos silenciosamente.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -1243,6 +1260,33 @@ export default function ReportViewer() {
                       type="checkbox"
                       checked={selectedPagefile[idx] || false}
                       onChange={() => setSelectedPagefile(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {item.desc} (Estado: {item.currentLabel})
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'werfault' && werfaultSettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Directivas de Windows Error Reporting:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las directivas de reporte de errores a optimizar:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {werfaultSettings.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedWerfault[idx] || false}
+                      onChange={() => setSelectedWerfault(prev => ({ ...prev, [idx]: !prev[idx] }))}
                       disabled={isRunning}
                     />
                     <span className="checkbox-label" title={item.name}>
