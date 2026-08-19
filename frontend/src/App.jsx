@@ -5,6 +5,7 @@ import ReportViewer from './components/ReportViewer';
 import Scheduler from './components/Scheduler';
 import History from './components/History';
 import RestoreManager from './components/RestoreManager';
+import LargeFilesHunter from './components/LargeFilesHunter';
 import ErrorBoundary from './components/ErrorBoundary';
 import { MODULES, MODULE_KEYS } from './modules';
 import { ModuleIcon } from './components/ModuleIcon';
@@ -94,6 +95,10 @@ export default function App() {
               <ModuleIcon path="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" size={16} />
               Restauración
             </NavLink>
+            <NavLink to="/archivos-grandes" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <ModuleIcon path="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" size={16} />
+              Archivos Grandes
+            </NavLink>
             <NavLink to="/scheduler" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               <ModuleIcon path="M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z" size={16} />
               Programador
@@ -139,6 +144,7 @@ export default function App() {
               <Route path="/report/:module" element={<ReportViewer />} />
               <Route path="/historial" element={<History />} />
               <Route path="/restauracion" element={<RestoreManager />} />
+              <Route path="/archivos-grandes" element={<LargeFilesHunter />} />
               <Route path="/scheduler" element={<Scheduler />} />
             </Routes>
           </ErrorBoundary>

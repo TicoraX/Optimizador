@@ -27,6 +27,7 @@ import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from '.
 import { runGamingScanNative, runGamingActionNative } from './lib/gaming.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
+import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -155,6 +156,22 @@ app.post('/api/restore/create', safeHandler(async (req, res) => {
 app.get('/api/timeline', safeHandler((_req, res) => {
   const timeline = getScanTimeline();
   res.json(timeline);
+}));
+
+// ═══════════════════════════════════════════════════════
+// Buscador de Archivos Gigantes
+// ═══════════════════════════════════════════════════════
+app.get('/api/large-files', safeHandler(async (req, res) => {
+  const minSizeMB = Math.max(50, Math.min(10000, Number(req.query.minSizeMB) || 250));
+  const result = await findLargeFiles(minSizeMB);
+  res.json(result);
+}));
+
+app.post('/api/large-files/reveal', safeHandler(async (req, res) => {
+  const filePath = req.body?.filePath;
+  if (!filePath) return res.status(400).json({ error: 'Ruta de archivo no proporcionada' });
+  await revealInExplorer(filePath);
+  res.json({ ok: true });
 }));
 
 // ═══════════════════════════════════════════════════════
