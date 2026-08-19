@@ -172,6 +172,13 @@ export const MODULES = Object.freeze({
     taskName: 'DnsFlush_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  networkprivacy: Object.freeze({
+    dir: join(PROJECT_ROOT, 'networkprivacy-optimizer'),
+    countsFile: 'networkprivacy-counts.json',
+    reportPrefix: 'networkprivacy-report',
+    taskName: 'NetworkPrivacy_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

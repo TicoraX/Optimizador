@@ -32,6 +32,7 @@ import { runTimersScanNative, runTimersActionNative } from './lib/timers.js';
 import { runGhostDevicesScanNative, runGhostDevicesActionNative } from './lib/ghostdevices.js';
 import { runSearchIndexScanNative, runSearchIndexActionNative } from './lib/searchindex.js';
 import { runDnsFlushScanNative, runDnsFlushActionNative } from './lib/dnsflush.js';
+import { runNetworkPrivacyScanNative, runNetworkPrivacyActionNative } from './lib/networkprivacy.js';
 import { getSystemTelemetry } from './lib/system.js';
 import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
@@ -205,6 +206,7 @@ const SCAN_HANDLERS = {
   ghostdevices: runGhostDevicesScanNative,
   searchindex: runSearchIndexScanNative,
   dnsflush: runDnsFlushScanNative,
+  networkprivacy: runNetworkPrivacyScanNative,
 };
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
@@ -225,6 +227,7 @@ const ACTION_HANDLERS = {
   ghostdevices: runGhostDevicesActionNative,
   searchindex: runSearchIndexActionNative,
   dnsflush: runDnsFlushActionNative,
+  networkprivacy: runNetworkPrivacyActionNative,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -505,6 +508,19 @@ export function getConsolidatedStatus() {
         cachedCount: d.cachedCount || 0,
         totalActions: d.totalActions || 4,
         error: d.error,
+      };
+    })(),
+    networkprivacy: (() => {
+      const n = loadJsonSafe(
+        join(MODULES.networkprivacy.dir, 'reports', MODULES.networkprivacy.countsFile),
+        { date: null, protectedCount: 0, exposedCount: 0, total: 4, error: true },
+      );
+      return {
+        lastScan: n.date,
+        protectedCount: n.protectedCount || 0,
+        exposedCount: n.exposedCount || 0,
+        total: n.total || 4,
+        error: n.error,
       };
     })(),
   };

@@ -93,6 +93,10 @@ export default function ReportViewer() {
   const [dnsActions, setDnsActions] = useState([]);
   const [selectedDns, setSelectedDns] = useState({});
 
+  // Network Privacy States
+  const [networkPrivacySettings, setNetworkPrivacySettings] = useState([]);
+  const [selectedNetworkPrivacy, setSelectedNetworkPrivacy] = useState({});
+
   // RAM Optimizer States
   const [availableProcesses, setAvailableProcesses] = useState([]);
   const [unknownProcesses, setUnknownProcesses] = useState([]);
@@ -190,6 +194,8 @@ export default function ReportViewer() {
       setSearchSettings([]); setSelectedSearch({});
     } else if (module === 'dnsflush') {
       setDnsActions([]); setSelectedDns({});
+    } else if (module === 'networkprivacy') {
+      setNetworkPrivacySettings([]); setSelectedNetworkPrivacy({});
     } else if (module === 'power') {
       setPowerPlans([]);
     }
@@ -257,6 +263,9 @@ export default function ReportViewer() {
     } else if (module === 'dnsflush') {
       setDnsActions(items || []);
       setSelectedDns(Object.fromEntries((items || []).map((it, i) => [i, it.recommended === true])));
+    } else if (module === 'networkprivacy') {
+      setNetworkPrivacySettings(items || []);
+      setSelectedNetworkPrivacy(Object.fromEntries((items || []).map((it, i) => [i, !it.isOptimized])));
     } else if (module === 'power') {
       setPowerPlans(items);
     } else if (module === 'adblock') {
@@ -398,6 +407,12 @@ export default function ReportViewer() {
         .map(k => dnsActions[parseInt(k)]?.id)
         .filter(Boolean);
       body.actions = checked.join(',');
+    } else if (module === 'networkprivacy') {
+      const checked = Object.keys(selectedNetworkPrivacy)
+        .filter(k => selectedNetworkPrivacy[k])
+        .map(k => networkPrivacySettings[parseInt(k)]?.id)
+        .filter(Boolean);
+      body.settings = checked.join(',');
     } else if (module === 'ram') {
       // Se manda el PID real (no la posicion en la lista): si solo se
       // mandara la posicion, un proceso que cambio de orden entre el
@@ -537,6 +552,7 @@ export default function ReportViewer() {
       case 'ghostdevices': return 'Dispositivos Fantasma Huérfanos (PnP)';
       case 'searchindex': return 'Indexador y Búsqueda de Windows (WSearch)';
       case 'dnsflush': return 'Caché DNS y Pila de Red LAN';
+      case 'networkprivacy': return 'Privacidad en Red y Telemetría Conectada';
       default: return 'Detalles del Módulo';
     }
   };
@@ -590,6 +606,7 @@ export default function ReportViewer() {
                   {module === 'ghostdevices' && 'Detecta registros de periféricos y dispositivos USB desconectados acumulados en Windows y permite eliminarlos de forma segura.'}
                   {module === 'searchindex' && 'Audita y optimiza el consumo de disco y CPU de Windows Search, restringe la indexación de archivos cifrados y desactiva la búsqueda web en el menú inicio.'}
                   {module === 'dnsflush' && 'Purga la memoria caché del cliente DNS de Windows, actualiza los registros NetBIOS y re-sincroniza las conexiones de red locales.'}
+                  {module === 'networkprivacy' && 'Bloquea la telemetría transmitida por red: descargas de Spotlight, WiFi Sense, apps promocionadas y pre-carga de Microsoft Edge.'}
                 </div>
               )}
               {module === 'cleanup' && (
@@ -1161,6 +1178,33 @@ export default function ReportViewer() {
                       {item.name}
                       <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
                         {item.desc}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {module === 'networkprivacy' && networkPrivacySettings.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Directivas de Privacidad en Red:</label>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem' }}>
+                Seleccioná las opciones de telemetría de red a proteger:
+              </p>
+              <div className="checkbox-list" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {networkPrivacySettings.map((item, idx) => (
+                  <label key={item.id || idx} className="checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedNetworkPrivacy[idx] || false}
+                      onChange={() => setSelectedNetworkPrivacy(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      disabled={isRunning}
+                    />
+                    <span className="checkbox-label" title={item.name}>
+                      {item.name}
+                      <span style={{ display: 'block', fontSize: '0.7rem', color: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {item.desc} (Estado: {item.currentLabel})
                       </span>
                     </span>
                   </label>
