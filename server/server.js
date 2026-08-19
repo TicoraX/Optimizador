@@ -24,6 +24,7 @@ import { runPowerScanNative, runPowerActionNative } from './lib/power.js';
 import { runAppsScanNative, runAppsActionNative } from './lib/apps.js';
 import { runPrivacyScanNative, runPrivacyActionNative } from './lib/privacy.js';
 import { runAdblockScanNative, runAdblockActionNative, FUENTES_VALIDAS } from './lib/adblock.js';
+import { getSystemTelemetry } from './lib/system.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -120,8 +121,14 @@ app.use(express.json({ limit: '16kb' }));
 
 // ═══════════════════════════════════════════════════════
 // GET /api/health — health check rapido
+// GET /api/system/metrics — telemetría en tiempo real (CPU, RAM, Discos)
 // ═══════════════════════════════════════════════════════
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
+app.get('/api/system/metrics', safeHandler(async (_req, res) => {
+  const telemetry = await getSystemTelemetry();
+  res.json(telemetry);
+}));
 
 // ═══════════════════════════════════════════════════════
 // MODULE_HANDLERS — mapa handlers scan/action
