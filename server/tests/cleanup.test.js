@@ -75,4 +75,20 @@ describe('Limpieza segura de disco (cleanup)', () => {
     assert.ok(logs.some((l) => l.includes('Temporales: se liberarian')));
     assert.ok(logs.some((l) => l.includes('Windows Update Cache')));
   });
+
+  it('runCleanupScanNative genera items estructurados con las 9 categorías', async () => {
+    const { runCleanupScanNative } = await import('../lib/cleanup.js');
+    const { loadItems } = await import('../lib/shared.js');
+    const logs = [];
+    await runCleanupScanNative({ DOWNLOADS_AGE_DAYS: 30 }, (msg) => logs.push(msg));
+    const items = loadItems('cleanup');
+    assert.ok(Array.isArray(items), 'items debe ser un array de categorías');
+    assert.equal(items.length, 9, 'deben estar las 9 categorías');
+    for (const item of items) {
+      assert.ok(item.key, 'debe tener key');
+      assert.ok(item.label, 'debe tener label');
+      assert.equal(typeof item.sizeMB, 'number', 'sizeMB debe ser numérico');
+      assert.ok(['SAFE', 'CAUTION'].includes(item.safety), 'safety level válido');
+    }
+  });
 });

@@ -501,12 +501,24 @@ export async function runCleanupScanNative(ageDays = 30, onOutput) {
   lines.push(line(`---`));
   lines.push(line(`**Espacio Total Recuperable Estimado: ${grandTotalMB >= 1024 ? (grandTotalMB / 1024).toFixed(2) + ' GB' : grandTotalMB + ' MB'}**`));
 
+  const cleanupItems = [
+    { key: 'temp', label: targets.temp.name, sizeMB: tempMB, safety: targets.temp.safety, hint: '%TEMP% y Windows\\Temp' },
+    { key: 'windowsUpdate', label: targets.windowsUpdate.name, sizeMB: winUpdateMB, safety: targets.windowsUpdate.safety, hint: 'Instaladores descargados ya aplicados' },
+    { key: 'crashDumps', label: targets.crashDumps.name, sizeMB: crashMB, safety: targets.crashDumps.safety, hint: 'Crash dumps y reportes pasados' },
+    { key: 'devCache', label: targets.devCache.name, sizeMB: devMB, safety: targets.devCache.safety, hint: 'npm, pip, yarn, nuget, vscode' },
+    { key: 'shaderCache', label: targets.shaderCache.name, sizeMB: shaderMB, safety: targets.shaderCache.safety, hint: 'DirectX, Vulkan, NVIDIA, AMD' },
+    { key: 'browserCache', label: targets.browserCache.name, sizeMB: browserMB, safety: targets.browserCache.safety, hint: 'Chrome, Edge, Brave y Firefox (sin cookies)' },
+    { key: 'thumbnails', label: targets.thumbnails.name, sizeMB: thumbMB, safety: targets.thumbnails.safety, hint: 'Caché de vistas previas de Explorer' },
+    { key: 'recycle', label: targets.recycle.name, sizeMB: rb.mb, count: rb.count, safety: targets.recycle.safety, hint: 'Vacía la papelera del sistema' },
+    { key: 'downloads', label: targets.downloads.name, sizeMB: dlMB, count: dlResult.files.length, safety: targets.downloads.safety, hint: `Archivos con más de ${ageDays} días` },
+  ];
+
   finishReport(paths, lines, {
     date: today,
     reportPath,
     total_recoverable_mb: grandTotalMB,
     ...summary,
-  }, onOutput);
+  }, onOutput, cleanupItems);
 }
 
 // ═══════════════════════════════════════════════════════

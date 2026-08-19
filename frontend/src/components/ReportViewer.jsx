@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
 import { API_BASE } from '../config';
 import { renderReport } from '../lib/markdown';
+
+const CleanupBreakdownChart = lazy(() => import('./CleanupBreakdownChart'));
 
 // Las 9 categorías de limpieza y optimización segura de almacenamiento
 const CLEAN_CATEGORIES = [
@@ -31,6 +33,7 @@ export default function ReportViewer() {
 
   // Configuration States
   const [downloadsAgeDays, setDownloadsAgeDays] = useState(30);
+  const [availableCategories, setAvailableCategories] = useState(CLEAN_CATEGORIES);
   // Nada tildado por defecto: borrar es irreversible, el usuario elige.
   const [selectedCategories, setSelectedCategories] = useState({});
   const [availablePrograms, setAvailablePrograms] = useState([]);
@@ -120,7 +123,10 @@ export default function ReportViewer() {
   // en pie la seleccion del escaneo anterior y el usuario podia ejecutar una
   // accion sobre elementos que ya no existen.
   const clearItems = () => {
-    if (module === 'startup') {
+    if (module === 'cleanup') {
+      setAvailableCategories(CLEAN_CATEGORIES);
+      setSelectedCategories({});
+    } else if (module === 'startup') {
       setAvailablePrograms([]); setSelectedPrograms({});
       setAvailableTasks([]); setSelectedTasks({});
       setDisabledPrograms([]); setSelectedEnablePrograms({});
@@ -143,7 +149,7 @@ export default function ReportViewer() {
   // Carga los elementos seleccionables del ultimo escaneo.
   const loadItems = async () => {
     const res = await fetch(`${API_BASE}/reports/${module}/items`);
-    // 404 es legitimo: el modulo no tiene seleccion (network, updates, cleanup)
+    // 404 es legitimo: el modulo no tiene seleccion (network, updates)
     // o todavia no se escaneo. Igual hay que limpiar: es la unica forma de no
     // quedarse con la lista del modulo anterior.
     if (!res.ok) { clearItems(); return; }
@@ -151,7 +157,9 @@ export default function ReportViewer() {
 
     const noneChecked = (list) => Object.fromEntries(list.map((_, i) => [i, false]));
 
-    if (module === 'startup') {
+    if (module === 'cleanup' && Array.isArray(items)) {
+      setAvailableCategories(items);
+    } else if (module === 'startup') {
       setAvailablePrograms(items.programs || []);
       setSelectedPrograms(noneChecked(items.programs || []));
       setAvailableTasks(items.tasks || []);
@@ -446,6 +454,21 @@ export default function ReportViewer() {
                   {module === 'privacy' && 'Revisa 8 ajustes de privacidad de Windows: telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono y más. Los protege con un clic.'}
                 </div>
               )}
+              {module === 'cleanup' && (
+                <Suspense fallback={<div className="skeleton" style={{ height: 200, marginBottom: 'var(--space-6)' }} />}>
+                  <CleanupBreakdownChart
+                    categories={availableCategories}
+                    selected={selectedCategories}
+                    onToggleCategory={(k) => setSelectedCategories((prev) => ({ ...prev, [k]: !prev[k] }))}
+                    onSelectAllSafe={() => {
+                      const next = {};
+                      availableCategories.forEach((c) => { if (c.safety === 'SAFE') next[c.key] = true; });
+                      setSelectedCategories(next);
+                    }}
+                    onDeselectAll={() => setSelectedCategories({})}
+                  />
+                </Suspense>
+              )}
               <div
                 className="markdown-content"
                 dangerouslySetInnerHTML={{ __html: reportHtml }}
@@ -491,7 +514,7 @@ export default function ReportViewer() {
                     style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', width: 'auto' }}
                     onClick={() => {
                       const next = {};
-                      CLEAN_CATEGORIES.forEach((c) => { if (c.safety === 'SAFE') next[c.key] = true; });
+                      availableCategories.forEach((c) => { if (c.safety === 'SAFE') next[c.key] = true; });
                       setSelectedCategories(next);
                     }}
                     disabled={isRunning}
@@ -510,7 +533,7 @@ export default function ReportViewer() {
                 </div>
               </div>
               <div className="checkbox-list" style={{ maxHeight: '320px' }}>
-                {CLEAN_CATEGORIES.map((cat) => (
+                {availableCategories.map((cat) => (
                   <label key={cat.key} className="checkbox-item" style={{ alignItems: 'flex-start' }}>
                     <input
                       type="checkbox"
