@@ -281,6 +281,10 @@
 - **Frontend (`ItemCheckboxList.jsx`)**:
   - Incorporación automática de barra de búsqueda y filtrado en vivo para listas con más de 5 elementos (aplicaciones, servicios, ajustes de privacidad, etc.), permitiendo localizar elementos por nombre, descripción o ruta preservando los índices originales para selecciones atómicas.
 
+### Mejora 25: Copia Rápida de Reportes Markdown y Exportación Rápida
+- **Frontend (`ReportViewer.jsx`)**:
+  - Incorporación del botón *Copiar Markdown* en la cabecera de todos los 21 módulos para copiar el informe técnico completo al portapapeles con feedback visual interactivo (*¡Copiado!*).
+
 ---
 
 ## 2. Estado de Calidad y Verificación

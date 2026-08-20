@@ -34,6 +34,16 @@ export default function ReportViewer() {
   const reportHtml = useMemo(() => renderReport(report?.content), [report?.content]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyReport = async () => {
+    if (!report?.content) return;
+    try {
+      await navigator.clipboard.writeText(report.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
 
   // ── Hook genérico para los 14 módulos con patrón items/selected ──
   const generic = useModuleItems(module);
@@ -431,13 +441,24 @@ export default function ReportViewer() {
 
   return (
     <div>
-      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <button className="btn btn-secondary" style={{ width: 'auto', padding: '0.5rem 1rem' }} onClick={() => navigate('/')}>
+      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button className="btn btn-secondary" style={{ width: 'auto', padding: '0.4rem 0.8rem' }} onClick={() => navigate('/')}>
             ← Volver al Dashboard
           </button>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: '700', margin: 0 }}>{getModuleTitle()}</h1>
         </div>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: '700' }}>{getModuleTitle()}</h1>
+        {report?.content && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleCopyReport}
+            title="Copiar reporte en formato Markdown al portapapeles"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            {copied ? '¡Copiado!' : 'Copiar Markdown'}
+          </button>
+        )}
       </div>
 
       <div className="report-container">
