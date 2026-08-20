@@ -5,6 +5,7 @@ import {
   getRamMetrics,
   parseLogicalDisks,
   formatUptime,
+  getNetworkInterfacesSummary,
   getSystemTelemetry,
 } from '../lib/system.js';
 
@@ -53,7 +54,16 @@ MI-PC,D:,150000000000,500000000000,Datos
     assert.equal(formatUptime(90000), '1d 1h 0m');
   });
 
-  it('getSystemTelemetry retorna estructura completa con cpu, ram, disks y system', async () => {
+  it('getNetworkInterfacesSummary retorna array estructurado de interfaces', () => {
+    const net = getNetworkInterfacesSummary();
+    assert.ok(Array.isArray(net));
+    if (net.length > 0) {
+      assert.ok(net[0].name);
+      assert.ok(net[0].address);
+    }
+  });
+
+  it('getSystemTelemetry retorna estructura completa con cpu, ram, disks, network y system', async () => {
     const data = await getSystemTelemetry();
     assert.ok(data.timestamp);
     assert.ok(data.cpu);
@@ -62,6 +72,7 @@ MI-PC,D:,150000000000,500000000000,Datos
     assert.ok(data.ram);
     assert.ok(data.ram.totalGB > 0);
     assert.ok(Array.isArray(data.disks));
+    assert.ok(Array.isArray(data.network));
     assert.ok(data.system);
     assert.ok(data.system.hostname);
     assert.ok(data.system.uptimeFormatted);

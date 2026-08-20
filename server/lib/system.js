@@ -179,6 +179,27 @@ export function formatUptime(uptimeSeconds) {
 }
 
 /**
+ * Resume las interfaces de red activas no internas.
+ */
+export function getNetworkInterfacesSummary() {
+  const ifaces = os.networkInterfaces();
+  const active = [];
+  for (const [name, addrs] of Object.entries(ifaces || {})) {
+    if (!Array.isArray(addrs)) continue;
+    const ipv4 = addrs.find((a) => a.family === 'IPv4' && !a.internal);
+    if (ipv4) {
+      active.push({
+        name,
+        address: ipv4.address,
+        netmask: ipv4.netmask,
+        mac: ipv4.mac,
+      });
+    }
+  }
+  return active;
+}
+
+/**
  * Obtiene el snapshot completo de telemetría del sistema en tiempo real.
  */
 export async function getSystemTelemetry() {
@@ -195,6 +216,7 @@ export async function getSystemTelemetry() {
   const ram = getRamMetrics();
   const uptimeSeconds = os.uptime();
   const uptimeFormatted = formatUptime(uptimeSeconds);
+  const network = getNetworkInterfacesSummary();
 
   return {
     timestamp: new Date().toISOString(),
@@ -206,6 +228,7 @@ export async function getSystemTelemetry() {
     },
     ram,
     disks,
+    network,
     system: {
       hostname: os.hostname(),
       platform: os.platform(),

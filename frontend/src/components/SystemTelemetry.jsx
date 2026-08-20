@@ -10,8 +10,47 @@ function getUsageTone(pct) {
   return 'is-success';
 }
 
+/**
+ * Mini gráfico de tendencia SVG en tiempo real (0 dependencias).
+ */
+function MiniSparkline({ points, strokeColor = 'var(--color-accent)', height = 22, max = 100 }) {
+  if (!points || points.length < 2) return null;
+  const width = 100;
+  const step = width / (points.length - 1);
+  const coords = points.map((p, i) => {
+    const x = i * step;
+    const y = height - (Math.min(max, Math.max(0, p)) / max) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const pathD = `M ${coords.join(' L ')}`;
+  const areaD = `${pathD} L ${width},${height} L 0,${height} Z`;
+
+  return (
+    <div style={{ width: '100%', height, marginTop: 'var(--space-2)' }}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: '100%', height: '100%', overflow: 'visible' }}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path d={areaD} fill={strokeColor} fillOpacity="0.12" />
+        <path
+          d={pathD}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
 export default function SystemTelemetry() {
   const [telemetry, setTelemetry] = useState(null);
+  const [cpuHistory, setCpuHistory] = useState([]);
+  const [ramHistory, setRamHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -23,6 +62,12 @@ export default function SystemTelemetry() {
       if (!res.ok) throw new Error('No se pudo obtener la telemetría del sistema');
       const data = await res.json();
       setTelemetry(data);
+      if (typeof data?.cpu?.usagePercent === 'number') {
+        setCpuHistory((prev) => [...prev.slice(-14), data.cpu.usagePercent]);
+      }
+      if (typeof data?.ram?.usagePercent === 'number') {
+        setRamHistory((prev) => [...prev.slice(-14), data.ram.usagePercent]);
+      }
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -177,6 +222,10 @@ export default function SystemTelemetry() {
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {telemetry?.cpu?.model || 'Procesador'}
           </div>
+          <MiniSparkline
+            points={cpuHistory}
+            strokeColor={cpuPct >= 85 ? 'var(--color-danger)' : cpuPct >= 65 ? 'var(--color-warning)' : 'var(--color-accent)'}
+          />
         </div>
 
         {/* Medidor RAM */}
@@ -219,6 +268,10 @@ export default function SystemTelemetry() {
             <span>{telemetry?.ram?.usedGB} GB en uso</span>
             <span>{telemetry?.ram?.freeGB} GB libres ({telemetry?.ram?.totalGB} GB total)</span>
           </div>
+          <MiniSparkline
+            points={ramHistory}
+            strokeColor={ramPct >= 85 ? 'var(--color-danger)' : ramPct >= 65 ? 'var(--color-warning)' : 'var(--color-accent)'}
+          />
         </div>
 
         {/* Unidades de Almacenamiento */}
@@ -274,6 +327,46 @@ export default function SystemTelemetry() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Red & Host */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: 'var(--space-4)',
+            backgroundColor: 'var(--color-surface-panel)',
+            border: '1px solid var(--color-border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-2)' }}>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-ink-2)', fontWeight: 500 }}>
+                Red & Conectividad
+              </span>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)' }}>
+                {telemetry?.system?.hostname || 'Local'}
+              </span>
+            </div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              {telemetry?.network && telemetry.network.length > 0 ? (
+                telemetry.network.slice(0, 2).map((net) => (
+                  <div key={net.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--color-ink-1)' }}>{net.name}</span>
+                    <span style={{ fontFamily: 'monospace' }}>{net.address}</span>
+                  </div>
+                ))
+              ) : (
+                <span>No se detectaron interfaces IPv4 activas</span>
+              )}
+            </div>
+          </div>
+          <div style={{ marginTop: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--color-border-subtle)', display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)' }}>
+            <span>{telemetry?.system?.platform} {telemetry?.system?.arch}</span>
+            <span>{telemetry?.cpu?.speedMHz ? `${(telemetry.cpu.speedMHz / 1000).toFixed(1)} GHz` : ''}</span>
+          </div>
         </div>
       </div>
     </section>

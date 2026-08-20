@@ -260,15 +260,37 @@
 - **Privacy (`privacy.js` y `privacy.test.js`)**:
   - Resolución dual de selección por identificador textual (`telemetry`, `ads`) o índice numérico (`1`, `2`).
   - Nueva suite de pruebas unitarias (`server/tests/privacy.test.js`).
-- **Startup (`startup.js`)**:
-  - Protección de guardado de manifiesto en `dryRun` para evitar mutación del estado histórico durante simulaciones.
+### Mejora 22: Telemetría de Red y Bento Grid 4-Cards de Hardware
+- **Backend (`system.js` y `system.test.js`)**:
+  - Incorporación de `getNetworkInterfacesSummary` para extracción instantánea (0ms) de interfaces de red activas no internas, IP local, máscara y MAC mediante API nativa de Node.js.
+  - Inclusión de array `network` en la respuesta de `/api/system/metrics` y `getSystemTelemetry`.
+  - Nueva prueba unitaria en `server/tests/system.test.js`.
+- **Frontend (`SystemTelemetry.jsx`)**:
+  - Ampliación del dashboard de telemetría a una cuadrícula Bento de 4 tarjetas equilibradas: CPU, RAM, Almacenamiento Local y Red & Conectividad.
+  - Renderizado dinámico de adaptadores de red activos, arquitectura del procesador y velocidad en GHz.
+
+### Mejora 23: Paleta Global de Comandos (`Ctrl+K`) y Navegación Rápida
+- **Frontend (`CommandPalette.jsx` y `App.jsx`)**:
+  - Implementación de la paleta modal global `CommandPalette` activable mediante el atajo universal `Ctrl+K` / `Cmd+K` o botón en la barra lateral.
+  - Búsqueda por texto y filtrado instantáneo por palabras clave a través de los 21 módulos, 5 vistas principales (Dashboard, Historial, Restauración, Archivos Grandes, Programador) y acciones rápidas (descarga de informes en Markdown y JSON, cambio de tema).
+  - Navegación por teclado completa (`ArrowUp`, `ArrowDown`, `Enter`, `Escape`) con desenfoque de fondo y diseño adaptado a los tokens de diseño de la aplicación.
+
+### Mejora 24: Mini-Sparklines de Tendencia en Vivo y Búsqueda en Listas de Módulos
+- **Frontend (`SystemTelemetry.jsx`)**:
+  - Componente `MiniSparkline` con renderizado SVG vectorial ultraligero (0 dependencias) que traza la curva histórica de las últimas 15 muestras en tiempo real de uso de CPU y RAM con gradiente y código de color según nivel de carga.
+- **Frontend (`ItemCheckboxList.jsx`)**:
+  - Incorporación automática de barra de búsqueda y filtrado en vivo para listas con más de 5 elementos (aplicaciones, servicios, ajustes de privacidad, etc.), permitiendo localizar elementos por nombre, descripción o ruta preservando los índices originales para selecciones atómicas.
+
+### Mejora 25: Copia Rápida de Reportes Markdown y Exportación Rápida
+- **Frontend (`ReportViewer.jsx`)**:
+  - Incorporación del botón *Copiar Markdown* en la cabecera de todos los 21 módulos para copiar el informe técnico completo al portapapeles con feedback visual interactivo (*¡Copiado!*).
 
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios Backend**: **197 / 197 tests pasando al 100%** (47 suites de test completas).
+- **Tests Unitarios Backend**: **199 / 199 tests pasando al 100%** (47 suites de test completas).
 - **Tests Unitarios Frontend**: **7 / 7 tests pasando al 100%**.
-- **Total Tests Automatizados**: **204 / 204 tests pasando exitosamente**.
+- **Total Tests Automatizados**: **206 / 206 tests pasando exitosamente**.
 - **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite v8.0.16 optimizados.
 - **Empaquetado Electron (v1.3.0)**:
   - Ejecutable binario descomprimido generado en `dist/win-unpacked/Optimizador.exe`.

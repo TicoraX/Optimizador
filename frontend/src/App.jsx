@@ -7,6 +7,7 @@ import History from './components/History';
 import RestoreManager from './components/RestoreManager';
 import LargeFilesHunter from './components/LargeFilesHunter';
 import ErrorBoundary from './components/ErrorBoundary';
+import CommandPalette from './components/CommandPalette';
 import { MODULES, MODULE_KEYS } from './modules';
 import { ModuleIcon } from './components/ModuleIcon';
 import { API_BASE } from './config';
@@ -16,6 +17,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOnline, setIsOnline] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // tokens.css define los dos modos desde el principio, pero nada seteaba
   // nunca `data-theme`, asi que el modo claro era inalcanzable.
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
@@ -24,6 +26,19 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Atajo global Ctrl+K / Cmd+K para abrir la paleta de comandos
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        if (e.repeat) return;
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const fetchStatus = async () => {
     try {
@@ -63,6 +78,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="app-container">
+        <CommandPalette
+          isOpen={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          theme={theme}
+        />
+
         {/* Navigation Glass Bar */}
         <nav className="navbar" aria-label="Principal">
           <div className="nav-logo">
@@ -70,8 +92,32 @@ export default function App() {
             <span>Optimizador</span>
           </div>
 
-          {/* Rail con los 9 modulos. Antes eran dos links y llegar a un modulo
-              exigia pasar por el dashboard. */}
+          {/* Botón rápido de búsqueda / Paleta de comandos */}
+          <button
+            className="btn btn-quiet"
+            onClick={() => setPaletteOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              margin: 'var(--space-2) 0 var(--space-3) 0',
+              padding: 'var(--space-2) var(--space-3)',
+              backgroundColor: 'var(--color-paper-2)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-md, 8px)',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-ink-3)',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Buscar...
+            </span>
+            <kbd style={{ fontSize: '0.65rem', padding: '1px 5px', border: '1px solid var(--color-border-subtle)', borderRadius: 3 }}>Ctrl+K</kbd>
+          </button>
+
+          {/* Rail con los 21 modulos y vistas principales */}
           <div className="nav-links">
             <span className="nav-section-title">Principal</span>
             <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} end>

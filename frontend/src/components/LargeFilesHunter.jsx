@@ -153,6 +153,7 @@ export default function LargeFilesHunter() {
             type="text"
             className="input-field"
             placeholder="Buscar por nombre..."
+            aria-label="Buscar archivos por nombre"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
