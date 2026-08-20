@@ -35,13 +35,15 @@ export default function ReportViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const copyResetTimerRef = useRef(null);
 
   const handleCopyReport = async () => {
     if (!report?.content) return;
     try {
       await navigator.clipboard.writeText(report.content);
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyResetTimerRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {}
   };
 

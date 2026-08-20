@@ -8,6 +8,8 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
+  const prevActiveElementRef = useRef(null);
+  const focusTimerRef = useRef(null);
   const navigate = useNavigate();
 
   // Elementos de la paleta
@@ -87,13 +89,19 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
     setSelectedIndex(0);
   }, [query]);
 
-  // Auto focus al abrir
+  // Gestión de foco y accesibilidad al abrir / cerrar el modal
   useEffect(() => {
     if (isOpen) {
+      prevActiveElementRef.current = document.activeElement;
       setQuery('');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      focusTimerRef.current = setTimeout(() => inputRef.current?.focus(), 50);
+    } else if (prevActiveElementRef.current && typeof prevActiveElementRef.current.focus === 'function') {
+      prevActiveElementRef.current.focus();
     }
+    return () => {
+      if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+    };
   }, [isOpen]);
 
   const handleSelect = (item) => {
@@ -146,8 +154,12 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Paleta de comandos"
         className="glass-panel command-palette-modal"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
         style={{
           width: '90%',
           maxWidth: '620px',
@@ -171,7 +183,7 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
             borderBottom: '1px solid var(--color-border-subtle)',
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-ink-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
@@ -180,8 +192,9 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
             className="command-palette-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
             placeholder="Buscar módulo, herramienta o acción… (ej. RAM, DNS, Tema, Backup)"
+            aria-label="Buscar comandos, módulos o acciones"
+            aria-autocomplete="list"
             style={{
               flex: 1,
               background: 'transparent',
@@ -192,13 +205,28 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
               fontFamily: 'inherit',
             }}
           />
-          <span style={{ fontSize: '0.7rem', color: 'var(--color-ink-3)', padding: '2px 6px', border: '1px solid var(--color-border-subtle)', borderRadius: 4 }}>
-            ESC para cerrar
-          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              fontSize: '0.7rem',
+              color: 'var(--color-ink-3)',
+              padding: '2px 6px',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 4,
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+            title="Cerrar paleta"
+          >
+            ESC
+          </button>
         </div>
 
         {/* Lista de Resultados */}
         <div
+          role="listbox"
+          aria-label="Resultados de búsqueda"
           className="command-palette-results"
           style={{
             overflowY: 'auto',
@@ -216,9 +244,18 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
               return (
                 <div
                   key={item.id}
+                  role="option"
+                  aria-selected={isSelected}
+                  tabIndex={0}
                   className={`command-palette-item ${isSelected ? 'is-selected' : ''}`}
                   onClick={() => handleSelect(item)}
                   onMouseEnter={() => setSelectedIndex(idx)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelect(item);
+                    }
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -230,10 +267,11 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
                     backgroundColor: isSelected ? 'var(--color-paper-3)' : 'transparent',
                     border: isSelected ? '1px solid var(--color-border-subtle)' : '1px solid transparent',
                     transition: 'background-color 0.15s ease',
+                    outline: 'none',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minWidth: 0 }}>
-                    <span style={{ color: isSelected ? 'var(--color-brand, #38bdf8)' : 'var(--color-ink-3)', display: 'flex' }}>
+                    <span style={{ color: isSelected ? 'var(--color-brand, #38bdf8)' : 'var(--color-ink-3)', display: 'flex' }} aria-hidden="true">
                       <ModuleIcon path={item.icon} size={18} />
                     </span>
                     <div style={{ minWidth: 0 }}>

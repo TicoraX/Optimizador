@@ -272,7 +272,7 @@
 ### Mejora 23: Paleta Global de Comandos (`Ctrl+K`) y Navegación Rápida
 - **Frontend (`CommandPalette.jsx` y `App.jsx`)**:
   - Implementación de la paleta modal global `CommandPalette` activable mediante el atajo universal `Ctrl+K` / `Cmd+K` o botón en la barra lateral.
-  - Búsqueda difusa y filtrado instantáneo por palabras clave a través de los 21 módulos, 5 vistas principales (Dashboard, Historial, Restauración, Archivos Grandes, Programador) y acciones rápidas (descarga de informes en Markdown y JSON, cambio de tema).
+  - Búsqueda por texto y filtrado instantáneo por palabras clave a través de los 21 módulos, 5 vistas principales (Dashboard, Historial, Restauración, Archivos Grandes, Programador) y acciones rápidas (descarga de informes en Markdown y JSON, cambio de tema).
   - Navegación por teclado completa (`ArrowUp`, `ArrowDown`, `Enter`, `Escape`) con desenfoque de fondo y diseño adaptado a los tokens de diseño de la aplicación.
 
 ### Mejora 24: Mini-Sparklines de Tendencia en Vivo y Búsqueda en Listas de Módulos

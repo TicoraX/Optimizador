@@ -2,7 +2,7 @@
 
 Conjunto de herramientas de optimización y mantenimiento de alto rendimiento para Windows: **21 módulos nativos en Node.js**, telemetría de hardware en tiempo real, cálculo de Health Score, gestión de puntos de restauración y panel de control moderno (React + Vite + Electron).
 
-> Todo corre **localmente en tu equipo**. Sin servicios en la nube, sin telemetría de terceros, ningún dato sale de tu PC.
+> Todo el procesamiento y almacenamiento de reportes se ejecuta **localmente en tu equipo**. Sin servicios en la nube ni telemetría propia hacia servidores externos (únicamente *Update Checker* consulta gestores oficiales de paquetes y *AdBlock* descarga listas de dominios públicas).
 
 ---
 

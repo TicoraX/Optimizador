@@ -359,7 +359,7 @@ export default function SystemTelemetry() {
                   </div>
                 ))
               ) : (
-                <span>Conexión activa</span>
+                <span>No se detectaron interfaces IPv4 activas</span>
               )}
             </div>
           </div>

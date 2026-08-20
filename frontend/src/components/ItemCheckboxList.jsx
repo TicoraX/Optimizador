@@ -84,6 +84,7 @@ export default function ItemCheckboxList({
             type="text"
             className="input input-sm"
             placeholder="Filtrar por nombre o detalle..."
+            aria-label="Filtrar por nombre o detalle"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             disabled={isRunning}

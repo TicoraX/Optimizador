@@ -30,7 +30,8 @@ export default function App() {
   // Atajo global Ctrl+K / Cmd+K para abrir la paleta de comandos
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        if (e.repeat) return;
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
