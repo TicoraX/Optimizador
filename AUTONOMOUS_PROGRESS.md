@@ -275,6 +275,12 @@
   - Búsqueda difusa y filtrado instantáneo por palabras clave a través de los 21 módulos, 5 vistas principales (Dashboard, Historial, Restauración, Archivos Grandes, Programador) y acciones rápidas (descarga de informes en Markdown y JSON, cambio de tema).
   - Navegación por teclado completa (`ArrowUp`, `ArrowDown`, `Enter`, `Escape`) con desenfoque de fondo y diseño adaptado a los tokens de diseño de la aplicación.
 
+### Mejora 24: Mini-Sparklines de Tendencia en Vivo y Búsqueda en Listas de Módulos
+- **Frontend (`SystemTelemetry.jsx`)**:
+  - Componente `MiniSparkline` con renderizado SVG vectorial ultraligero (0 dependencias) que traza la curva histórica de las últimas 15 muestras en tiempo real de uso de CPU y RAM con gradiente y código de color según nivel de carga.
+- **Frontend (`ItemCheckboxList.jsx`)**:
+  - Incorporación automática de barra de búsqueda y filtrado en vivo para listas con más de 5 elementos (aplicaciones, servicios, ajustes de privacidad, etc.), permitiendo localizar elementos por nombre, descripción o ruta preservando los índices originales para selecciones atómicas.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
