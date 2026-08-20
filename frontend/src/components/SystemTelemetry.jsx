@@ -275,6 +275,46 @@ export default function SystemTelemetry() {
             </div>
           )}
         </div>
+
+        {/* Red & Host */}
+        <div
+          className="glass-panel"
+          style={{
+            padding: 'var(--space-4)',
+            backgroundColor: 'var(--color-surface-panel)',
+            border: '1px solid var(--color-border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 'var(--space-2)' }}>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-ink-2)', fontWeight: 500 }}>
+                Red & Conectividad
+              </span>
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)' }}>
+                {telemetry?.system?.hostname || 'Local'}
+              </span>
+            </div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
+              {telemetry?.network && telemetry.network.length > 0 ? (
+                telemetry.network.slice(0, 2).map((net) => (
+                  <div key={net.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--color-ink-1)' }}>{net.name}</span>
+                    <span style={{ fontFamily: 'monospace' }}>{net.address}</span>
+                  </div>
+                ))
+              ) : (
+                <span>Conexión activa</span>
+              )}
+            </div>
+          </div>
+          <div style={{ marginTop: 'var(--space-2)', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--color-border-subtle)', display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)' }}>
+            <span>{telemetry?.system?.platform} {telemetry?.system?.arch}</span>
+            <span>{telemetry?.cpu?.speedMHz ? `${(telemetry.cpu.speedMHz / 1000).toFixed(1)} GHz` : ''}</span>
+          </div>
+        </div>
       </div>
     </section>
   );
