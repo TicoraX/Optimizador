@@ -1,28 +1,50 @@
-# Optimizador — Automatizaciones de mantenimiento para Windows
+# Optimizador — Suite Integral de Mantenimiento y Optimización para Windows
 
-Conjunto de herramientas de mantenimiento local para Windows: actualizaciones de software, limpieza de disco, optimización de inicio, administración de RAM, red, servicios, energía y aplicaciones — controlados desde un dashboard web moderno.
+Conjunto de herramientas de optimización y mantenimiento de alto rendimiento para Windows: **21 módulos nativos en Node.js**, telemetría de hardware en tiempo real, cálculo de Health Score, gestión de puntos de restauración y panel de control moderno (React + Vite + Electron).
 
-> Todo corre **localmente en tu equipo**. Sin nube, sin telemetría, ningún dato sale de tu PC.
+> Todo corre **localmente en tu equipo**. Sin servicios en la nube, sin telemetría de terceros, ningún dato sale de tu PC.
 
 ---
 
-## Qué hace
+## Qué hace (21 Módulos Nativos)
 
 | Módulo | Qué hace |
 |---|---|
-| **Update Checker** | Busca actualizaciones pendientes en winget (apps/drivers), pip, npm global y Chocolatey. No instala nada sin confirmación. |
-| **Disk Cleanup** | Escanea espacio recuperable: archivos temporales, caché de navegadores (Chrome/Edge/Firefox), descargas >30 días y papelera de reciclaje. Borra solo lo que elijas. |
-| **Startup Optimizer** | Audita y deshabilita programas, servicios auto-start y tareas que se lanzan al **iniciar sesión**. Deshabilitar es reversible desde el mismo dashboard. |
-| **RAM Optimizer** | Escanea procesos por consumo de memoria y los clasifica en 4 categorías de riesgo: seguro (se puede liberar automáticamente), riesgoso (editores/navegadores), desconocido (revisión manual) y crítico (nunca se toca). Libera RAM seleccionando qué cerrar. |
-| **Network Optimizer** | Diagnostica conectividad: cuenta entradas de caché DNS, mide latencia contra 8.8.8.8, enumera adaptadores activos/desconectados. Acción: vacía caché DNS y re-registra DNS. |
-| **Services Optimizer** | Lista servicios con inicio automático y separa los de Microsoft de los de terceros por ruta del binario y por una lista de servicios críticos protegidos (Defender, firewall, Windows Update). Permite **detener y deshabilitar** servicios de terceros que no necesites (Adobe, Steam, etc.). Difiere de Inicio: estos servicios corren en segundo plano aunque nadie haya iniciado sesión — no son programas que se abren al login. |
-| **Power Optimizer** | Muestra el plan de energía activo con su descripción, el estado de la batería (carga %, tiempo restante) y estima el consumo en watts. Permite cambiar de plan al instante. |
-| **App Manager** | Lista aplicaciones instaladas mediante winget con su ID, versión y origen. Permite desinstalar varias a la vez de forma silenciosa (`winget uninstall --silent`). |
-| **Privacy Optimizer** | Revisa 8 ajustes de privacidad de Windows (telemetría, Cortana, ID publicitario, ubicación, cámara, micrófono, etc.) y los protege con un clic mediante `reg add`. |
+| **Update Checker** | Busca actualizaciones en winget (apps/drivers), pip, npm global y Chocolatey en paralelo con `Promise.all`. |
+| **Disk Cleanup** | Escanea y limpia archivos temporales, papelera de reciclaje y cachés de desarrollo (`uv`, `pnpm`, `cargo`) y navegadores (`Chrome`, `Edge`, `Firefox`, `Arc`, `Vivaldi`, `Opera`). |
+| **Startup Optimizer** | Audita y deshabilita programas, servicios auto-start y tareas de inicio de sesión con manifiesto de reactivación y soporte `dryRun`. |
+| **RAM Optimizer** | Análisis instantáneo de consumo de memoria y clasificación por nivel de riesgo (seguro, riesgoso, crítico de sistema). |
+| **Network Optimizer** | Diagnostica conectividad, latencia, recuento de caché DNS y adaptadores de red. Permite purga y re-registro. |
+| **Services Optimizer** | Lista y clasifica servicios automáticos distinguiendo Microsoft de terceros. Permite detener y deshabilitar servicios innecesarios. |
+| **Power Optimizer** | Monitorea el plan activo, batería y consumo estimado. Permite cambio de esquema con reversibilidad atómica en el historial. |
+| **App Manager** | Lista aplicaciones instaladas mediante winget y permite desinstalación silenciosa por lotes. |
+| **Privacy Optimizer** | Audita y endurece directivas de privacidad de Windows (telemetría, publicidad, Cortana, sensores, diagnósticos). |
+| **AdBlock Optimizer** | Bloquea dominios de telemetría y publicidad inyectando fuentes curadas (`adaway`, `danpollock`, `stevenblack`) en el archivo hosts con backup automático. |
+| **Gaming Mode** | Optimiza el sistema para juegos: GameDVR, optimizaciones de pantalla completa (FSO), DirectStorage y prioridad de GPU. |
+| **System Integrity** | Ejecuta verificaciones y reparaciones del almacén de componentes de Windows mediante SFC y DISM con seguimiento en vivo. |
+| **Context Menu** | Limpia entradas residuales e innecesarias del menú contextual de Windows sin tocar las del sistema operativo. |
+| **OEM Debloat** | Identifica y neutraliza software preinstalado de fabricantes (Dell, HP, Lenovo, ASUS, Acer) sin afectar controladores. |
+| **System Timers** | Optimiza la latencia de interrupciones y precisión del reloj BCD (`useplatformclock`, `syntheticclock`, `tscsyncpolicy`). |
+| **Ghost Devices** | Detecta dispositivos de hardware desconectados o duplicados en el Administrador de Dispositivos con protección de buses de sistema (`PCI\`, `HTREE\`, `UEFI\`). |
+| **Search Indexer** | Optimiza el servicio Windows Search y desactiva la búsqueda web/Bing en el menú Inicio para acelerar búsquedas locales. |
+| **DNS Flush** | Purga la caché de resolución DNS y re-registra nombres de host para resolver problemas de conexión. |
+| **Network Privacy** | Desactiva protocolos de red inseguros o con fugas de datos (LLMNR, NetBIOS, WPAD, sondeo activo NCSI). |
+| **Virtual Memory / Pagefile** | Diagnostica la memoria paginada, paginación del kernel y directivas de administración de memoria. |
+| **WerFault Optimizer** | Suprime cuadros de diálogo de cuelgue, generación de minidumps masivos y telemetría de errores de Windows. |
 
 Cada módulo sigue el mismo patrón:
 - **Scan** — lee el sistema y genera un reporte en Markdown, un JSON de conteos y un JSON de elementos seleccionables. No modifica nada.
-- **Acción** — toca solo lo que seleccionaste. Se puede simular antes de aplicar, y cada cambio queda en el diario con su valor anterior.
+- **Acción** — toca solo lo que seleccionaste. Se puede simular con `dryRun` antes de aplicar, y cada cambio queda registrado en el historial de cambios (`changes.json`) con soporte de reversión atómica (`undo`).
+
+---
+
+## Características Adicionales
+
+- **Telemetría de Hardware en Vivo (Bento Grid 4-Cards)**: Monitoreo en tiempo real de CPU (uso %, núcleos, GHz), Memoria RAM (usada, libre, %), Almacenamiento Local (espacio libre por partición) y Red & Conectividad (adaptadores activos, IP local, hostname).
+- **Health Score**: Algoritmo ponderado (0 a 100) que califica la salud general del sistema y ofrece recomendaciones prioritarias.
+- **Cazador de Archivos Grandes (Large Files Hunter)**: Localiza archivos pesados (>100MB) y permite abrirlos directamente en el Explorador.
+- **Gestor de Puntos de Restauración**: Creación, listado y consulta de puntos de restauración de Windows con control de throttling.
+- **Optimización Rápida (Quick Optimize)**: Ejecución con 1 clic de escaneo y optimización combinada de los módulos más seguros.
 
 ---
 
@@ -31,17 +53,17 @@ Cada módulo sigue el mismo patrón:
 ```
 Optimizador/
 ├── server/
-│   ├── server.js            # Express: rutas, seguridad, SSE
-│   └── lib/                 # La logica de los 21 modulos, nativa en Node
+│   ├── server.js            # Express: rutas, seguridad, SSE, rate limiting
+│   └── lib/                 # La logica de los 21 modulos, 100% nativa en Node.js
 │       ├── shared.js        # Whitelist, validadores, spawn, barrera y diario
-│       ├── changes.js       # Deshacer un cambio aplicado
+│       ├── changes.js       # Reversion atomica de cambios aplicados
 │       └── <modulo>.js      # Un archivo por modulo: scan + accion
-├── frontend/                # React + Vite
+├── frontend/                # React 18 + Vite
 │   ├── src/modules.js       # Registro declarativo de los 21 modulos
 │   ├── src/styles/tokens.css# Sistema de diseno (color, espaciado, tipografia)
-│   └── src/components/
-├── electron/                # App de escritorio, con auto-update
-├── scripts/Notify.ps1       # Unico PowerShell: lo invocan las tareas programadas
+│   └── src/components/      # Componentes UI desacoplados y modulares
+├── electron/                # App de escritorio (Electron + electron-updater)
+├── scripts/Notify.ps1       # Tareas programadas de notificaciones semanales
 └── <modulo>/reports/        # Reportes, conteos, items, logs y diario de cambios
 ```
 
@@ -49,8 +71,8 @@ Optimizador/
 
 ## Requisitos
 
-- Windows 10 u 11
-- [Node.js 18+](https://nodejs.org/) y `npm`
+- Windows 10 u 11 (64-bit)
+- [Node.js 20+](https://nodejs.org/) y `npm >= 9`
 - Opcionales, según el módulo: `winget`, `pip`, `npm`, `choco`. Los que falten se omiten sin error.
 
 ---
@@ -62,9 +84,9 @@ La forma más simple de correr el proyecto: una sola app instalable que empaquet
 ```powershell
 git clone https://github.com/TicoraX/Optimizador.git
 cd Optimizador
-npm install
-npm run build:frontend   # compila el frontend y las dependencias del server
-npx electron .            # abre la app
+npm ci                     # instalacion reproducible desde lockfile
+npm run build:frontend     # compila el frontend y dependencias
+npx electron .              # abre la app
 ```
 
 Para generar el instalador `.exe`:
@@ -74,69 +96,41 @@ npm run dist       # genera el instalador en dist/, sin publicar
 npm run release    # genera y lo publica como GitHub Release (requiere GITHUB_TOKEN con permiso repo)
 ```
 
-Los clientes que ya tengan la app instalada detectan releases nuevos automáticamente (`electron-updater`).
-
 ---
 
-## Inicio rápido — Dashboard web (backend + frontend por separado)
-
-Alternativa para desarrollo: corre el backend y el frontend como dos procesos independientes en el navegador, en vez de la app Electron empaquetada.
-
-### 1. Clonar el repositorio
+## Inicio rápido — Dashboard web (desarrollo por separado)
 
 ```powershell
 git clone https://github.com/TicoraX/Optimizador.git
 cd Optimizador
-```
 
-### 2. Levantar el backend (API)
+# 1. Backend
+npm --prefix server ci
+npm start --prefix server
 
-```powershell
-cd server
-npm install
-npm start
-```
-
-El servidor arranca en `http://127.0.0.1:3001`. Solo acepta conexiones desde `localhost` — **no es accesible desde tu red local**.
-
-> Para desarrollo con recarga automática: `npm run dev`
-
-### 3. Levantar el frontend web
-
-Abre una segunda terminal:
-
-```powershell
-cd frontend
-npm install
-npm run dev
+# 2. Frontend (en otra terminal)
+npm --prefix frontend ci
+npm run dev --prefix frontend
 ```
 
 Abre tu navegador en **http://localhost:5173**
-
-El indicador de estado en la esquina superior derecha se pondrá verde cuando el frontend se conecte al backend.
 
 ---
 
 ## Automatización semanal
 
-El programador vive en la app: entrá a **Programador**, elegí el módulo y la
-frecuencia. La app crea la tarea de Windows apuntando a `scripts/Notify.ps1`,
-que corre el escaneo y muestra un resumen.
+El programador vive en la app: entra a **Programador**, elige el módulo y la frecuencia. La app crea la tarea de Windows apuntando a `scripts/Notify.ps1`, que corre el escaneo y muestra un resumen.
 
-Si preferís crear la tarea a mano:
+Si prefieres crear la tarea a mano:
 
 ```powershell
 schtasks /Create /TN "RAMOptimizer_Weekly" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F ^
   /TR "powershell.exe -ep Bypass -nop -w Hidden -File \"<RUTA>\scripts\Notify.ps1\" -Module ram -Port 3001"
 ```
 
-`<RUTA>` es la raíz del repo si corrés desde el código. En la app instalada el
-script vive en `%LOCALAPPDATA%\Programs\optimizador\resources\scripts`, fuera
-del `app.asar` justamente para que PowerShell pueda leerlo.
+`<RUTA>` es la raíz del repo si corres desde el código. En la app instalada el script vive en `%LOCALAPPDATA%\Programs\optimizador\resources\scripts`.
 
-`-Module` acepta: `updates`, `cleanup`, `startup`, `ram`, `network`, `services`,
-`power`, `apps`, `privacy`. El escaneo es de solo lectura: nunca modifica el
-sistema por su cuenta.
+`-Module` acepta cualquiera de los 21 módulos (`updates`, `cleanup`, `startup`, `ram`, `network`, `services`, `power`, `apps`, `privacy`, `adblock`, `gaming`, `integrity`, `contextmenu`, `oemdebloat`, `timers`, `ghostdevices`, `searchindex`, `dnsflush`, `networkprivacy`, `pagefile`, `werfault`).
 
 Y para habilitar, deshabilitar o correr una tarea a mano:
 
