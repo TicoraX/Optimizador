@@ -28,6 +28,16 @@ const FUENTES = Object.freeze({
     desc: 'Servidores de publicidad, lista chica y muy curada.',
     url: 'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext',
   }),
+  adaway: Object.freeze({
+    nombre: 'AdAway Official Hosts',
+    desc: 'Servidores de anuncios y rastreo móvil optimizado.',
+    url: 'https://adaway.org/hosts.txt',
+  }),
+  danpollock: Object.freeze({
+    nombre: 'Dan Pollock (someonewhocares)',
+    desc: 'Lista histórica y curada de bloqueo de anuncios y telemetría.',
+    url: 'https://someonewhocares.org/hosts/zero/hosts',
+  }),
 });
 
 export const FUENTES_VALIDAS = Object.keys(FUENTES);

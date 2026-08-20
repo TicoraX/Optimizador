@@ -113,17 +113,36 @@ export async function runPrivacyScanNative(onOutput) {
   })));
 }
 
-export async function runPrivacyActionNative(envVars, onOutput) {
+export async function runPrivacyActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('privacy', onOutput);
-  const dryRun = envVars.DRY_RUN === 'true';
+  const dryRun = envVars?.DRY_RUN === 'true';
   const guard = makeGuard('privacy', { dryRun, writeLog });
 
   writeLog(`=== Protección de privacidad - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
-  const selection = envVars.OPTIMIZE_PRIVACY || '';
-  const indices = selection.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => !isNaN(n) && n >= 1);
+  const rawSelection = String(envVars?.OPTIMIZE_PRIVACY || envVars?.PRIVACY || envVars?.ITEMS || '').trim();
+  const tokens = rawSelection.split(',').map((s) => s.trim()).filter(Boolean);
 
-  if (indices.length === 0) {
+  const targets = [];
+  const seenIds = new Set();
+  for (const token of tokens) {
+    let setting = null;
+    if (/^\d+$/.test(token)) {
+      const num = parseInt(token, 10);
+      if (num >= 1 && num <= PRIVACY_SETTINGS.length) {
+        setting = PRIVACY_SETTINGS[num - 1];
+      }
+    } else {
+      setting = PRIVACY_SETTINGS.find((s) => s.id.toLowerCase() === token.toLowerCase()) || null;
+    }
+
+    if (setting && !seenIds.has(setting.id)) {
+      seenIds.add(setting.id);
+      targets.push(setting);
+    }
+  }
+
+  if (targets.length === 0) {
     writeLog('No se seleccionaron ajustes para proteger.');
     writeLog('=== Protección de privacidad - fin ===');
     return;
@@ -131,12 +150,9 @@ export async function runPrivacyActionNative(envVars, onOutput) {
 
   let hardened = 0, errors = 0;
 
-  for (const idx of indices) {
-    const s = PRIVACY_SETTINGS[idx - 1];
-    if (!s) {
-      writeLog(`Índice ${idx} fuera de rango, ignorado.`);
-      continue;
-    }
+  for (let i = 0; i < targets.length; i++) {
+    const s = targets[i];
+    if (onProgress) onProgress(Math.round(((i + 1) / targets.length) * 100));
 
     // `reg add /f` pisa el valor sin leerlo. Sin esta lectura previa no queda
     // registro de como estaba, y desproteger (por ejemplo, volver a habilitar
@@ -169,7 +185,7 @@ export async function runPrivacyActionNative(envVars, onOutput) {
 
   writeLog(
     dryRun
-      ? `Simulacion: ${indices.length} ajustes se protegerian`
+      ? `Simulacion: ${targets.length} ajustes se protegerian`
       : `Resumen: ${hardened} protegidos, ${errors} errores`,
   );
   writeLog('=== Protección de privacidad - fin ===');

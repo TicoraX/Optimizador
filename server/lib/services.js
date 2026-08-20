@@ -173,7 +173,7 @@ export function isSystemServicePath(binaryPath, serviceName = '') {
 // `sc config start=` acepta estos; el codigo numerico viene de `sc qc`.
 const START_TYPE_BY_CODE = { 2: 'auto', 3: 'demand', 4: 'disabled' };
 
-export async function runServicesActionNative(envVars, onOutput) {
+export async function runServicesActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('services', onOutput);
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('services', { dryRun, writeLog });
@@ -185,7 +185,7 @@ export async function runServicesActionNative(envVars, onOutput) {
   // el indice N terminaba apuntando a otro servicio: el usuario marcaba uno y se
   // deshabilitaba otro, de forma irreversible. Ahora se selecciona por nombre,
   // que es estable entre scan y accion.
-  const names = String(envVars.OPTIMIZE_SERVICES || '')
+  const names = String(envVars.OPTIMIZE_SERVICES || envVars.SERVICES || envVars.ITEMS || '')
     .split(',').map((s) => s.trim()).filter(Boolean);
 
   if (names.length === 0) {
@@ -201,7 +201,12 @@ export async function runServicesActionNative(envVars, onOutput) {
 
   let stopped = 0, disabled = 0, errors = 0, skipped = 0;
 
-  for (const name of names) {
+  for (const [idx, name] of names.entries()) {
+    onProgress?.({
+      current: idx + 1,
+      total: names.length,
+      percentage: Math.round(((idx + 1) / names.length) * 100),
+    });
     // `sc qc` cuesta ~25 ms y devuelve START_TYPE, la ruta del binario y el
     // display name. Reemplaza el re-escaneo con Get-CimInstance, que costaba
     // ~1588 ms para toda la maquina.

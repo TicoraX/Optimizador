@@ -367,18 +367,28 @@ async function medirBajoCarga(onOutput) {
   return { reposo: base.mediana, cargado: cargado.mediana, delta };
 }
 
-export async function runNetworkActionNative(_envVars, onOutput) {
+export async function runNetworkActionNative(envVars, onOutput, onProgress) {
   const writeLog = makeLogger('network', onOutput);
+  const dryRun = envVars?.DRY_RUN === 'true';
 
-  writeLog('=== Optimizacion de Red - inicio ===');
+  writeLog(`=== Optimizacion de Red - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
+
+  if (dryRun) {
+    writeLog('Simulación: ipconfig /flushdns e ipconfig /registerdns se ejecutarían.');
+    onProgress?.(100);
+    writeLog('=== Optimizacion de Red - fin ===');
+    return;
+  }
 
   writeLog('Limpiando cache DNS...');
+  onProgress?.(25);
   const flushResult = await spawnCapture('ipconfig', ['/flushdns']);
   if (flushResult.code === 0) {
     writeLog('Cache DNS limpiada exitosamente.');
   } else {
     writeLog(`ERROR limpiando cache DNS: ${errText(flushResult)}`);
   }
+  onProgress?.(50);
 
   const isAdmin = await isAdminWindows();
   if (isAdmin) {
@@ -392,6 +402,7 @@ export async function runNetworkActionNative(_envVars, onOutput) {
   } else {
     writeLog('Omitiendo re-registro DNS (requiere administrador).');
   }
+  onProgress?.(100);
 
   // Se dice explicitamente para no vender humo: esto no baja el ping.
   writeLog('Nota: limpiar la cache DNS no reduce la latencia en juego. Sirve');

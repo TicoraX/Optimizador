@@ -26,7 +26,7 @@ export function isSafeGhostDevice(instanceId = '', className = '') {
   const id = (instanceId || '').toUpperCase().trim();
 
   if (PROTECTED_CLASSES.has(c)) return false;
-  if (id.startsWith('ROOT\\') || id.startsWith('ACPI\\') || id.startsWith('SWD\\')) return false;
+  if (id.startsWith('ROOT\\') || id.startsWith('ACPI\\') || id.startsWith('SWD\\') || id.startsWith('HTREE\\') || id.startsWith('PCI\\') || id.startsWith('UEFI\\')) return false;
 
   return true;
 }

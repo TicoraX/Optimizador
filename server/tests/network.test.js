@@ -97,3 +97,16 @@ Traza completa.
     assert.equal(parseTracert('  2    11 ms    10 ms    12 ms  10.20.30.1')[0].ms, 10);
   });
 });
+
+describe('runNetworkActionNative', () => {
+  it('en dryRun no ejecuta comandos destructivos y reporta progreso', async () => {
+    const { runNetworkActionNative } = await import('../lib/network.js');
+    const logs = [];
+    let progress = 0;
+    await runNetworkActionNative({ DRY_RUN: 'true' }, (msg) => logs.push(msg), (pct) => { progress = pct; });
+
+    assert.ok(logs.some((l) => l.includes('Optimizacion de Red - inicio (SIMULACION)')));
+    assert.ok(logs.some((l) => l.includes('Optimizacion de Red - fin')));
+    assert.equal(progress, 100);
+  });
+});

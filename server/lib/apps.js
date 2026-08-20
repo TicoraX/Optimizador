@@ -96,7 +96,7 @@ export async function runAppsActionNative(envVars, onOutput, onProgress) {
 
   writeLog(`=== Desinstalacion de aplicaciones - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
-  const selection = envVars.OPTIMIZE_APPS || '';
+  const selection = envVars.OPTIMIZE_APPS || envVars.ITEMS || envVars.APPS || '';
   const ids = selection.split(',').map((s) => s.trim()).filter(Boolean);
 
   if (ids.length === 0) {

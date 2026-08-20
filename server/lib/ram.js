@@ -1,3 +1,4 @@
+import { totalmem, freemem } from 'os';
 import {
   spawnCapture, isAdminWindows, parseCsvLine,
   makeLogger, makeGuard, prepareReport, finishReport, errText,
@@ -220,21 +221,26 @@ export async function runRamScanNative(cleanMode, minMB, onOutput) {
 
   onOutput('Obteniendo memoria del sistema...');
 
-  // ── RAM total/libra via wmic ──
-  let totalRamMB = 0, freeRamMB = 0, usedRamMB = 0, usagePercent = 0;
-  const memResult = await spawnCapture('wmic', ['OS', 'get', 'TotalVisibleMemorySize,FreePhysicalMemory', '/FORMAT:CSV']);
+  // ── RAM total/libre via os native y wmic ──
+  let totalRamMB = Math.round(totalmem() / (1024 * 1024));
+  let freeRamMB = Math.round(freemem() / (1024 * 1024));
+  let usedRamMB = totalRamMB - freeRamMB;
+  let usagePercent = totalRamMB > 0 ? Math.round((usedRamMB / totalRamMB) * 100) : 0;
+
+  const memResult = await spawnCapture('wmic', ['OS', 'get', 'TotalVisibleMemorySize,FreePhysicalMemory', '/FORMAT:CSV'], 2000);
   if (memResult.code === 0) {
     const lines = memResult.stdout.trim().split(/\r?\n/);
-    // wmic CSV devuelve header + data: saltar el header (primera linea)
     const dataLine = lines.filter((l) => /^\w/.test(l))[1];
     if (dataLine) {
       const cols = parseCsvLine(dataLine);
       const freeKB = parseInt(cols[1], 10) || 0;
       const totalKB = parseInt(cols[2], 10) || 0;
-      totalRamMB = Math.round(totalKB / 1024);
-      freeRamMB = Math.round(freeKB / 1024);
-      usedRamMB = totalRamMB - freeRamMB;
-      if (totalRamMB > 0) usagePercent = Math.round((usedRamMB / totalRamMB) * 100);
+      if (totalKB > 0) {
+        totalRamMB = Math.round(totalKB / 1024);
+        freeRamMB = Math.round(freeKB / 1024);
+        usedRamMB = totalRamMB - freeRamMB;
+        usagePercent = totalRamMB > 0 ? Math.round((usedRamMB / totalRamMB) * 100) : 0;
+      }
     }
   }
 

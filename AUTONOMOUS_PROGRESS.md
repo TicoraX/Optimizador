@@ -232,14 +232,45 @@
   - `server/lib/gaming.js`: Validación 400 ante configuración vacía y fallback CIM para detección de GPU.
   - `server/server.js`: Rate limiting específico y validación de listas en `POST /api/quick-optimize`, e inyección de parámetros contextuales por módulo.
 
+### Mejora 21: Auditoría Modular Exhaustiva, Paralelización y Reversibilidad Ampliada
+- **Updates (`updates.js` y `updates.test.js`)**:
+  - Paralelización concurrente del escaneo de 4 gestores (`winget`, `pip`, `npm`, `choco`) con `Promise.all` y reporte de progreso individual (reduciendo el tiempo total al estar acotado por el gestor individual más lento en lugar de la suma secuencial).
+  - Soporte de modo simulación (`dryRun`) y polimorfismo de argumentos en `runUpdatesActionNative`.
+  - Nueva suite de pruebas unitarias (`server/tests/updates.test.js`).
+- **Cleanup (`cleanup.js`)**:
+  - Incorporación de cachés de desarrollo modernas (`uv`, `pnpm`, `cargo`) y navegadores (`Arc`, `Vivaldi`, `Opera`) en la whitelist de rutas seguras.
+- **RAM (`ram.js`)**:
+  - Métricas instantáneas de memoria total y libre mediante API nativa `os.totalmem()` / `freemem()` de Node.js, independiente de la disponibilidad de `wmic`.
+- **Apps (`apps.js`)**:
+  - Soporte de alias de selección (`OPTIMIZE_APPS`, `ITEMS`, `APPS`).
+- **AdBlock (`adblock.js`)**:
+  - Nuevas fuentes curadas de hosts (`adaway` y `danpollock`).
+- **Ghost Devices (`ghostdevices.js`)**:
+  - Protección de buses de hardware e infraestructura base (`HTREE\`, `PCI\`, `UEFI\`).
+- **Network (`network.js` y `network.test.js`)**:
+  - Soporte de simulación `dryRun` y progreso `onProgress` en la purga/registro DNS.
+  - Pruebas unitarias de acción en `network.test.js`.
+- **Services (`services.js`)**:
+  - Emisión de progreso en tiempo real durante la detención y desactivación de servicios.
+- **Power (`power.js`, `changes.js` y `power.test.js`)**:
+  - Integración de `makeGuard` y reversibilidad atómica de esquemas de energía en `changes.json` (`REVERTERS.power`).
+  - Nueva suite de pruebas unitarias (`server/tests/power.test.js`).
+- **Network Privacy (`networkprivacy.js` y `networkprivacy.test.js`)**:
+  - Nueva directiva de desactivación de sondeo activo NCSI (`ncsi_passive` / `EnableActiveProbing=0`).
+- **Privacy (`privacy.js` y `privacy.test.js`)**:
+  - Resolución dual de selección por identificador textual (`telemetry`, `ads`) o índice numérico (`1`, `2`).
+  - Nueva suite de pruebas unitarias (`server/tests/privacy.test.js`).
+- **Startup (`startup.js`)**:
+  - Protección de guardado de manifiesto en `dryRun` para evitar mutación del estado histórico durante simulaciones.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios Backend**: **190 / 190 tests pasando al 100%** (43 suites de test completas).
+- **Tests Unitarios Backend**: **197 / 197 tests pasando al 100%** (47 suites de test completas).
 - **Tests Unitarios Frontend**: **7 / 7 tests pasando al 100%**.
-- **Total Tests Automatizados**: **197 / 197 tests pasando exitosamente**.
+- **Total Tests Automatizados**: **204 / 204 tests pasando exitosamente**.
 - **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite v8.0.16 optimizados.
 - **Empaquetado Electron (v1.3.0)**:
   - Ejecutable binario descomprimido generado en `dist/win-unpacked/Optimizador.exe`.
   - Instalador autónomo final generado en `dist/Optimizador Setup 1.3.0.exe` (83.5 MB).
-- **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios y BCD quedan anotados en `changes.json` con restauración atómica y soporte para modo simulación (`dryRun`).
+- **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios, esquemas de energía y BCD quedan anotados en `changes.json` con restauración atómica y soporte para modo simulación (`dryRun`).

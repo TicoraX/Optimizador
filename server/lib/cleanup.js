@@ -278,8 +278,11 @@ export function getSafeTargets() {
         join(appData, 'npm-cache'),
         join(userProfile, '.npm', '_cacache'),
         join(localAppData, 'pip', 'cache'),
+        join(localAppData, 'uv', 'cache'),
         join(localAppData, 'Yarn', 'Cache'),
+        join(localAppData, 'pnpm', 'store'),
         join(localAppData, 'NuGet', 'v3-cache'),
+        join(userProfile, '.cargo', 'registry', 'cache'),
         join(appData, 'Code', 'Cache'),
         join(appData, 'Code', 'CachedData'),
       ],
@@ -305,6 +308,9 @@ export function getSafeTargets() {
         join(localAppData, 'Microsoft', 'Edge', 'User Data', 'Default', 'Code Cache'),
         join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default', 'Cache'),
         join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data', 'Default', 'Code Cache'),
+        join(localAppData, 'Arc', 'User Data', 'Default', 'Cache'),
+        join(localAppData, 'Vivaldi', 'User Data', 'Default', 'Cache'),
+        join(localAppData, 'Opera Software', 'Opera Stable', 'Cache'),
       ],
       customScan: async () => {
         let mb = 0;
