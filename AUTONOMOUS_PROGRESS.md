@@ -269,6 +269,12 @@
   - Ampliación del dashboard de telemetría a una cuadrícula Bento de 4 tarjetas equilibradas: CPU, RAM, Almacenamiento Local y Red & Conectividad.
   - Renderizado dinámico de adaptadores de red activos, arquitectura del procesador y velocidad en GHz.
 
+### Mejora 23: Paleta Global de Comandos (`Ctrl+K`) y Navegación Rápida
+- **Frontend (`CommandPalette.jsx` y `App.jsx`)**:
+  - Implementación de la paleta modal global `CommandPalette` activable mediante el atajo universal `Ctrl+K` / `Cmd+K` o botón en la barra lateral.
+  - Búsqueda difusa y filtrado instantáneo por palabras clave a través de los 21 módulos, 5 vistas principales (Dashboard, Historial, Restauración, Archivos Grandes, Programador) y acciones rápidas (descarga de informes en Markdown y JSON, cambio de tema).
+  - Navegación por teclado completa (`ArrowUp`, `ArrowDown`, `Enter`, `Escape`) con desenfoque de fondo y diseño adaptado a los tokens de diseño de la aplicación.
+
 ---
 
 ## 2. Estado de Calidad y Verificación
