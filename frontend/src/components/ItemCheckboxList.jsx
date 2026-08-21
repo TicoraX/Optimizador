@@ -44,22 +44,10 @@ export default function ItemCheckboxList({
 
   if (!items || items.length === 0) return null;
 
-  // Para checkboxes con clave por regPath (contextmenu) o por índice
-  const getKey = (item, originalIndex) => item.regPath || item.id || originalIndex;
-  const getChecked = (item, originalIndex) => {
-    // contextmenu usa regPath como clave
-    if (item.regPath && selected[item.regPath] !== undefined) {
-      return selected[item.regPath] || false;
-    }
-    return selected[originalIndex] || false;
-  };
-  const handleToggle = (item, originalIndex) => {
-    if (item.regPath && selected[item.regPath] !== undefined) {
-      toggle(item.regPath);
-    } else {
-      toggle(originalIndex);
-    }
-  };
+  // Para checkboxes identificados por su índice original del array de items
+  const getKey = (item, originalIndex) => item.regPath || item.id || item.name || originalIndex;
+  const getChecked = (_item, originalIndex) => selected[originalIndex] || false;
+  const handleToggle = (_item, originalIndex) => toggle(originalIndex);
 
   return (
     <div className="form-group">

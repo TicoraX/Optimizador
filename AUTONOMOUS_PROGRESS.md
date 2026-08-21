@@ -281,16 +281,22 @@
 - **Frontend (`ItemCheckboxList.jsx`)**:
   - Incorporación automática de barra de búsqueda y filtrado en vivo para listas con más de 5 elementos (aplicaciones, servicios, ajustes de privacidad, etc.), permitiendo localizar elementos por nombre, descripción o ruta preservando los índices originales para selecciones atómicas.
 
-### Mejora 25: Copia Rápida de Reportes Markdown y Exportación Rápida
-- **Frontend (`ReportViewer.jsx`)**:
-  - Incorporación del botón *Copiar Markdown* en la cabecera de todos los 21 módulos para copiar el informe técnico completo al portapapeles con feedback visual interactivo (*¡Copiado!*).
+### Mejora 26: Corrección Crítica en Deserialización y Envío de Parámetros de Acción
+- **Backend (`server/server.js`)**:
+  - Corrección de la extracción de `req.body.settings`, `req.body.actions`, `req.body.handlers`, `req.body.devices` y `req.body.mode` en la ruta `POST /api/action/:module`.
+  - Mapeo correcto y seguro a `envVars.SETTINGS`, `envVars.ACTIONS`, `envVars.HANDLERS`, `envVars.DEVICES`, `envVars.SERVICES`, `envVars.APPS`, `envVars.PRIVACY` y `envVars.MODE`.
+  - Actualización de `SELECTION_FIELDS` para los 21 módulos, eliminando el fallo donde módulos como *Gaming*, *Integridad*, *Menú Contextual*, *OEM Debloat*, *Timers*, *Dispositivos Fantasma*, *Windows Search*, *DNS Flush*, *Privacidad de Red*, *Memoria Virtual* y *WerFault* arrojaban erróneamente "No se seleccionó ningún elemento".
+- **Frontend (`ItemCheckboxList.jsx`)**:
+  - Alineación total de la selección de checkboxes con el hook `useModuleItems`, garantizando que la marcación/desmarcación por índice se mantenga fiel a los elementos originales incluso bajo filtrado de búsqueda.
+- **Suite de Pruebas (`server/tests/action-params.test.js`)**:
+  - 13 nuevas pruebas unitarias automatizadas que verifican la recepción y ejecución en `dryRun` de parámetros para todos los módulos genéricos.
 
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios Backend**: **199 / 199 tests pasando al 100%** (47 suites de test completas).
+- **Tests Unitarios Backend**: **212 / 212 tests pasando al 100%** (48 suites de test completas).
 - **Tests Unitarios Frontend**: **7 / 7 tests pasando al 100%**.
-- **Total Tests Automatizados**: **206 / 206 tests pasando exitosamente**.
+- **Total Tests Automatizados**: **219 / 219 tests pasando exitosamente**.
 - **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite v8.0.16 optimizados.
 - **Empaquetado Electron (v1.3.0)**:
   - Ejecutable binario descomprimido generado en `dist/win-unpacked/Optimizador.exe`.

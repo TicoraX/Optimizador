@@ -892,7 +892,80 @@ app.post('/api/action/:module', safeHandler((req, res) => {
       err.statusCode = 400;
       throw err;
     }
-    envVars.OPTIMIZE_SERVICES = [...new Set(picked)].join(',');
+    const joined = [...new Set(picked)].join(',');
+    envVars.OPTIMIZE_SERVICES = joined;
+    envVars.SERVICES = joined;
+  }
+
+  // Settings: IDs de directivas o ajustes (gaming, timers, searchindex, networkprivacy, pagefile, werfault)
+  if (req.body?.settings !== undefined) {
+    const raw = Array.isArray(req.body.settings)
+      ? req.body.settings
+      : String(req.body.settings || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((s) => !/^[A-Za-z0-9_.\-$ ]{1,128}$/.test(s));
+    if (bad.length > 0) {
+      const err = new Error(`Identificadores de ajuste invalidos: ${bad.slice(0, 3).join(', ')}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.SETTINGS = [...new Set(picked)].join(',');
+  }
+
+  // Actions: IDs de acciones para integrity y dnsflush
+  if (req.body?.actions !== undefined) {
+    const raw = Array.isArray(req.body.actions)
+      ? req.body.actions
+      : String(req.body.actions || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((s) => !/^[A-Za-z0-9_.\-$ ]{1,128}$/.test(s));
+    if (bad.length > 0) {
+      const err = new Error(`Acciones invalidas: ${bad.slice(0, 3).join(', ')}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.ACTIONS = [...new Set(picked)].join(',');
+  }
+
+  // Handlers: rutas de registro para contextmenu
+  if (req.body?.handlers !== undefined) {
+    const raw = Array.isArray(req.body.handlers)
+      ? req.body.handlers
+      : String(req.body.handlers || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((s) => s.length > 512 || /[\r\n]/.test(s));
+    if (bad.length > 0) {
+      const err = new Error('Handlers de menu contextual invalidos');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.HANDLERS = [...new Set(picked)].join(',');
+  }
+
+  // Devices: IDs de instancias de dispositivos para ghostdevices
+  if (req.body?.devices !== undefined) {
+    const raw = Array.isArray(req.body.devices)
+      ? req.body.devices
+      : String(req.body.devices || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((s) => s.length > 512 || /[\r\n]/.test(s));
+    if (bad.length > 0) {
+      const err = new Error('Identificadores de dispositivo invalidos');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.DEVICES = [...new Set(picked)].join(',');
+  }
+
+  // Mode: modo de configuracion para oemdebloat (demand | disable)
+  if (req.body?.mode !== undefined) {
+    const mode = String(req.body.mode).trim().toLowerCase();
+    if (mode !== 'demand' && mode !== 'disable') {
+      const err = new Error('mode: debe ser demand o disable');
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.MODE = mode;
   }
 
   // Power: GUID del plan a activar. Antes era un indice sobre la lista del
@@ -924,12 +997,16 @@ app.post('/api/action/:module', safeHandler((req, res) => {
       err.statusCode = 400;
       throw err;
     }
-    envVars.OPTIMIZE_APPS = [...new Set(picked)].join(',');
+    const joined = [...new Set(picked)].join(',');
+    envVars.OPTIMIZE_APPS = joined;
+    envVars.APPS = joined;
   }
 
   // Privacy: indices de ajustes de privacidad a proteger.
   if (req.body?.privacy !== undefined) {
-    envVars.OPTIMIZE_PRIVACY = validateIndexList(req.body.privacy, 'privacy');
+    const val = validateIndexList(req.body.privacy, 'privacy');
+    envVars.OPTIMIZE_PRIVACY = val;
+    envVars.PRIVACY = val;
   }
 
   // Procesos 'risky' (editores/navegadores/sync/chat) seleccionados a mano por
@@ -1002,12 +1079,23 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     cleanup: ['CLEAN_CATEGORIES'],
     startup: ['OPTIMIZE_PROGRAMS', 'OPTIMIZE_TASKS', 'ENABLE_PROGRAMS', 'ENABLE_TASKS'],
     ram: ['OPTIMIZE_PROCESSES', 'UNKNOWN_PROCESSES', 'RISKY_PROCESSES'],
-    services: ['OPTIMIZE_SERVICES'],
-    apps: ['OPTIMIZE_APPS'],
-    privacy: ['OPTIMIZE_PRIVACY'],
+    services: ['OPTIMIZE_SERVICES', 'SERVICES'],
+    apps: ['OPTIMIZE_APPS', 'APPS'],
+    privacy: ['OPTIMIZE_PRIVACY', 'PRIVACY'],
     power: ['PLAN_GUID'],
     // `remove` no lleva fuentes: quitar el bloqueo no necesita seleccion.
     adblock: ['ADBLOCK_SOURCES', 'ADBLOCK_ACTION'],
+    gaming: ['SETTINGS'],
+    integrity: ['ACTIONS'],
+    contextmenu: ['HANDLERS'],
+    oemdebloat: ['SERVICES', 'OPTIMIZE_SERVICES'],
+    timers: ['SETTINGS'],
+    ghostdevices: ['DEVICES'],
+    searchindex: ['SETTINGS'],
+    dnsflush: ['ACTIONS'],
+    networkprivacy: ['SETTINGS'],
+    pagefile: ['SETTINGS'],
+    werfault: ['SETTINGS'],
   };
   const required = SELECTION_FIELDS[req.params.module];
   if (required && !required.some((k) => envVars[k])) {
