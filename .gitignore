@@ -1,6 +1,9 @@
 # Documentacion interna de trabajo (no es parte del proyecto publico)
 .claude/
+.internal/
 PROJECT_CONTEXT.md
+AUTONOMOUS_PROGRESS.md
+graphify-out/
 
 # Proyecto no relacionado que vive en este mismo directorio (su propio repo)
 Proyeccion 1/
