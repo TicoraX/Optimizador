@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { API_BASE } from '../config';
+import { useState, useCallback, useMemo } from 'react';
+import { API_BASE } from '../config.js';
 
 /**
  * Gestiona el estado de items seleccionables de un módulo.
@@ -32,7 +32,7 @@ const MODULE_CONFIG = {
 
 /**
  * @param {string} module — clave del módulo activo
- * @returns {{ items, selected, toggle, clear, load, buildChecked }}
+ * @returns {{ items, selected, toggle, selectAll, deselectAll, hasSelected, clear, load, buildChecked, config }}
  */
 export function useModuleItems(module) {
   const [items, setItems] = useState([]);
@@ -48,20 +48,36 @@ export function useModuleItems(module) {
   const load = useCallback(async () => {
     if (!config) { clear(); return; }
 
-    const res = await fetch(`${API_BASE}/reports/${module}/items`);
-    if (!res.ok) { clear(); return; }
-    const { items: raw } = await res.json();
+    try {
+      const res = await fetch(`${API_BASE}/reports/${module}/items`);
+      if (!res.ok) { clear(); return; }
+      const { items: raw } = await res.json();
 
-    const list = Array.isArray(raw) ? raw : [];
-    setItems(list);
-    setSelected(
-      Object.fromEntries(list.map((it, i) => [i, config.defaultCheck(it)]))
-    );
+      const list = Array.isArray(raw) ? raw : [];
+      setItems(list);
+      setSelected(
+        Object.fromEntries(list.map((it, i) => [i, config.defaultCheck(it)]))
+      );
+    } catch {
+      clear();
+    }
   }, [module, config, clear]);
 
   const toggle = useCallback((index) => {
     setSelected((prev) => ({ ...prev, [index]: !prev[index] }));
   }, []);
+
+  const selectAll = useCallback(() => {
+    setSelected(Object.fromEntries(items.map((_, i) => [i, true])));
+  }, [items]);
+
+  const deselectAll = useCallback(() => {
+    setSelected(Object.fromEntries(items.map((_, i) => [i, false])));
+  }, [items]);
+
+  const hasSelected = useMemo(() => {
+    return items.length > 0 && Object.values(selected).some(Boolean);
+  }, [items, selected]);
 
   /** Devuelve los IDs (o índices +1 para privacy) de los items marcados. */
   const buildChecked = useCallback(() => {
@@ -79,7 +95,7 @@ export function useModuleItems(module) {
       .filter(Boolean);
   }, [selected, items, config]);
 
-  return { items, selected, toggle, clear, load, buildChecked, config };
+  return { items, selected, toggle, selectAll, deselectAll, hasSelected, clear, load, buildChecked, config };
 }
 
 /** Módulos que usan el hook genérico (no los especiales). */

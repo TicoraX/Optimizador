@@ -112,10 +112,10 @@ export default function ReportViewer() {
       }
       const data = await res.json();
       setReport(data);
-      await loadItems();
     } catch (err) {
       setError(err.message);
     } finally {
+      await loadItems();
       setLoading(false);
     }
   };
@@ -129,6 +129,7 @@ export default function ReportViewer() {
       if (sseControllerRef.current) {
         sseControllerRef.current.abort();
       }
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
     };
   }, [module]);
 
@@ -208,6 +209,50 @@ export default function ReportViewer() {
     triggerExecution('/action/power', { planGuid });
   };
 
+  const hasSelected = useMemo(() => {
+    if (GENERIC_MODULES.has(module)) {
+      return generic.hasSelected;
+    }
+    if (module === 'cleanup') {
+      return Object.values(selectedCategories).some(Boolean);
+    }
+    if (module === 'startup') {
+      return Object.values(selectedPrograms).some(Boolean) ||
+             Object.values(selectedTasks).some(Boolean) ||
+             Object.values(selectedEnablePrograms).some(Boolean) ||
+             Object.values(selectedEnableTasks).some(Boolean);
+    }
+    if (module === 'ram') {
+      return Object.values(selectedProcesses).some(Boolean) ||
+             Object.values(selectedUnknownProcesses).some(Boolean) ||
+             (riskyAck && Object.values(selectedRiskyProcesses).some(Boolean));
+    }
+    if (module === 'adblock') {
+      return Object.values(selectedSources).some(Boolean);
+    }
+    if (module === 'power') {
+      return powerPlans.length > 0;
+    }
+    if (module === 'updates' || module === 'network') {
+      return true;
+    }
+    return false;
+  }, [
+    module,
+    generic.hasSelected,
+    selectedCategories,
+    selectedPrograms,
+    selectedTasks,
+    selectedEnablePrograms,
+    selectedEnableTasks,
+    selectedProcesses,
+    selectedUnknownProcesses,
+    selectedRiskyProcesses,
+    riskyAck,
+    selectedSources,
+    powerPlans.length,
+  ]);
+
   // ── Scan ──
   const runScan = () => {
     const body = {};
@@ -222,6 +267,14 @@ export default function ReportViewer() {
 
   // ── Action ──
   const runAction = ({ dryRun = false, adblockAction } = {}) => {
+    if (!hasSelected && module !== 'updates' && module !== 'power' && module !== 'network') {
+      setLogs([{
+        type: 'error',
+        text: '[AVISO] No hay ningún elemento seleccionado. Marcá las casillas de los elementos a optimizar antes de ejecutar.',
+      }]);
+      return;
+    }
+
     const body = dryRun ? { dryRun: true } : {};
 
     // Módulos genéricos: construir body desde el hook
@@ -418,6 +471,8 @@ export default function ReportViewer() {
           items={generic.items}
           selected={generic.selected}
           toggle={generic.toggle}
+          onSelectAll={generic.selectAll}
+          onDeselectAll={generic.deselectAll}
           isRunning={isRunning}
           label={module === 'oemdebloat' ? 'Servicios OEM detectados:' : panelCfg.label}
           hint={module === 'oemdebloat' ? undefined : panelCfg.hint}
@@ -984,13 +1039,18 @@ export default function ReportViewer() {
             <button
               className="btn btn-secondary"
               onClick={() => runAction({ dryRun: true })}
-              disabled={isRunning}
+              disabled={isRunning || !hasSelected}
             >
               Ver qué va a pasar (no toca nada)
             </button>
-            <button className="btn btn-primary" onClick={() => runAction()} disabled={isRunning}>
+            <button className="btn btn-primary" onClick={() => runAction()} disabled={isRunning || !hasSelected}>
               Ejecutar acciones
             </button>
+            {!hasSelected && !isRunning && (
+              <p style={{ fontSize: '0.72rem', color: 'var(--color-ink-3)', textAlign: 'center', margin: '0.25rem 0 0 0' }}>
+                Seleccioná al menos un elemento de la lista para habilitar la ejecución.
+              </p>
+            )}
           </div>
         </div>
 

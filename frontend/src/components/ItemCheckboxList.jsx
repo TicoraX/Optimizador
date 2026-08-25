@@ -9,7 +9,7 @@ import { useState, useMemo } from 'react';
  */
 
 /**
- * @param {{ items, selected, toggle, isRunning, label, hint, renderItem? }} props
+ * @param {{ items, selected, toggle, isRunning, label, hint, renderItem?, filterFn?, onSelectAll?, onDeselectAll? }} props
  * `renderItem` opcional: (item, idx) => { title, subtitle, statusColor }.
  * Si no se pasa, usa item.name + item.desc como default.
  */
@@ -22,6 +22,8 @@ export default function ItemCheckboxList({
   hint,
   renderItem,
   filterFn,
+  onSelectAll,
+  onDeselectAll,
 }) {
   const [search, setSearch] = useState('');
 
@@ -42,7 +44,30 @@ export default function ItemCheckboxList({
     });
   }, [baseEntries, search]);
 
-  if (!items || items.length === 0) return null;
+  if (!items || items.length === 0) {
+    return (
+      <div className="form-group">
+        <label className="form-label" style={{ margin: 0 }}>{label}</label>
+        {hint && (
+          <p style={{ fontSize: '0.75rem', color: 'var(--color-ink-3)', marginBottom: '0.75rem', marginTop: '0.25rem' }}>
+            {hint}
+          </p>
+        )}
+        <div style={{
+          padding: 'var(--space-4)',
+          background: 'var(--color-paper-2)',
+          border: '1px dashed var(--color-border-subtle)',
+          borderRadius: 'var(--radius-sm, 6px)',
+          textAlign: 'center',
+          fontSize: '0.75rem',
+          color: 'var(--color-ink-3)',
+          marginTop: '0.5rem',
+        }}>
+          No hay elementos escaneados aún. Ejecutá un escaneo para analizar este módulo.
+        </div>
+      </div>
+    );
+  }
 
   // Para checkboxes identificados por su índice original del array de items
   const getKey = (item, originalIndex) => item.regPath || item.id || item.name || originalIndex;
@@ -53,11 +78,35 @@ export default function ItemCheckboxList({
     <div className="form-group">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
         <label className="form-label" style={{ margin: 0 }}>{label}</label>
-        {baseEntries.length > 5 && (
-          <span style={{ fontSize: '0.7rem', color: 'var(--color-ink-3)' }}>
-            {visibleEntries.length} de {baseEntries.length}
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          {baseEntries.length > 5 && (
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-ink-3)', marginRight: '0.25rem' }}>
+              {visibleEntries.length} de {baseEntries.length}
+            </span>
+          )}
+          {onSelectAll && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem', width: 'auto' }}
+              onClick={onSelectAll}
+              disabled={isRunning}
+            >
+              Todos
+            </button>
+          )}
+          {onDeselectAll && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem', width: 'auto' }}
+              onClick={onDeselectAll}
+              disabled={isRunning}
+            >
+              Ninguno
+            </button>
+          )}
+        </div>
       </div>
 
       {hint && (
