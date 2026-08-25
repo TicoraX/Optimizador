@@ -281,24 +281,29 @@
 - **Frontend (`ItemCheckboxList.jsx`)**:
   - Incorporación automática de barra de búsqueda y filtrado en vivo para listas con más de 5 elementos (aplicaciones, servicios, ajustes de privacidad, etc.), permitiendo localizar elementos por nombre, descripción o ruta preservando los índices originales para selecciones atómicas.
 
-### Mejora 26: Corrección Crítica en Deserialización y Envío de Parámetros de Acción
-- **Backend (`server/server.js`)**:
-  - Corrección de la extracción de `req.body.settings`, `req.body.actions`, `req.body.handlers`, `req.body.devices` y `req.body.mode` en la ruta `POST /api/action/:module`.
-  - Mapeo correcto y seguro a `envVars.SETTINGS`, `envVars.ACTIONS`, `envVars.HANDLERS`, `envVars.DEVICES`, `envVars.SERVICES`, `envVars.APPS`, `envVars.PRIVACY` y `envVars.MODE`.
-  - Actualización de `SELECTION_FIELDS` para los 21 módulos, eliminando el fallo donde módulos como *Gaming*, *Integridad*, *Menú Contextual*, *OEM Debloat*, *Timers*, *Dispositivos Fantasma*, *Windows Search*, *DNS Flush*, *Privacidad de Red*, *Memoria Virtual* y *WerFault* arrojaban erróneamente "No se seleccionó ningún elemento".
-- **Frontend (`ItemCheckboxList.jsx`)**:
-  - Alineación total de la selección de checkboxes con el hook `useModuleItems`, garantizando que la marcación/desmarcación por índice se mantenga fiel a los elementos originales incluso bajo filtrado de búsqueda.
-- **Suite de Pruebas (`server/tests/action-params.test.js`)**:
-  - 13 nuevas pruebas unitarias automatizadas que verifican la recepción y ejecución en `dryRun` de parámetros para todos los módulos genéricos.
+### Mejora 27: Elevación UAC en Electron, Corrección Integral de Acciones y Grafo de Arquitectura (/graphify)
+- **Empaquetado Electron (`package.json`)**:
+  - Configuración explícita de `"requestedExecutionLevel": "requireAdministrator"` en `build.win`. Resuelve la causa raíz global por la cual el ejecutable empaquetado corría como usuario estándar no elevado, provocando que las modificaciones al sistema (HKLM, DISM, SFC, BCD, SC) fallaran silenciosamente o con error 5 (*Access is Denied*).
+- **Módulos Backend y Handlers Nativos**:
+  - Detección previa y omisión limpia de ajustes que ya se encuentran optimizados (`already optimized`) en `timers.js`, `searchindex.js`, `networkprivacy.js`, `pagefile.js`, `werfault.js`.
+  - Registro explícito de advertencia cuando se envía un ID de acción desconocido en `gaming.js`, `integrity.js`, `dnsflush.js`, `timers.js`.
+  - Soporte de alias de selección múltiple (`OPTIMIZE_PROGRAMS || PROGRAMS`) en `startup.js`.
+  - Corrección de la detección de CLSID bloqueados (`-`) y deshabilitación segura con `-disabled` en `contextmenu.js`.
+- **Frontend & UX React (`ReportViewer.jsx`, `ItemCheckboxList.jsx`, `useModuleItems.js`)**:
+  - Control global de `hasSelected` que desactiva los botones de acción e informa amigablemente si no hay casillas marcadas, evitando llamadas abortadas con error HTTP 400.
+  - Botones de acción masiva **"Todos"** y **"Ninguno"** en la cabecera de las listas de checkboxes.
+  - Renderizado de tarjeta explicativa en estado vacío cuando el módulo aún no ha sido escaneado.
+- **Grafo de Conocimiento y Arquitectura (`graphify-out/`)**:
+  - Extracción completa con `/graphify` generando 491 nodos, 1253 aristas y 23 comunidades rotuladas en `graphify-out/graph.html` y `graphify-out/GRAPH_REPORT.md`.
 
 ---
 
 ## 2. Estado de Calidad y Verificación
-- **Tests Unitarios Backend**: **212 / 212 tests pasando al 100%** (48 suites de test completas).
-- **Tests Unitarios Frontend**: **7 / 7 tests pasando al 100%**.
-- **Total Tests Automatizados**: **219 / 219 tests pasando exitosamente**.
-- **Compilación del Frontend**: **0 errores / 0 advertencias**, bundles y chunks de Vite v8.0.16 optimizados.
+- **Tests Unitarios Backend**: **213 / 213 tests pasando al 100%** (48 suites de test completas).
+- **Tests Unitarios Frontend**: **10 / 10 tests pasando al 100%** (incluye `panelConfig.test.js` y `markdown.test.js`).
+- **Total Tests Automatizados**: **223 / 223 tests pasando exitosamente**.
+- **Compilación del Frontend**: **0 errores / 0 advertencias**, Vite v8.0.16.
 - **Empaquetado Electron (v1.3.0)**:
-  - Ejecutable binario descomprimido generado en `dist/win-unpacked/Optimizador.exe`.
-  - Instalador autónomo final generado en `dist/Optimizador Setup 1.3.0.exe` (83.5 MB).
-- **Seguridad y Reversibilidad**: Todos los cambios de registro, servicios, esquemas de energía y BCD quedan anotados en `changes.json` con restauración atómica y soporte para modo simulación (`dryRun`).
+  - Ejecutable binario con elevación UAC obligatoria generado en `dist/win-unpacked/Optimizador.exe`.
+  - Instalador autónomo final generado en `dist/Optimizador Setup 1.3.0.exe`.
+- **Seguridad y Reversibilidad**: 100% de operaciones destructivas auditadas con `makeGuard` y reversibilidad atómica en `changes.json`.
