@@ -168,6 +168,8 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       } else {
         writeLog(`Error en SFC: ${errText(r)}`);
       }
+    } else {
+      writeLog(`- Omitiendo acción desconocida: ${act}`);
     }
   }
 

@@ -160,6 +160,11 @@ export async function runSearchIndexActionNative(envVars, onOutput, onProgress) 
 
     const prevVal = await queryRegistryValue(s.key, s.value);
 
+    if (prevVal === s.optimizedValue) {
+      writeLog(`- ${s.name}: Ya está optimizado (${s.optimizedLabel}).`);
+      continue;
+    }
+
     const result = await guard(
       `Optimizar ${s.name} (${s.value}=${s.optimizedValue})`,
       () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.optimizedValue, '/f']),

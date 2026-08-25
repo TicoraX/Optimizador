@@ -121,14 +121,25 @@ const onLimit = (req, res, _next, options) => {
   res.status(options.statusCode).json(options.message);
 };
 
+const isTest = process.env.NODE_ENV === 'test' || process.env.NODE_TEST_CONTEXT !== undefined;
+
 app.use('/api', rateLimit({
-  windowMs: 15 * 60 * 1000, max: 400, message: limiterMsg(15), handler: onLimit,
+  windowMs: 15 * 60 * 1000,
+  max: isTest ? 10000 : 1000,
+  message: limiterMsg(15),
+  handler: onLimit,
 }));
 app.use('/api/scan', rateLimit({
-  windowMs: 15 * 60 * 1000, max: 30, message: limiterMsg(15), handler: onLimit,
+  windowMs: 15 * 60 * 1000,
+  max: isTest ? 10000 : 120,
+  message: limiterMsg(15),
+  handler: onLimit,
 }));
 app.use('/api/action', rateLimit({
-  windowMs: 15 * 60 * 1000, max: 10, message: limiterMsg(15), handler: onLimit,
+  windowMs: 15 * 60 * 1000,
+  max: isTest ? 10000 : 120,
+  message: limiterMsg(15),
+  handler: onLimit,
 }));
 
 // ── Limitar tamanio del body JSON para mitigar DoS ──

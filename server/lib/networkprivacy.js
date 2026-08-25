@@ -151,6 +151,11 @@ export async function runNetworkPrivacyActionNative(envVars, onOutput, onProgres
 
     const prevVal = await queryRegistryValue(s.key, s.value);
 
+    if (String(prevVal) === String(s.optimizedValue)) {
+      writeLog(`- ${s.name}: Ya está protegido (${s.optimizedLabel}).`);
+      continue;
+    }
+
     const result = await guard(
       `Proteger ${s.name} (${s.value}=${s.optimizedValue})`,
       () => spawnCapture('reg', ['add', s.key, '/v', s.value, '/t', s.type, '/d', s.optimizedValue, '/f']),

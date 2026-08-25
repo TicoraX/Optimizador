@@ -71,7 +71,7 @@ export async function runContextMenuScanNative(onOutput) {
       }
 
       const isSystem = isMicrosoftHandler(name, clsid);
-      const isBlocked = clsid.startsWith('-') || name.startsWith('_disabled');
+      const isBlocked = clsid.startsWith('-') || name.startsWith('_disabled') || clsid === '-';
 
       items.push({
         id: `${loc.key}\\${name}`,
@@ -155,12 +155,12 @@ export async function runContextMenuActionNative(envVars, onOutput, onProgress) 
       if (m) currentClsid = m[1].trim();
     }
 
-    if (!currentClsid || currentClsid.startsWith('-')) {
-      writeLog(`- ${targetKey}: Ya está deshabilitado o no tiene CLSID.`);
+    if (currentClsid && (currentClsid.startsWith('-') || currentClsid === '-')) {
+      writeLog(`- ${targetKey}: Ya está deshabilitado.`);
       continue;
     }
 
-    const disabledClsid = `-${currentClsid}`;
+    const disabledClsid = currentClsid ? `-${currentClsid}` : '-disabled';
     const result = await guard(
       `Deshabilitar handler de menú: ${targetKey}`,
       () => spawnCapture('reg', ['add', targetKey, '/ve', '/t', 'REG_SZ', '/d', disabledClsid, '/f']),
@@ -168,7 +168,7 @@ export async function runContextMenuActionNative(envVars, onOutput, onProgress) 
         target: `${targetKey}\\(Default)`,
         valueType: 'REG_SZ',
         newValue: disabledClsid,
-        previousValue: currentClsid,
+        previousValue: currentClsid || null,
       },
     );
 

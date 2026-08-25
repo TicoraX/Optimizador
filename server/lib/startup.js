@@ -381,8 +381,8 @@ export async function runStartupActionNative(envVars, onOutput, onProgress) {
 
   const enableProgramIds = parseIdSelection(envVars.ENABLE_PROGRAMS);
   const enableTaskIds = parseIdSelection(envVars.ENABLE_TASKS);
-  const programIds = parseIdSelection(envVars.OPTIMIZE_PROGRAMS);
-  const taskIds = parseIdSelection(envVars.OPTIMIZE_TASKS);
+  const programIds = parseIdSelection(envVars.OPTIMIZE_PROGRAMS || envVars.PROGRAMS);
+  const taskIds = parseIdSelection(envVars.OPTIMIZE_TASKS || envVars.TASKS);
 
   const totalOps = enableProgramIds.length + enableTaskIds.length + programIds.length + taskIds.length;
   let completedOps = 0;

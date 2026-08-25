@@ -130,11 +130,19 @@ export async function runTimersActionNative(envVars, onOutput, onProgress) {
   for (let i = 0; i < rawSettings.length; i++) {
     const settingId = rawSettings[i];
     const setting = TIMER_SETTINGS.find((s) => s.id === settingId);
-    if (!setting) continue;
+    if (!setting) {
+      writeLog(`- Omitiendo ajuste desconocido: ${settingId}`);
+      continue;
+    }
 
     if (onProgress) onProgress(Math.round(((i + 1) / rawSettings.length) * 100));
 
     const prevVal = bcdMap[setting.param.toLowerCase()] || null;
+
+    if (prevVal && prevVal.toLowerCase() === setting.optimizedValue.toLowerCase()) {
+      writeLog(`- ${setting.name}: Ya está optimizado (${setting.optimizedValue}).`);
+      continue;
+    }
 
     const result = await guard(
       `Ajustar temporizador BCD: ${setting.param} = ${setting.optimizedValue}`,

@@ -214,6 +214,11 @@ export async function runGamingActionNative(envVars, onOutput, onProgress) {
   }
 
   const targets = GAMING_SETTINGS.filter((s) => rawSettings.includes(s.id));
+  for (const id of rawSettings) {
+    if (!GAMING_SETTINGS.some((s) => s.id === id)) {
+      writeLog(`- Omitiendo ajuste desconocido: ${id}`);
+    }
+  }
 
   writeLog(`Iniciando optimización Gaming & GPU (Modo: ${dryRun ? 'SIMULACIÓN' : 'APLICAR'})...`);
 
