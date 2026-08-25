@@ -25,7 +25,8 @@
       "scripts/Apply-Hosts.ps1"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "requestedExecutionLevel": "requireAdministrator"
     },
     "publish": {
       "provider": "github",
