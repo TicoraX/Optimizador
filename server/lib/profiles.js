@@ -21,10 +21,10 @@ export const PROFILES = [
     icon: 'gaming',
     accent: 'var(--color-primary)',
     steps: [
-      { module: 'gaming', params: { settings: 'hags,gamedvr,fso,gpu_priority' } },
-      { module: 'timers', params: { settings: 'disabledynamictick,useplatformclock' } },
-      { module: 'werfault', params: { settings: 'dontshowui,loggingdisabled' } },
-      { module: 'ram', params: { cleanMode: 'soft', minRamMB: 50, processes: '1234' } },
+      { module: 'gaming', params: { SETTINGS: 'hags,gamedvr,fso,gpu_priority' } },
+      { module: 'timers', params: { SETTINGS: 'disabledynamictick,useplatformclock' } },
+      { module: 'werfault', params: { SETTINGS: 'dontshowui,loggingdisabled' } },
+      { module: 'ram', params: { CLEAN_MODE: 'soft', MIN_RAM_MB: '50', OPTIMIZE_PROCESSES: '1234' } },
     ],
   },
   {
@@ -34,8 +34,8 @@ export const PROFILES = [
     icon: 'searchindex',
     accent: 'var(--color-success)',
     steps: [
-      { module: 'networkprivacy', params: { settings: 'wifisense,spotlight' } },
-      { module: 'dnsflush', params: { actions: 'flushdns' } },
+      { module: 'networkprivacy', params: { SETTINGS: 'wifisense,spotlight' } },
+      { module: 'dnsflush', params: { ACTIONS: 'flushdns' } },
     ],
   },
   {
@@ -45,8 +45,8 @@ export const PROFILES = [
     icon: 'power',
     accent: 'var(--color-warning)',
     steps: [
-      { module: 'networkprivacy', params: { settings: 'wifisense,spotlight,edgepreload' } },
-      { module: 'werfault', params: { settings: 'loggingdisabled' } },
+      { module: 'networkprivacy', params: { SETTINGS: 'wifisense,spotlight,edgepreload' } },
+      { module: 'werfault', params: { SETTINGS: 'loggingdisabled' } },
     ],
   },
   {
@@ -56,9 +56,9 @@ export const PROFILES = [
     icon: 'cleanup',
     accent: 'var(--color-info, #47bfff)',
     steps: [
-      { module: 'cleanup', params: { cleanCategories: ['devCache', 'temp'] } },
-      { module: 'dnsflush', params: { actions: 'flushdns,registers' } },
-      { module: 'ram', params: { cleanMode: 'soft', minRamMB: 50, processes: '1234' } },
+      { module: 'cleanup', params: { CLEAN_CATEGORIES: 'devCache,temp' } },
+      { module: 'dnsflush', params: { ACTIONS: 'flushdns,registers' } },
+      { module: 'ram', params: { CLEAN_MODE: 'soft', MIN_RAM_MB: '50', OPTIMIZE_PROCESSES: '1234' } },
     ],
   },
 ];
@@ -89,8 +89,12 @@ export async function applyProfile(profileId, { dryRun = false } = {}, onOutput 
     onOutput(`[PERFIL] Ejecutando módulo: ${step.module}...`);
     const envVars = {
       DRY_RUN: dryRun ? 'true' : 'false',
-      ...step.params,
     };
+
+    for (const [k, v] of Object.entries(step.params || {})) {
+      const upperKey = k.toUpperCase();
+      envVars[upperKey] = Array.isArray(v) ? v.join(',') : String(v);
+    }
 
     try {
       let res;
@@ -116,6 +120,7 @@ export async function applyProfile(profileId, { dryRun = false } = {}, onOutput 
     }
   }
 
-  onOutput(`[PERFIL] Aplicación del ${profile.name} completada.`);
-  return { ok: true, profileId, dryRun, results };
+  const allOk = results.length > 0 && results.every((r) => r.ok);
+  onOutput(`[PERFIL] Aplicación del ${profile.name} finalizada (Estado: ${allOk ? 'CORRECTO' : 'CON ERRORES'}).`);
+  return { ok: allOk, profileId, dryRun, results };
 }

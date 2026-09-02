@@ -65,6 +65,14 @@ export default function ProfilesSelector({ onProfileApplied }) {
     );
   }
 
+  if (error && profiles.length === 0) {
+    return (
+      <div className="card profiles-card mb-6 p-4 border border-danger/30 text-xs text-danger">
+        No se pudieron cargar los perfiles: {error}
+      </div>
+    );
+  }
+
   if (profiles.length === 0) return null;
 
   return (

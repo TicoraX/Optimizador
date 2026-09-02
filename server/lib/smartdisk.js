@@ -18,6 +18,13 @@ export const SMARTDISK_ACTIONS = [
     command: 'defrag.exe /O /C',
     type: 'TRIM_OPTIMIZE',
   },
+  {
+    id: 'enable_trim',
+    name: 'Habilitar soporte TRIM en el sistema de archivos (fsutil)',
+    desc: 'Configura DisableDeleteNotify = 0 en Windows para habilitar el envío automático de comandos TRIM a los SSD.',
+    command: 'fsutil behavior set DisableDeleteNotify 0',
+    type: 'FSUTIL_SET',
+  },
 ];
 
 export async function checkTrimStatus() {
@@ -87,7 +94,7 @@ export async function runSmartDiskScanNative(onOutput, onProgress) {
     '',
     trim.enabled
       ? '- El comando TRIM se encuentra correctamente habilitado en Windows.'
-      : '- Se recomienda habilitar DisableDeleteNotify para evitar degradación en unidades SSD.',
+      : '- Se recomienda habilitar TRIM ejecutando `fsutil behavior set DisableDeleteNotify 0` para evitar degradación de celdas en unidades SSD.',
     '- Ejecutar TRIM periódicamente ayuda a conservar la velocidad sostenida de lectura/escritura.',
   ];
 
@@ -109,20 +116,56 @@ export async function runSmartDiskActionNative(envVars = {}, onOutput, onProgres
   const writeLog = makeLogger('smartdisk', onOutput);
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('smartdisk', { dryRun, writeLog });
+  const rawActions = String(envVars.ACTIONS || envVars.ITEMS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const rawDisks = String(envVars.DISKS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
   writeLog(`Iniciando optimización de almacenamiento SSD (Modo: ${dryRun ? 'SIMULACIÓN (dryRun)' : 'REAL'})...`);
-  if (onProgress) onProgress({ percent: 15, message: 'Preparando comando defrag TRIM...' });
 
-  const result = await guard(
-    'Ejecutar TRIM y Optimización en Unidades SSD (defrag.exe /O /C)',
-    () => spawnCapture('defrag.exe', ['/O', '/C']),
-    {
-      target: 'All_SSD_Volumes',
-      action: 'TRIM_OPTIMIZE',
-    },
-  );
+  const results = [];
+
+  // 1. Manejo de habilitación de TRIM vía fsutil
+  if (rawActions.includes('enable_trim')) {
+    if (onProgress) onProgress({ percent: 30, message: 'Habilitando soporte TRIM (fsutil)...' });
+    const rTrim = await guard(
+      'Habilitar TRIM en Windows (fsutil behavior set DisableDeleteNotify 0)',
+      () => spawnCapture('fsutil', ['behavior', 'set', 'DisableDeleteNotify', '0']),
+      { target: 'FileSystem_DisableDeleteNotify', action: 'ENABLE_TRIM', previousValue: '1' },
+    );
+    results.push(rTrim);
+    writeLog('- Soporte TRIM habilitado en el sistema de archivos.');
+  }
+
+  // 2. Manejo de TRIM / Defrag por discos o general
+  const shouldTrim = rawActions.includes('trim_all') || rawDisks.length > 0 || rawActions.length === 0;
+  if (shouldTrim) {
+    if (onProgress) onProgress({ percent: 60, message: 'Ejecutando TRIM en unidades SSD...' });
+
+    if (rawDisks.length > 0) {
+      for (const disk of rawDisks) {
+        const driveLetter = /^[A-Za-z]:?$/.test(disk) ? (disk.endsWith(':') ? disk : `${disk}:`) : null;
+        const targetDesc = driveLetter ? `Unidad ${driveLetter}` : `Disco ${disk}`;
+        const args = driveLetter ? [driveLetter, '/O'] : ['/O', '/C'];
+
+        const rDefrag = await guard(
+          `Ejecutar TRIM en ${targetDesc} (defrag.exe ${args.join(' ')})`,
+          () => spawnCapture('defrag.exe', args),
+          { target: targetDesc, action: 'TRIM_OPTIMIZE' },
+        );
+        results.push(rDefrag);
+        writeLog(`- TRIM ejecutado en ${targetDesc}.`);
+      }
+    } else {
+      const rDefrag = await guard(
+        'Ejecutar TRIM y Optimización en Unidades SSD (defrag.exe /O /C)',
+        () => spawnCapture('defrag.exe', ['/O', '/C']),
+        { target: 'All_SSD_Volumes', action: 'TRIM_OPTIMIZE' },
+      );
+      results.push(rDefrag);
+      writeLog('- TRIM ejecutado en todas las unidades SSD.');
+    }
+  }
 
   if (onProgress) onProgress({ percent: 100, message: 'Optimización TRIM finalizada' });
   writeLog('Optimización de unidades de disco completada exitosamente.');
-  return { ok: true, dryRun, result };
+  return { ok: true, dryRun, results };
 }

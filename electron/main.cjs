@@ -38,9 +38,23 @@ async function runTrayAction(endpoint, body, successMsg) {
         'Origin': APP_ORIGIN,
       },
     }, (res) => {
-      if (res.statusCode === 200) {
-        showNotification('Optimizador', successMsg);
-      }
+      let isDone = false;
+      let hasError = false;
+      let rawData = '';
+
+      res.on('data', (chunk) => {
+        rawData += chunk.toString();
+        if (rawData.includes('event: done')) isDone = true;
+        if (rawData.includes('event: error')) hasError = true;
+      });
+
+      res.on('end', () => {
+        if (res.statusCode === 200 && isDone && !hasError) {
+          showNotification('Optimizador', successMsg);
+        } else if (hasError || res.statusCode >= 400) {
+          showNotification('Optimizador', 'No se pudo completar la acción rápida.');
+        }
+      });
     });
     req.on('error', (err) => {
       log(`runTrayAction error: ${err.message}`);

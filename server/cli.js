@@ -21,6 +21,10 @@ const target = (args[1] || '').toLowerCase();
 const isDryRun = args.includes('--dry-run') || args.includes('-d');
 const isJson = args.includes('--json') || args.includes('-j');
 
+const logProgress = isJson
+  ? (msg) => process.stderr.write(`${msg}\n`)
+  : (msg) => console.log(msg);
+
 function printHelp() {
   console.log(`
 Uso: optimizador <comando> [opciones]
@@ -105,59 +109,83 @@ async function main() {
       console.error('Error: Debes especificar el ID del perfil (ej. optimizador profile gaming)');
       process.exit(1);
     }
-    console.log(`Aplicando perfil '${target}' (dryRun: ${isDryRun})...\n`);
-    const res = await applyProfile(target, { dryRun: isDryRun }, (line) => console.log(`  ${line}`));
-    if (isJson) console.log(JSON.stringify(res, null, 2));
+    logProgress(`Aplicando perfil '${target}' (dryRun: ${isDryRun})...\n`);
+    const res = await applyProfile(target, { dryRun: isDryRun }, (line) => logProgress(`  ${line}`));
+    if (isJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      console.log(`\nResultado: ${res.ok ? 'Éxito' : 'Con errores'}`);
+    }
     return;
   }
 
   if (command === 'clean') {
-    console.log(`Ejecutando limpieza segura de temporales (dryRun: ${isDryRun})...`);
+    logProgress(`Ejecutando limpieza segura de temporales (dryRun: ${isDryRun})...`);
     const res = await runCleanupActionNative(
       { DRY_RUN: isDryRun ? 'true' : 'false', CLEAN_CATEGORIES: 'temp,thumbnails,devCache' },
-      (line) => console.log(`  ${line}`),
+      (line) => logProgress(`  ${line}`),
     );
-    if (isJson) console.log(JSON.stringify(res, null, 2));
+    if (isJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      console.log('\nLimpieza completada.');
+    }
     return;
   }
 
   if (command === 'ram') {
-    console.log(`Ejecutando optimización de memoria RAM (dryRun: ${isDryRun})...`);
+    logProgress(`Ejecutando optimización de memoria RAM (dryRun: ${isDryRun})...`);
     const res = await runRamActionNative(
       { DRY_RUN: isDryRun ? 'true' : 'false', CLEAN_MODE: 'soft', MIN_RAM_MB: '50', OPTIMIZE_PROCESSES: '1234' },
-      (line) => console.log(`  ${line}`),
+      (line) => logProgress(`  ${line}`),
     );
-    if (isJson) console.log(JSON.stringify(res, null, 2));
+    if (isJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      console.log('\nOptimización de memoria RAM completada.');
+    }
     return;
   }
 
   if (command === 'trim') {
-    console.log(`Ejecutando TRIM en unidades SSD (dryRun: ${isDryRun})...`);
+    logProgress(`Ejecutando TRIM en unidades SSD (dryRun: ${isDryRun})...`);
     const res = await runSmartDiskActionNative(
       { DRY_RUN: isDryRun ? 'true' : 'false' },
-      (line) => console.log(`  ${line}`),
+      (line) => logProgress(`  ${line}`),
     );
-    if (isJson) console.log(JSON.stringify(res, null, 2));
+    if (isJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      console.log('\nOptimización TRIM completada.');
+    }
     return;
   }
 
   if (command === 'shaders') {
-    console.log(`Purgando caché de sombreadores GPU (dryRun: ${isDryRun})...`);
+    logProgress(`Purgando caché de sombreadores GPU (dryRun: ${isDryRun})...`);
     const res = await runShaderCacheActionNative(
       { DRY_RUN: isDryRun ? 'true' : 'false' },
-      (line) => console.log(`  ${line}`),
+      (line) => logProgress(`  ${line}`),
     );
-    if (isJson) console.log(JSON.stringify(res, null, 2));
+    if (isJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      console.log('\nPurga de shaders completada.');
+    }
     return;
   }
 
   if (command === 'dns') {
-    console.log(`Purgando y refrescando caché DNS (dryRun: ${isDryRun})...`);
+    logProgress(`Purgando y refrescando caché DNS (dryRun: ${isDryRun})...`);
     const res = await runDnsFlushActionNative(
       { DRY_RUN: isDryRun ? 'true' : 'false', ACTIONS: 'flushdns,registers' },
-      (line) => console.log(`  ${line}`),
+      (line) => logProgress(`  ${line}`),
     );
-    if (isJson) console.log(JSON.stringify(res, null, 2));
+    if (isJson) {
+      console.log(JSON.stringify(res, null, 2));
+    } else {
+      console.log('\nPurga de caché DNS completada.');
+    }
     return;
   }
 

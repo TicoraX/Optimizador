@@ -111,8 +111,18 @@ export async function deleteDirectoryContents(dirPath, isDryRun, log) {
     for (const entry of entries) {
       const full = path.join(dirPath, entry.name);
       try {
-        const st = await fs.stat(full);
-        const size = st.size;
+        let size = 0;
+        let count = 1;
+
+        if (entry.isDirectory()) {
+          const subInfo = await inspectDirectory(full);
+          size = subInfo.bytes;
+          count = Math.max(1, subInfo.count);
+        } else {
+          const st = await fs.stat(full);
+          size = st.size;
+        }
+
         if (!isDryRun) {
           if (entry.isDirectory()) {
             await fs.rm(full, { recursive: true, force: true });
@@ -120,10 +130,10 @@ export async function deleteDirectoryContents(dirPath, isDryRun, log) {
             await fs.unlink(full);
           }
         }
-        deletedCount++;
+        deletedCount += count;
         deletedBytes += size;
       } catch (err) {
-        log(`  [Aviso] Archivo en uso o protegido: ${entry.name}`);
+        log(`  [Aviso] Archivo o directorio en uso o protegido: ${entry.name}`);
       }
     }
     return { deletedCount, deletedBytes };
