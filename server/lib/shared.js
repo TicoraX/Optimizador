@@ -193,6 +193,20 @@ export const MODULES = Object.freeze({
     taskName: 'WerFault_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  smartdisk: Object.freeze({
+    dir: join(PROJECT_ROOT, 'smartdisk-optimizer'),
+    countsFile: 'smartdisk-counts.json',
+    reportPrefix: 'smartdisk-report',
+    taskName: 'SmartDisk_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  shadercache: Object.freeze({
+    dir: join(PROJECT_ROOT, 'shadercache-optimizer'),
+    countsFile: 'shadercache-counts.json',
+    reportPrefix: 'shadercache-report',
+    taskName: 'ShaderCache_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(

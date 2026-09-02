@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
 import ItemCheckboxList from './ItemCheckboxList';
@@ -233,7 +232,7 @@ export default function ReportViewer() {
     if (module === 'power') {
       return powerPlans.length > 0;
     }
-    if (module === 'updates' || module === 'network') {
+    if (module === 'network') {
       return true;
     }
     return false;
@@ -267,7 +266,7 @@ export default function ReportViewer() {
 
   // ── Action ──
   const runAction = ({ dryRun = false, adblockAction } = {}) => {
-    if (!hasSelected && module !== 'updates' && module !== 'power' && module !== 'network') {
+    if (!hasSelected && module !== 'power' && module !== 'network') {
       setLogs([{
         type: 'error',
         text: '[AVISO] No hay ningún elemento seleccionado. Marcá las casillas de los elementos a optimizar antes de ejecutar.',
@@ -354,68 +353,86 @@ export default function ReportViewer() {
 
     const timeoutMs = endpoint.startsWith('/action/') ? 660000 : 330000;
     const timeoutId = setTimeout(() => {
-      setLogs(prev => [...prev, { type: 'error', text: '[ERROR] Timeout: la operacion excedio el tiempo limite.' }]);
+      setLogs(prev => [...prev, { type: 'error', text: '[ERROR] Timeout: la operación excedió el tiempo límite.' }]);
       ctrl.abort();
     }, timeoutMs);
 
-    fetchEventSource(`${API_BASE}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-      openWhenHidden: true,
-      onmessage(event) {
-        if (event.event === 'progress') {
-          try { setProgress(JSON.parse(event.data)); } catch { /* progreso mal formado: se ignora */ }
-        } else if (event.event === 'output') {
-          setLogs(prev => [...prev, { type: 'output', text: event.data }]);
-        } else if (event.event === 'error') {
-          setLogs(prev => [...prev, { type: 'error', text: event.data }]);
-        } else if (event.event === 'done') {
-          try {
-            const { exitCode, timedOut } = JSON.parse(event.data);
-            const statusText = exitCode === 0
-              ? 'Proceso completado exitosamente.'
-              : `Proceso terminado con codigo de salida: ${exitCode === null ? 'desconocido' : exitCode}.`;
-            
-            setLogs(prev => [...prev, { 
-              type: 'system', 
-              text: `\n[SISTEMA] ${statusText} ${timedOut ? '(Excedio el tiempo limite)' : ''}` 
-            }]);
-          } catch (parseErr) {
-            setLogs(prev => [...prev, { type: 'error', text: `[ERROR] Respuesta inesperada del servidor: ${parseErr.message}` }]);
-          }
+    const handleSSEEvent = (event, data) => {
+      if (event === 'progress') {
+        try { setProgress(JSON.parse(data)); } catch { /* progreso mal formado */ }
+      } else if (event === 'output') {
+        setLogs(prev => [...prev, { type: 'output', text: data }]);
+      } else if (event === 'error') {
+        setLogs(prev => [...prev, { type: 'error', text: data }]);
+      } else if (event === 'done') {
+        try {
+          const { exitCode, timedOut } = JSON.parse(data);
+          const statusText = exitCode === 0
+            ? 'Proceso completado exitosamente.'
+            : `Proceso terminado con código de salida: ${exitCode === null ? 'desconocido' : exitCode}.`;
           
-          clearTimeout(timeoutId);
-          setIsRunning(false);
-          setProgress(null);
-          ctrl.abort();
+          setLogs(prev => [...prev, { 
+            type: 'system', 
+            text: `\n[SISTEMA] ${statusText} ${timedOut ? '(Excedió el tiempo límite)' : ''}` 
+          }]);
+        } catch (parseErr) {
+          setLogs(prev => [...prev, { type: 'error', text: `[ERROR] Respuesta inesperada del servidor: ${parseErr.message}` }]);
+        }
+      }
+    };
 
-          fetchReport();
-          if (window.onDoneRefreshStatus) {
-            window.onDoneRefreshStatus();
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(errJson.error || `HTTP ${res.status}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let currentEvent = 'message';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              currentEvent = 'message';
+            } else if (trimmed.startsWith('event:')) {
+              currentEvent = trimmed.slice(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              const data = trimmed.slice(5).trim();
+              handleSSEEvent(currentEvent, data);
+              currentEvent = 'message';
+            }
           }
         }
-      },
-      onclose() {
-        clearTimeout(timeoutId);
-        setIsRunning(false);
-        setProgress(null);
-        
-        fetchReport();
-        if (window.onDoneRefreshStatus) {
-          window.onDoneRefreshStatus();
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setLogs(prev => [...prev, { type: 'error', text: `[ERROR] Error de comunicación: ${err.message}` }]);
         }
-      },
-      onerror(err) {
+      } finally {
         clearTimeout(timeoutId);
-        setLogs(prev => [...prev, { type: 'error', text: `[ERROR] Error de comunicacion: ${err.message}` }]);
         setIsRunning(false);
         setProgress(null);
-        ctrl.abort();
-        throw err;
+        fetchReport();
+        if (window.onDoneRefreshStatus) window.onDoneRefreshStatus();
       }
-    });
+    })();
   };
 
   const abortExecution = () => {

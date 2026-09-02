@@ -1,10 +1,10 @@
 import { useState, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { MODULES, MODULE_KEYS } from '../modules';
 import { ModuleIcon } from './ModuleIcon';
 import SystemTelemetry from './SystemTelemetry';
 import HealthScoreCard from './HealthScoreCard';
+import ProfilesSelector from './ProfilesSelector';
 import { API_BASE } from '../config';
 
 // recharts pesa ~500 KB y alimenta un solo grafico que ni siquiera se muestra
@@ -132,29 +132,35 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
     }, 330000);
 
     try {
-      await fetchEventSource(`${API_BASE}/scan/${moduleKey}`, {
+      const response = await fetch(`${API_BASE}/scan/${moduleKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
         signal: ctrl.signal,
-        openWhenHidden: true,
-        onopen(res) {
-          if (!res.ok) throw new Error(`El servidor respondio ${res.status}`);
-          const ct = res.headers.get('content-type') || '';
-          if (!ct.startsWith('text/event-stream')) {
-            throw new Error(`Respuesta inesperada del servidor (${ct || 'sin content-type'})`);
-          }
-        },
-        onmessage(ev) {
-          if (ev.event === 'done') {
-            abortReason = 'done';
-            ctrl.abort();
-          }
-        },
-        onerror(err) {
-          throw err;
-        },
       });
+
+      if (!response.ok) throw new Error(`El servidor respondió ${response.status}`);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No se pudo inicializar la lectura del stream SSE');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('event: done')) {
+            abortReason = 'done';
+            break;
+          }
+        }
+        if (abortReason === 'done') break;
+      }
     } catch (err) {
       if (abortReason === 'timeout') {
         console.error(`Escaneo de ${moduleKey}: tiempo de espera agotado (330s)`);
@@ -267,6 +273,8 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
       )}
 
       <HealthScoreCard onOptimized={onRefreshStatus} />
+
+      <ProfilesSelector onProfileApplied={onRefreshStatus} />
 
       <SystemTelemetry />
 
