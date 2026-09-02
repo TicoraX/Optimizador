@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const http = require('http');
 
 const logFile = path.join(os.tmpdir(), 'optimizador-startup.log');
 function log(msg) {
@@ -28,7 +29,6 @@ function showNotification(title, body) {
 
 async function runTrayAction(endpoint, body, successMsg) {
   try {
-    const http = require('http');
     const data = JSON.stringify(body);
     const req = http.request(`${APP_ORIGIN}${endpoint}`, {
       method: 'POST',
@@ -66,56 +66,109 @@ async function runTrayAction(endpoint, body, successMsg) {
   }
 }
 
+function getTrayIcon() {
+  const candidates = [
+    path.join(__dirname, '..', 'frontend', 'public', 'favicon.svg'),
+    path.join(__dirname, '..', 'frontend', 'dist', 'favicon.svg'),
+    path.join(process.resourcesPath, 'frontend', 'dist', 'favicon.svg'),
+    path.join(process.resourcesPath, 'app.asar', 'frontend', 'dist', 'favicon.svg'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      try {
+        const img = nativeImage.createFromPath(candidate);
+        if (!img.isEmpty()) {
+          return img.resize({ width: 16, height: 16 });
+        }
+      } catch {}
+    }
+  }
+
+  // Fallback garantizado: Bitmap de 16x16 en memoria (color acento azul #0ea5e9)
+  const buffer = Buffer.alloc(16 * 16 * 4);
+  for (let i = 0; i < 16 * 16 * 4; i += 4) {
+    buffer[i] = 14;     // R
+    buffer[i + 1] = 165; // G
+    buffer[i + 2] = 233; // B
+    buffer[i + 3] = 255; // Alpha
+  }
+  return nativeImage.createFromBuffer(buffer, { width: 16, height: 16 });
+}
+
 function createTray(win) {
   if (tray) return;
 
-  // Icono SVG o fallback nativo 16x16
-  const iconPath = path.join(__dirname, '..', 'frontend', 'public', 'favicon.svg');
-  let icon = fs.existsSync(iconPath)
-    ? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
-    : nativeImage.createEmpty();
+  try {
+    const icon = getTrayIcon();
+    tray = new Tray(icon);
+    tray.setToolTip('Optimizador - Suite de Mantenimiento');
 
-  tray = new Tray(icon);
-  tray.setToolTip('Optimizador - Suite de Mantenimiento');
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Abrir Optimizador',
+        click: () => {
+          if (win.isMinimized()) win.restore();
+          win.show();
+          win.focus();
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Optimizar RAM',
+        click: () => {
+          runTrayAction('/api/action/ram', { cleanMode: 'soft', minRamMB: 50, processes: '1234' }, 'Memoria RAM optimizada exitosamente.');
+        },
+      },
+      {
+        label: 'Limpieza rápida de temporales',
+        click: () => {
+          runTrayAction('/api/action/cleanup', { cleanCategories: ['temp', 'thumbnails'] }, 'Archivos temporales limpiados.');
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Salir',
+        click: () => {
+          isQuiting = true;
+          app.quit();
+        },
+      },
+    ]);
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Abrir Optimizador',
-      click: () => {
-        if (win.isMinimized()) win.restore();
-        win.show();
-        win.focus();
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Optimizar RAM',
-      click: () => {
-        runTrayAction('/api/action/ram', { cleanMode: 'soft', minRamMB: 50, processes: '1234' }, 'Memoria RAM optimizada exitosamente.');
-      },
-    },
-    {
-      label: 'Limpieza rápida de temporales',
-      click: () => {
-        runTrayAction('/api/action/cleanup', { cleanCategories: ['temp', 'thumbnails'] }, 'Archivos temporales limpiados.');
-      },
-    },
-    { type: 'separator' },
-    {
-      label: 'Salir',
-      click: () => {
-        isQuiting = true;
-        app.quit();
-      },
-    },
-  ]);
+    tray.setContextMenu(contextMenu);
+    tray.on('double-click', () => {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    });
+    log('Tray creado correctamente');
+  } catch (err) {
+    log(`Aviso: No se pudo inicializar System Tray: ${err.message}`);
+  }
+}
 
-  tray.setContextMenu(contextMenu);
-  tray.on('double-click', () => {
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
-  });
+async function waitForServer(url, timeoutMs = 6000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await new Promise((resolve, reject) => {
+        const req = http.get(url, (res) => {
+          res.resume();
+          resolve();
+        });
+        req.on('error', reject);
+        req.setTimeout(500, () => {
+          req.destroy();
+          reject(new Error('timeout'));
+        });
+      });
+      return true;
+    } catch {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  }
+  return false;
 }
 
 function createWindow() {
@@ -150,9 +203,35 @@ function createWindow() {
     }
   });
 
+  let hasShown = false;
+  const showWindow = () => {
+    if (!hasShown && !win.isDestroyed()) {
+      hasShown = true;
+      log('Mostrando ventana principal');
+      win.maximize();
+      win.show();
+      win.focus();
+    }
+  };
+
   win.once('ready-to-show', () => {
-    win.maximize();
-    win.show();
+    log('Evento ready-to-show recibido');
+    showWindow();
+  });
+
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    log(`did-fail-load: ${errorCode} (${errorDescription}) en ${validatedURL}`);
+    setTimeout(() => {
+      if (!win.isDestroyed()) {
+        log('Reintentando win.loadURL tras fallo de conexion inicial...');
+        win.loadURL(APP_ORIGIN);
+      }
+    }, 600);
+  });
+
+  win.webContents.on('did-finish-load', () => {
+    log('did-finish-load completado');
+    showWindow();
   });
 
   win.on('close', (event) => {
@@ -163,6 +242,11 @@ function createWindow() {
     }
   });
 
+  // Fallback de seguridad: asegurar visibilidad si ready-to-show demora
+  setTimeout(() => {
+    showWindow();
+  }, 2000);
+
   win.loadURL(APP_ORIGIN);
   createTray(win);
 }
@@ -170,41 +254,50 @@ function createWindow() {
 if (!app.requestSingleInstanceLock()) {
   log('Ya hay una instancia corriendo, saliendo');
   app.quit();
-  return;
+} else {
+  app.on('second-instance', () => {
+    const [win] = BrowserWindow.getAllWindows();
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
+
+  app.on('before-quit', () => {
+    isQuiting = true;
+  });
+
+  app.whenReady().then(async () => {
+    try {
+      process.env.OPTIMIZADOR_DATA_DIR = app.getPath('userData');
+      process.env.OPTIMIZADOR_SCRIPTS_DIR = app.isPackaged
+        ? path.join(process.resourcesPath, 'scripts')
+        : path.join(__dirname, '..', 'scripts');
+      log(`whenReady: importando server.js (data dir: ${process.env.OPTIMIZADOR_DATA_DIR})`);
+      await import('../server/server.js');
+      log('server.js importado OK, esperando readiness del servidor HTTP');
+      const ready = await waitForServer(APP_ORIGIN, 8000);
+      log(`Servidor HTTP listo: ${ready}`);
+      createWindow();
+      if (app.isPackaged && fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
+        try {
+          require('electron-updater').autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+            log(`autoUpdater catch: ${err.message}`);
+          });
+        } catch (err) {
+          log(`autoUpdater aviso: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      log(`ERROR fatal: ${err.stack || err}`);
+      dialog.showErrorBox('Optimizador - Error al iniciar', String(err.stack || err));
+    }
+  });
+
+  app.on('window-all-closed', () => {
+    if (isQuiting) {
+      app.quit();
+    }
+  });
 }
-
-app.on('second-instance', () => {
-  const [win] = BrowserWindow.getAllWindows();
-  if (win) {
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
-  }
-});
-
-app.on('before-quit', () => {
-  isQuiting = true;
-});
-
-app.whenReady().then(async () => {
-  try {
-    process.env.OPTIMIZADOR_DATA_DIR = app.getPath('userData');
-    process.env.OPTIMIZADOR_SCRIPTS_DIR = app.isPackaged
-      ? path.join(process.resourcesPath, 'scripts')
-      : path.join(__dirname, '..', 'scripts');
-    log(`whenReady: importando server.js (data dir: ${process.env.OPTIMIZADOR_DATA_DIR})`);
-    await import('../server/server.js');
-    log('server.js importado OK, creando ventana');
-    createWindow();
-    require('electron-updater').autoUpdater.checkForUpdatesAndNotify();
-  } catch (err) {
-    log(`ERROR fatal: ${err.stack || err}`);
-    dialog.showErrorBox('Optimizador - Error al iniciar', String(err.stack || err));
-  }
-});
-
-app.on('window-all-closed', () => {
-  if (isQuiting) {
-    app.quit();
-  }
-});
