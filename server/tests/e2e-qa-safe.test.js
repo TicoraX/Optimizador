@@ -125,6 +125,8 @@ describe('E2E QA Suite — Verificación Segura (Zero Destructive Changes / dryR
     { mod: 'cleanup', body: { dryRun: true, cleanCategories: ['temp'] } },
     { mod: 'startup', body: { dryRun: true, programs: ['TestProg'] } },
     { mod: 'ram', body: { dryRun: true, processes: '1234', cleanMode: 'soft', minRamMB: 50 } },
+    { mod: 'smartdisk', body: { dryRun: true, actions: 'trim_all' } },
+    { mod: 'shadercache', body: { dryRun: true, caches: 'directx' } },
   ];
 
   for (const { mod, body } of testModules) {

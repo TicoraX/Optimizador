@@ -27,6 +27,8 @@ const ICONS = {
   networkprivacy: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4m0 4h.01',
   pagefile: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zm4 3h8M8 12h8M8 15h4',
   werfault: 'M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
+  smartdisk: 'M22 12A10 10 0 0 0 12 2v10zM12 22a10 10 0 1 0 0-20v10l7.07 7.07A10 10 0 0 0 12 22z',
+  shadercache: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
 };
 
 const fmtSize = (mb) => {
@@ -291,6 +293,28 @@ export const MODULES = {
       { label: 'Optimizados', value: `${d.optimizedCount ?? 0}/${d.total ?? 4}`,
         tone: (d.optimizedCount ?? 0) === (d.total ?? 4) ? 'is-success' : 'is-warning' },
       { label: 'Pendientes', value: d.pendingCount ?? 0 },
+    ],
+  },
+  smartdisk: {
+    label: 'Salud SSD & TRIM',
+    blurb: 'Diagnóstico SMART y Re-Trim Seguro',
+    description: 'Verifica el estado SMART de unidades físicas, comprueba el soporte de TRIM en el sistema de archivos y ejecuta la optimización periódica de bloques SSD.',
+    icon: ICONS.smartdisk,
+    metrics: (d) => [
+      { label: 'Discos detectados', value: d.totalDisks ?? 0 },
+      { label: 'Unidades SSD', value: d.ssdCount ?? 0 },
+      { label: 'Saludables', value: d.healthyCount ?? 0, tone: 'is-success' },
+    ],
+  },
+  shadercache: {
+    label: 'Caché de Shaders GPU',
+    blurb: 'DirectX, NVIDIA, AMD e Intel',
+    description: 'Detecta y purga las cachés de sombreadores GPU acumuladas para recuperar gigabytes de almacenamiento y reducir micro-stuttering en juegos.',
+    icon: ICONS.shadercache,
+    metrics: (d) => [
+      { label: 'Espacio shaders', value: `${d.totalMB ?? '0.00'} MB`, tone: tone(Number(d.totalMB ?? 0), { warn: 1024, danger: 4096 }) },
+      { label: 'Archivos', value: d.totalFiles ?? 0 },
+      { label: 'Ubicaciones', value: d.locationsFound ?? 0 },
     ],
   },
 };

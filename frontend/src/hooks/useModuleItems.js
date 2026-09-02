@@ -28,6 +28,8 @@ const MODULE_CONFIG = {
   networkprivacy: { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
   pagefile:       { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
   werfault:       { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
+  smartdisk:      { idKey: 'id',      defaultCheck: () => true },
+  shadercache:    { idKey: 'id',      defaultCheck: (it) => it.files > 0 },
 };
 
 /**
