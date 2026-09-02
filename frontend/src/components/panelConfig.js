@@ -181,4 +181,16 @@ export const GENERIC_PANEL_CONFIG = {
       statusColor: Number(item.sizeMB) > 0 ? 'var(--color-warning)' : 'var(--color-ink-3)',
     }),
   },
+  updates: {
+    label: 'Actualizaciones a instalar:',
+    hint: 'Seleccioná las aplicaciones y paquetes a actualizar de forma individual y silenciosa:',
+    bodyKey: 'packages',
+    bodyFormat: 'csv',
+    renderItem: (item) => ({
+      prefix: item.manager ? `[${item.manager.toUpperCase()}]` : '[APP]',
+      title: item.name,
+      subtitle: `${item.currentVersion || 'Actual'} → ${item.availableVersion || 'Nueva'} · ID: ${item.id}`,
+      statusColor: 'var(--color-primary)',
+    }),
+  },
 };

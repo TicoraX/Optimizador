@@ -232,7 +232,7 @@ export default function ReportViewer() {
     if (module === 'power') {
       return powerPlans.length > 0;
     }
-    if (module === 'updates' || module === 'network') {
+    if (module === 'network') {
       return true;
     }
     return false;
@@ -266,7 +266,7 @@ export default function ReportViewer() {
 
   // ── Action ──
   const runAction = ({ dryRun = false, adblockAction } = {}) => {
-    if (!hasSelected && module !== 'updates' && module !== 'power' && module !== 'network') {
+    if (!hasSelected && module !== 'power' && module !== 'network') {
       setLogs([{
         type: 'error',
         text: '[AVISO] No hay ningún elemento seleccionado. Marcá las casillas de los elementos a optimizar antes de ejecutar.',

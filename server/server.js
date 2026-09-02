@@ -774,10 +774,17 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     envVars.MIN_RAM_MB = String(validateMinRamMB(req.body.minRamMB));
   }
 
-  // CleanMode: solo aplica al modulo ram. Controla que procesos se consideran
-  // candidatos: 'soft' (solo safe_known) o 'deep' (incluye unknown sin ventana).
   if (req.params.module === 'ram' && req.body?.cleanMode !== undefined) {
     envVars.CLEAN_MODE = req.body.cleanMode === 'deep' ? 'deep' : 'soft';
+  }
+
+  if (req.params.module === 'updates') {
+    if (req.body?.packages !== undefined) {
+      envVars.PACKAGES = validateIdList(req.body.packages, 'packages');
+    }
+    if (req.body?.items !== undefined) {
+      envVars.ITEMS = validateIdList(req.body.items, 'items');
+    }
   }
 
   // Ningun modulo invoca powershell.exe para su accion: los 3 se ejecutan
@@ -815,6 +822,7 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     werfault: ['SETTINGS'],
     smartdisk: ['ACTIONS', 'DISKS'],
     shadercache: ['CACHES'],
+    updates: ['PACKAGES', 'ITEMS'],
   };
   const required = SELECTION_FIELDS[req.params.module];
   if (required && !required.some((k) => envVars[k])) {
@@ -825,12 +833,6 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   const handler = ACTION_HANDLERS[req.params.module];
   if (!handler) return res.status(400).json({ error: 'Modulo sin handler de accion' });
-
-  // updates no recibe envVars (no tiene params de seleccion)
-  if (req.params.module === 'updates') {
-    runNativeOverSSE(res, (onOutput, onProgress) => handler(onOutput, onProgress), ACTION_TIMEOUT_MS);
-    return;
-  }
 
   runNativeOverSSE(res, (onOutput, onProgress) => handler(envVars, onOutput, onProgress), ACTION_TIMEOUT_MS);
 }));
