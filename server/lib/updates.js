@@ -11,6 +11,96 @@ import {
 // para evitar superposición de diálogos UAC o instaladores concurrentes.
 // ═══════════════════════════════════════════════════════
 
+const SYSTEM_SCOPE_PATTERNS = [
+  /\.sdk\./i,
+  /\.wsl/i,
+  /vigem/i,
+  /\.visualstudio\./i,
+  /nvidia/i,
+  /driver/i,
+  /openal/i,
+  /physx/i,
+];
+
+export function classifyAndFilterUpdates(items = []) {
+  return items.map((it) => {
+    const isUnknownVersion = !it.currentVersion || String(it.currentVersion).toLowerCase() === 'unknown';
+    const isSystemScope = SYSTEM_SCOPE_PATTERNS.some((p) => p.test(it.id) || p.test(it.name));
+    const source = (it.source || '').toLowerCase() === 'msstore' ? 'msstore' : (it.source || 'winget');
+
+    return {
+      ...it,
+      source,
+      isUnknownVersion,
+      isSystemScope,
+      recommendedUpdate: !isUnknownVersion,
+    };
+  });
+}
+
+export function getBlockingProcessForPackage(packageId = '', packageName = '', activeProcesses = []) {
+  if (!packageId && !packageName) return null;
+
+  const idParts = packageId.toLowerCase().split('.');
+  const lastPart = idParts[idParts.length - 1] || '';
+  const cleanName = packageName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const candidates = new Set([
+    lastPart,
+    lastPart.replace(/desktop$/i, ''),
+    idParts[0] || '',
+    cleanName,
+    packageName.toLowerCase().split(' ')[0] || '',
+  ]);
+
+  if (packageId.toLowerCase().includes('visualstudiocode')) candidates.add('code');
+  if (packageId.toLowerCase().includes('cursor')) candidates.add('cursor');
+  if (packageId.toLowerCase().includes('opencode')) candidates.add('opencode');
+
+  for (const proc of activeProcesses) {
+    const p = proc.toLowerCase().replace(/\.exe$/i, '');
+    for (const c of candidates) {
+      if (c && c.length >= 3 && (p === c || p.includes(c) || c.includes(p))) {
+        return proc;
+      }
+    }
+  }
+
+  return null;
+}
+
+export async function getActiveProcessNames() {
+  try {
+    const r = await spawnCapture('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-Process | Select-Object -ExpandProperty ProcessName']);
+    if (r.code !== 0 || !r.stdout) return [];
+    return r.stdout.split(/\r?\n/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export function buildWingetUpgradeArgs(item = {}, options = {}) {
+  const { silent = true } = options;
+  const isMsStore = (item.source || '').toLowerCase() === 'msstore' || (item.id || '').startsWith('XP');
+  const source = isMsStore ? 'msstore' : (item.source || 'winget');
+
+  const args = [
+    'upgrade',
+    '--id', item.id,
+    '--exact',
+    '--source', source,
+    '--accept-source-agreements',
+    '--accept-package-agreements',
+    '--disable-interactivity',
+  ];
+
+  if (silent && !isMsStore) {
+    args.push('--silent');
+  }
+
+  return args;
+}
+
 export async function checkWingetUpdates() {
   if (!(await commandExists('winget'))) {
     return { count: 0, error: false, items: [], block: 'winget no está disponible en este sistema.' };
@@ -185,12 +275,12 @@ export async function runUpdatesScanNative(onOutput, onProgress) {
     '## Chocolatey', '', choco.block, '',
   ];
 
-  const allItems = [
+  const allItems = classifyAndFilterUpdates([
     ...(winget.items || []),
     ...(pip.items || []),
     ...(npm.items || []),
     ...(choco.items || []),
-  ];
+  ]);
 
   finishReport(paths, lines, {
     date: today,
@@ -222,6 +312,7 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('updates', { dryRun, writeLog });
 
+  const hasExplicitSelection = envVars.PACKAGES !== undefined || envVars.ITEMS !== undefined;
   const rawPackages = String(envVars.PACKAGES || envVars.ITEMS || '').split(',').map((s) => s.trim()).filter(Boolean);
   const selectedSet = rawPackages.length > 0 ? new Set(rawPackages) : null;
 
@@ -235,7 +326,7 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
       if (id.startsWith('choco:')) return { id, name: id.slice(6), manager: 'choco' };
       return { id, name: id, manager: 'winget' };
     });
-  } else {
+  } else if (!hasExplicitSelection) {
     onOutput('Consultando catálogo de actualizaciones pendientes...');
     const [w, p, n, c] = await Promise.all([
       checkWingetUpdates(), checkPipUpdates(), checkNpmUpdates(), checkChocoUpdates(),
@@ -250,6 +341,7 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
   }
 
   writeLog(`Se procesarán ${targetItems.length} actualizaciones secuencialmente:`);
+  const activeProcesses = envVars._MOCK_ACTIVE_PROCESSES || (await getActiveProcessNames());
   const results = [];
 
   for (let i = 0; i < targetItems.length; i++) {
@@ -264,38 +356,53 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
 
     writeLog(`\n[${i + 1}/${targetItems.length}] Actualizando ${item.name} (${item.manager.toUpperCase()})...`);
 
+    // 1. Verificación de procesos activos que bloqueen la actualización
+    if (item.manager === 'winget') {
+      const blockingProcess = getBlockingProcessForPackage(item.id, item.name, activeProcesses);
+      if (blockingProcess) {
+        writeLog(`  [Aviso] No se puede actualizar ${item.name} porque la aplicación está en ejecución (proceso: ${blockingProcess}). Ciérrala antes de reintentar.`);
+        results.push({
+          item: item.id,
+          name: item.name,
+          ok: false,
+          status: 'process_running',
+          blockingProcess,
+        });
+        continue;
+      }
+    }
+
     try {
       if (item.manager === 'winget') {
         const res = await guard(
           `Actualizar paquete ${item.name} (${item.id}) via winget`,
           async () => {
-            const rSilent = await spawnCapture('winget', [
-              'upgrade', '--id', item.id, '--exact',
-              '--silent', '--disable-interactivity',
-              '--accept-source-agreements', '--accept-package-agreements',
-            ]);
+            const args = buildWingetUpgradeArgs(item, { silent: true });
+            const rSilent = await spawnCapture('winget', args);
             if (rSilent.code === 0) return rSilent;
 
             if (rSilent.stderr && rSilent.stderr.includes('silent')) {
-              writeLog(`  [Aviso] El instalador de ${item.name} no soporta --silent. Reintentando...`);
-              return spawnCapture('winget', [
-                'upgrade', '--id', item.id, '--exact',
-                '--disable-interactivity',
-                '--accept-source-agreements', '--accept-package-agreements',
-              ]);
+              writeLog(`  [Aviso] El instalador de ${item.name} no soporta --silent. Reintentando en modo estándar...`);
+              const fallbackArgs = buildWingetUpgradeArgs(item, { silent: false });
+              return spawnCapture('winget', fallbackArgs);
             }
             return rSilent;
           },
           { target: item.id, action: 'UPGRADE_WINGET' },
         );
 
-        if (res.result?.code === 0 || dryRun) {
-          writeLog(`  ✓ ${item.name} actualizado con éxito.`);
-          results.push({ item: item.id, ok: true });
+        const code = res.result?.code;
+        const errRaw = (res.result?.stderr || res.result?.stdout || '').trim();
+
+        if (code === 0 || dryRun) {
+          writeLog(`  - ${item.name} actualizado con éxito.`);
+          results.push({ item: item.id, name: item.name, ok: true, status: 'updated' });
+        } else if (code === -1978335189 || /elevation|administrator|permisos/i.test(errRaw)) {
+          writeLog(`  [Aviso] ${item.name} requiere permisos de Administrador para instalarse.`);
+          results.push({ item: item.id, name: item.name, ok: false, status: 'requires_elevation', error: errRaw });
         } else {
-          const errMsg = (res.result?.stderr || res.result?.stdout || '').trim();
-          writeLog(`  ⚠ Falló la actualización de ${item.name} (código ${res.result?.code}): ${errMsg.slice(0, 200)}`);
-          results.push({ item: item.id, ok: false, error: errMsg });
+          writeLog(`  - Falló la actualización de ${item.name} (código ${code}): ${errRaw.slice(0, 200)}`);
+          results.push({ item: item.id, name: item.name, ok: false, status: 'failed', error: errRaw });
         }
       } else if (item.manager === 'pip') {
         const res = await guard(

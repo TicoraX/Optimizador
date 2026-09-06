@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { describe, it, before } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 const PORT = 3200 + Math.floor(Math.random() * 500);
@@ -69,6 +69,11 @@ describe('E2E QA Suite — Verificación Segura (Zero Destructive Changes / dryR
     await new Promise((r) => setTimeout(r, 1000));
   });
 
+  after(async () => {
+    const { stopServer } = await import('../server.js');
+    stopServer();
+  });
+
   it('GET /api/health responde status ok', async () => {
     const res = await request('/api/health');
     assert.equal(res.statusCode, 200);
@@ -127,6 +132,7 @@ describe('E2E QA Suite — Verificación Segura (Zero Destructive Changes / dryR
     { mod: 'ram', body: { dryRun: true, processes: '1234', cleanMode: 'soft', minRamMB: 50 } },
     { mod: 'smartdisk', body: { dryRun: true, actions: 'trim_all' } },
     { mod: 'shadercache', body: { dryRun: true, caches: 'directx' } },
+    { mod: 'updates', body: { dryRun: true, packages: 'Obsidian.Obsidian' } },
   ];
 
   for (const { mod, body } of testModules) {

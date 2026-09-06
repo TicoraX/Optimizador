@@ -30,7 +30,7 @@ const MODULE_CONFIG = {
   werfault:       { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
   smartdisk:      { idKey: 'id',      defaultCheck: () => true },
   shadercache:    { idKey: 'id',      defaultCheck: (it) => it.files > 0 },
-  updates:        { idKey: 'id',      defaultCheck: () => true },
+  updates:        { idKey: 'id',      defaultCheck: (it) => it.recommendedUpdate !== false && !it.isUnknownVersion },
 };
 
 /**

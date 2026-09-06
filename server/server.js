@@ -1088,15 +1088,24 @@ app.use((err, _req, res, _next) => {
 // ═══════════════════════════════════════════════════════
 const HOST = '127.0.0.1'; // Previene exposicion a LAN / internet
 
+export let serverInstance = null;
+
+export function stopServer() {
+  if (serverInstance) {
+    serverInstance.close();
+    serverInstance = null;
+  }
+}
+
 if (process.env.CLI_MODE !== 'true') {
-  const server = app.listen(PORT, HOST, () => {
+  serverInstance = app.listen(PORT, HOST, () => {
     console.log(`D1 Automation Server en http://${HOST}:${PORT}`);
     console.log(`Root: ${PROJECT_ROOT}`);
     console.log(`Modulos: ${VALID_MODULES.join(', ')}`);
     console.log('Aceptando conexiones solo de localhost');
   });
 
-  server.on('error', (err) => {
+  serverInstance.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       console.error(`El puerto ${PORT} ya esta en uso: probablemente Optimizador ya esta abierto.`);
     } else {

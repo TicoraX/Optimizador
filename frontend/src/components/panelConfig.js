@@ -186,11 +186,21 @@ export const GENERIC_PANEL_CONFIG = {
     hint: 'Seleccioná las aplicaciones y paquetes a actualizar de forma individual y silenciosa:',
     bodyKey: 'packages',
     bodyFormat: 'csv',
-    renderItem: (item) => ({
-      prefix: item.manager ? `[${item.manager.toUpperCase()}]` : '[APP]',
-      title: item.name,
-      subtitle: `${item.currentVersion || 'Actual'} → ${item.availableVersion || 'Nueva'} · ID: ${item.id}`,
-      statusColor: 'var(--color-primary)',
-    }),
+    renderItem: (item) => {
+      const srcTag = item.source === 'msstore' ? '[MSSTORE]' : `[${(item.manager || 'APP').toUpperCase()}]`;
+      const adminTag = item.isSystemScope ? ' · Requiere Admin' : '';
+      const unknownTag = item.isUnknownVersion ? ' · ⚠ Versión indefinida' : '';
+
+      let statusColor = 'var(--color-primary)';
+      if (item.isUnknownVersion) statusColor = 'var(--color-ink-3)';
+      else if (item.isSystemScope) statusColor = 'var(--color-warning)';
+
+      return {
+        prefix: srcTag,
+        title: item.name,
+        subtitle: `${item.currentVersion || 'Actual'} → ${item.availableVersion || 'Nueva'}${adminTag}${unknownTag} · ID: ${item.id}`,
+        statusColor,
+      };
+    },
   },
 };
