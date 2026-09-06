@@ -4,7 +4,7 @@ Suite de optimización y mantenimiento de Windows (Node.js/Express + React/Vite 
 
 ## Reglas Invariantes
 - **Cero Emojis**: Prohibido usar emojis en código, commits, respuestas o documentación.
-- **Sin scripts PowerShell sueltos**: Toda la lógica vive en Node.js (`server/lib/*.js`). No existen scripts `.ps1`.
+- **Sin scripts de optimización PowerShell**: Toda la lógica de los 23 módulos vive en Node.js (`server/lib/*.js`). Solo persisten 2 utilitarios de SO en `scripts/` (`Apply-Hosts.ps1` para UAC y `Notify.ps1` para tareas programadas).
 - **Servidor Local Estricto**: `127.0.0.1:3001` exclusivo (sin CORS abierto, con validación de Origin, helmet y rate limit).
 - **Acciones Protegidas**: Toda llamada a `POST /api/action/:module` requiere selección explícita (rechaza 400 si está vacía) y soporte `dryRun: true`.
 - **Modificaciones Atómicas**: Consulta `map/IMPACT.md` antes de editar cualquier módulo.

@@ -1,6 +1,6 @@
 import {
   spawnCapture, spawnCaptureShell, commandExists, padRight,
-  makeLogger, makeGuard, prepareReport, finishReport, errText,
+  makeLogger, makeGuard, prepareReport, finishReport,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -71,9 +71,15 @@ export function getBlockingProcessForPackage(packageId = '', packageName = '', a
 
 export async function getActiveProcessNames() {
   try {
-    const r = await spawnCapture('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Get-Process | Select-Object -ExpandProperty ProcessName']);
+    const r = await spawnCapture('tasklist.exe', ['/FO', 'CSV', '/NH']);
     if (r.code !== 0 || !r.stdout) return [];
-    return r.stdout.split(/\r?\n/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    return r.stdout
+      .split(/\r?\n/)
+      .map((line) => {
+        const m = line.match(/^"([^"]+)"/);
+        return m ? m[1].replace(/\.exe$/i, '').toLowerCase() : '';
+      })
+      .filter(Boolean);
   } catch {
     return [];
   }
@@ -411,10 +417,10 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           { target: item.name, action: 'UPGRADE_PIP' },
         );
         if (res.result?.code === 0 || dryRun) {
-          writeLog(`  ✓ Paquete pip ${item.name} actualizado.`);
+          writeLog(`  - [OK] Paquete pip ${item.name} actualizado.`);
           results.push({ item: item.id, ok: true });
         } else {
-          writeLog(`  ⚠ Falló la actualización de pip ${item.name}.`);
+          writeLog(`  - [FALLO] Falló la actualización de pip ${item.name}.`);
           results.push({ item: item.id, ok: false });
         }
       } else if (item.manager === 'npm') {
@@ -424,10 +430,10 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           { target: item.name, action: 'UPGRADE_NPM' },
         );
         if (res.result?.code === 0 || dryRun) {
-          writeLog(`  ✓ Paquete npm ${item.name} actualizado.`);
+          writeLog(`  - [OK] Paquete npm ${item.name} actualizado.`);
           results.push({ item: item.id, ok: true });
         } else {
-          writeLog(`  ⚠ Falló la actualización de npm ${item.name}.`);
+          writeLog(`  - [FALLO] Falló la actualización de npm ${item.name}.`);
           results.push({ item: item.id, ok: false });
         }
       } else if (item.manager === 'choco') {
@@ -437,15 +443,15 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           { target: item.name, action: 'UPGRADE_CHOCO' },
         );
         if (res.result?.code === 0 || dryRun) {
-          writeLog(`  ✓ Paquete Chocolatey ${item.name} actualizado.`);
+          writeLog(`  - [OK] Paquete Chocolatey ${item.name} actualizado.`);
           results.push({ item: item.id, ok: true });
         } else {
-          writeLog(`  ⚠ Falló la actualización de Chocolatey ${item.name}.`);
+          writeLog(`  - [FALLO] Falló la actualización de Chocolatey ${item.name}.`);
           results.push({ item: item.id, ok: false });
         }
       }
     } catch (err) {
-      writeLog(`  ⚠ Error al procesar ${item.name}: ${err.message}`);
+      writeLog(`  - [ERROR] Error al procesar ${item.name}: ${err.message}`);
       results.push({ item: item.id, ok: false, error: err.message });
     }
   }

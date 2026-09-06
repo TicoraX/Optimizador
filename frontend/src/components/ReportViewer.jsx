@@ -43,7 +43,9 @@ export default function ReportViewer() {
       if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
       setCopied(true);
       copyResetTimerRef.current = setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    } catch (e) {
+      void e;
+    }
   };
 
   // ── Hook genérico para los 14 módulos con patrón items/selected ──

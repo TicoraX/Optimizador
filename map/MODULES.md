@@ -8,12 +8,12 @@ Tabla de referencia técnica de los 23 módulos de optimización. Cada fila resu
 |---|---|---|---|---|---|
 | `updates` | `lib/updates.js` | `runUpdatesScanNative` | `PACKAGES`, `ITEMS` | `packages` (csv) | `tests/updates.test.js`, `tests/updates-tdd.test.js` |
 | `cleanup` | `lib/cleanup.js` | `runCleanupScanNative` | `CLEAN_CATEGORIES` | `cleanCategories` (array) | `tests/cleanup.test.js` |
-| `startup` | `lib/startup.js` | `runStartupScanNative` | `OPTIMIZE_PROGRAMS`, `OPTIMIZE_TASKS` | Panel específico (`StartupPanel.jsx`) | `tests/actions.test.js` |
-| `ram` | `lib/ram.js` | `runRamScanNative` | `OPTIMIZE_PROCESSES`, `CLEAN_MODE`, `MIN_RAM_MB` | Panel específico (`RamPanel.jsx`) | `tests/actions.test.js` |
-| `services` | `lib/services.js` | `runServicesScanNative` | `SERVICES`, `OPTIMIZE_SERVICES` | `services` (csv) | `tests/actions.test.js` |
-| `apps` | `lib/apps.js` | `runAppsScanNative` | `APPS`, `OPTIMIZE_APPS` | `apps` (csv) | `tests/actions.test.js` |
-| `privacy` | `lib/privacy.js` | `runPrivacyScanNative` | `PRIVACY`, `OPTIMIZE_PRIVACY` | `privacy` (csv) | `tests/actions.test.js` |
-| `power` | `lib/power.js` | `runPowerScanNative` | `PLAN_GUID` | Panel específico | `tests/actions.test.js` |
+| `startup` | `lib/startup.js` | `runStartupScanNative` | `OPTIMIZE_PROGRAMS`, `OPTIMIZE_TASKS` | Panel específico (`StartupPanel.jsx`) | `tests/action-params.test.js` |
+| `ram` | `lib/ram.js` | `runRamScanNative` | `OPTIMIZE_PROCESSES`, `CLEAN_MODE`, `MIN_RAM_MB` | Panel específico (`RamPanel.jsx`) | `tests/action-params.test.js` |
+| `services` | `lib/services.js` | `runServicesScanNative` | `SERVICES`, `OPTIMIZE_SERVICES` | `services` (csv) | `tests/services.test.js`, `tests/action-params.test.js` |
+| `apps` | `lib/apps.js` | `runAppsScanNative` | `APPS`, `OPTIMIZE_APPS` | `apps` (csv) | `tests/apps.test.js`, `tests/action-params.test.js` |
+| `privacy` | `lib/privacy.js` | `runPrivacyScanNative` | `PRIVACY`, `OPTIMIZE_PRIVACY` | `privacy` (csv) | `tests/privacy.test.js`, `tests/action-params.test.js` |
+| `power` | `lib/power.js` | `runPowerScanNative` | `PLAN_GUID` | Panel específico | `tests/power.test.js`, `tests/action-params.test.js` |
 | `gaming` | `lib/gaming.js` | `runGamingScanNative` | `SETTINGS` | `settings` (csv) | `tests/gaming.test.js` |
 | `smartdisk` | `lib/smartdisk.js` | `runSmartDiskScanNative` | `ACTIONS`, `DISKS` | `actions` (csv) | `tests/smartdisk.test.js` |
 | `shadercache` | `lib/shadercache.js` | `runShaderCacheScanNative` | `CACHES` | `caches` (csv) | `tests/shadercache.test.js` |

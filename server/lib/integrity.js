@@ -138,7 +138,7 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       );
       if (r.simulated) continue;
       if (r.ok) {
-        writeLog('✓ Limpieza de WinSxS completada con éxito.');
+        writeLog('[OK] Limpieza de WinSxS completada con éxito.');
       } else {
         writeLog(`Error en limpieza WinSxS: ${errText(r)}`);
       }
@@ -151,7 +151,7 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       );
       if (r.simulated) continue;
       if (r.ok) {
-        writeLog('✓ Imagen de Windows reparada con éxito.');
+        writeLog('[OK] Imagen de Windows reparada con éxito.');
       } else {
         writeLog(`Error en restauración DISM: ${errText(r)}`);
       }
@@ -164,7 +164,7 @@ export async function runIntegrityActionNative(envVars, onOutput, onProgress) {
       );
       if (r.simulated) continue;
       if (r.ok) {
-        writeLog('✓ SFC /scannow completado con éxito.');
+        writeLog('[OK] SFC /scannow completado con éxito.');
       } else {
         writeLog(`Error en SFC: ${errText(r)}`);
       }

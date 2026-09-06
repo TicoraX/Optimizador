@@ -189,7 +189,7 @@ export const GENERIC_PANEL_CONFIG = {
     renderItem: (item) => {
       const srcTag = item.source === 'msstore' ? '[MSSTORE]' : `[${(item.manager || 'APP').toUpperCase()}]`;
       const adminTag = item.isSystemScope ? ' · Requiere Admin' : '';
-      const unknownTag = item.isUnknownVersion ? ' · ⚠ Versión indefinida' : '';
+      const unknownTag = item.isUnknownVersion ? ' · [AVISO] Versión indefinida' : '';
 
       let statusColor = 'var(--color-primary)';
       if (item.isUnknownVersion) statusColor = 'var(--color-ink-3)';

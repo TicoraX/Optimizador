@@ -1,5 +1,5 @@
 import {
-  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport, appendChange, errText,
+  spawnCapture, makeLogger, makeGuard, prepareReport, finishReport,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════

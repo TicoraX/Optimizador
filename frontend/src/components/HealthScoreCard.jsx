@@ -297,7 +297,7 @@ export default function HealthScoreCard({ onOptimized }) {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 4 }}>
-            {executionResult.dryRun ? 'ℹ Simulación completada' : '✓ Optimización rápida finalizada'}: {executionResult.executedCount} módulos procesados.
+            {executionResult.dryRun ? '[SIMULACION] Simulación completada' : '[OK] Optimización rápida finalizada'}: {executionResult.executedCount} módulos procesados.
           </div>
           {executionResult.results?.map((r) => (
             <div key={r.id} style={{ color: 'var(--color-ink-2)', marginLeft: 'var(--space-2)' }}>

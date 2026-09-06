@@ -774,8 +774,13 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     envVars.MIN_RAM_MB = String(validateMinRamMB(req.body.minRamMB));
   }
 
-  if (req.params.module === 'ram' && req.body?.cleanMode !== undefined) {
-    envVars.CLEAN_MODE = req.body.cleanMode === 'deep' ? 'deep' : 'soft';
+  if (req.params.module === 'ram') {
+    if (req.body?.cleanMode !== undefined) {
+      envVars.CLEAN_MODE = req.body.cleanMode === 'deep' ? 'deep' : 'soft';
+    }
+    if (req.body?.globalOptimize === true || req.body?.flushMemory === true) {
+      envVars.GLOBAL_OPTIMIZE = 'true';
+    }
   }
 
   if (req.params.module === 'updates') {
@@ -802,7 +807,7 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   const SELECTION_FIELDS = {
     cleanup: ['CLEAN_CATEGORIES'],
     startup: ['OPTIMIZE_PROGRAMS', 'OPTIMIZE_TASKS', 'ENABLE_PROGRAMS', 'ENABLE_TASKS'],
-    ram: ['OPTIMIZE_PROCESSES', 'UNKNOWN_PROCESSES', 'RISKY_PROCESSES'],
+    ram: ['OPTIMIZE_PROCESSES', 'UNKNOWN_PROCESSES', 'RISKY_PROCESSES', 'GLOBAL_OPTIMIZE'],
     services: ['OPTIMIZE_SERVICES', 'SERVICES'],
     apps: ['OPTIMIZE_APPS', 'APPS'],
     privacy: ['OPTIMIZE_PRIVACY', 'PRIVACY'],

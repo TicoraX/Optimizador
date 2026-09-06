@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  makeLogger, makeGuard, prepareReport, finishReport, appendChange,
+  makeLogger, makeGuard, prepareReport, finishReport,
 } from './shared.js';
 
 // ═══════════════════════════════════════════════════════
@@ -124,11 +124,7 @@ export async function deleteDirectoryContents(dirPath, isDryRun, log) {
         }
 
         if (!isDryRun) {
-          if (entry.isDirectory()) {
-            await fs.rm(full, { recursive: true, force: true });
-          } else {
-            await fs.unlink(full);
-          }
+          await fs.rm(full, { recursive: true, force: true });
         }
         deletedCount += count;
         deletedBytes += size;

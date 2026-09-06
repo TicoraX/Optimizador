@@ -1,7 +1,6 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const http = require('http');
 
 const logFile = path.join(os.tmpdir(), 'optimizador-startup.log');
 function log(msg) {
@@ -29,38 +28,20 @@ function showNotification(title, body) {
 
 async function runTrayAction(endpoint, body, successMsg) {
   try {
-    const data = JSON.stringify(body);
-    const req = http.request(`${APP_ORIGIN}${endpoint}`, {
+    const res = await fetch(`${APP_ORIGIN}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
         'Origin': APP_ORIGIN,
       },
-    }, (res) => {
-      let isDone = false;
-      let hasError = false;
-      let rawData = '';
-
-      res.on('data', (chunk) => {
-        rawData += chunk.toString();
-        if (rawData.includes('event: done')) isDone = true;
-        if (rawData.includes('event: error')) hasError = true;
-      });
-
-      res.on('end', () => {
-        if (res.statusCode === 200 && isDone && !hasError) {
-          showNotification('Optimizador', successMsg);
-        } else if (hasError || res.statusCode >= 400) {
-          showNotification('Optimizador', 'No se pudo completar la acción rápida.');
-        }
-      });
+      body: JSON.stringify(body),
     });
-    req.on('error', (err) => {
-      log(`runTrayAction error: ${err.message}`);
-    });
-    req.write(data);
-    req.end();
+    const text = await res.text();
+    if (res.ok && text.includes('event: done') && !text.includes('event: error')) {
+      showNotification('Optimizador', successMsg);
+    } else {
+      showNotification('Optimizador', 'No se pudo completar la acción rápida.');
+    }
   } catch (err) {
     log(`runTrayAction exception: ${err.message}`);
   }
@@ -117,7 +98,7 @@ function createTray(win) {
       {
         label: 'Optimizar RAM',
         click: () => {
-          runTrayAction('/api/action/ram', { cleanMode: 'soft', minRamMB: 50, processes: '1234' }, 'Memoria RAM optimizada exitosamente.');
+          runTrayAction('/api/action/ram', { cleanMode: 'soft', globalOptimize: true }, 'Memoria RAM optimizada exitosamente.');
         },
       },
       {
@@ -152,18 +133,8 @@ async function waitForServer(url, timeoutMs = 6000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      await new Promise((resolve, reject) => {
-        const req = http.get(url, (res) => {
-          res.resume();
-          resolve();
-        });
-        req.on('error', reject);
-        req.setTimeout(500, () => {
-          req.destroy();
-          reject(new Error('timeout'));
-        });
-      });
-      return true;
+      const res = await fetch(url);
+      if (res.ok) return true;
     } catch {
       await new Promise((r) => setTimeout(r, 150));
     }

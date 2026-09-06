@@ -764,7 +764,10 @@ export function spawnCaptureShell(cmd, args, timeoutMs = 120000) {
       resolve({ code: -1, stdout, stderr, timedOut: true });
     }, timeoutMs);
     try {
-      proc = spawn(cmd, args, { windowsHide: true, shell: true });
+      const fullCmd = Array.isArray(args) && args.length > 0
+        ? `${cmd} ${args.map((a) => (/[ \t"]/i.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)).join(' ')}`
+        : cmd;
+      proc = spawn(fullCmd, { windowsHide: true, shell: true });
     } catch (err) {
       clearTimeout(timer);
       resolve({ code: -1, stdout: '', stderr: err.message });
