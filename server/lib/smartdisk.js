@@ -35,7 +35,7 @@ export async function checkTrimStatus() {
   return { enabled, raw: r.stdout.trim() };
 }
 
-export async function getPhysicalDisks() {
+async function getPhysicalDisks() {
   // Consulta PowerShell ligera a Get-PhysicalDisk para obtener tipo de medio (SSD/HDD), salud y bus
   const psCmd = 'Get-PhysicalDisk | Select-Object DeviceId, FriendlyName, MediaType, HealthStatus, OperationalStatus, Size | ConvertTo-Json -Compress';
   const r = await spawnCapture('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd]);

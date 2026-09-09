@@ -62,7 +62,7 @@ const STARTUP_DISABLED_SUBDIR = 'Startup_Disabled';
  * tocar. Para un acceso directo es la ruta del archivo. En ambos casos
  * identifica al elemento sin depender de su posicion en la lista.
  */
-export function startupItemId(entry) {
+function startupItemId(entry) {
   if (entry.type === 'registry') return `${entry.keyPath}\\${entry.name}`;
   // Los deshabilitados guardan la ruta en disabledPath; los activos, en keyPath.
   return entry.disabledPath || entry.keyPath || entry.name;

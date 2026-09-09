@@ -102,7 +102,7 @@ export async function inspectDirectory(dirPath) {
   return { exists: true, count, bytes };
 }
 
-export async function deleteDirectoryContents(dirPath, isDryRun, log) {
+async function deleteDirectoryContents(dirPath, isDryRun, log) {
   try {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
     let deletedCount = 0;

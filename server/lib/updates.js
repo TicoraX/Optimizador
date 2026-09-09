@@ -69,7 +69,7 @@ export function getBlockingProcessForPackage(packageId = '', packageName = '', a
   return null;
 }
 
-export async function getActiveProcessNames() {
+async function getActiveProcessNames() {
   try {
     const r = await spawnCapture('tasklist.exe', ['/FO', 'CSV', '/NH']);
     if (r.code !== 0 || !r.stdout) return [];

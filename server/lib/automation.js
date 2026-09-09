@@ -237,7 +237,7 @@ export async function deleteProfileSchedule(taskNameOrProfile, { dryRun = false 
 /**
  * Ruta del log estructurado de ejecuciones programadas.
  */
-export function getHistoryLogPath(dataDir = PROJECT_ROOT) {
+function getHistoryLogPath(dataDir = PROJECT_ROOT) {
   const reportsDir = resolve(dataDir, 'reports');
   if (!existsSync(reportsDir)) {
     mkdirSync(reportsDir, { recursive: true });

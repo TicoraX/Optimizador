@@ -10,7 +10,7 @@ import {
 // y telemetría, permitiendo cambiarlos a inicio manual o desactivarlos.
 // ═══════════════════════════════════════════════════════
 
-export const OEM_SIGNATURES = [
+const OEM_SIGNATURES = [
   // Dell
   { id: 'dell_supportassist', oem: 'Dell', name: 'Dell SupportAssist', serviceNames: ['supportassistagent', 'dellsupportassist', 'ddvdatacollector'], desc: 'Telemetría y soporte en segundo plano de Dell.' },
   { id: 'dell_optimizer', oem: 'Dell', name: 'Dell Optimizer Core', serviceNames: ['delloptimizerservice', 'dellclientmanagement'], desc: 'Servicio de telemetría y perfiles de Dell.' },

@@ -21,7 +21,7 @@ import {
  * Calcula el tamaño en bytes de un directorio de forma recursiva.
  * Tolera archivos bloqueados o sin permisos.
  */
-export async function getDirSizeBytes(dirPath) {
+async function getDirSizeBytes(dirPath) {
   if (!dirPath || !existsSync(dirPath)) return 0;
   let total = 0;
   try {
@@ -105,7 +105,7 @@ export async function removeDirContents(dirPath) {
 /**
  * Borra archivos específicos dentro de dirPath que coincidan con regexPattern.
  */
-export async function removeMatchingFiles(dirPath, regexPattern) {
+async function removeMatchingFiles(dirPath, regexPattern) {
   let deleted = 0;
   let errors = 0;
   let freedBytes = 0;
@@ -185,7 +185,7 @@ export async function deleteOldDownloads(ageDays, { dryRun = false } = {}) {
 const RECYCLE_BIN_ROOT = `${(process.env.SystemDrive || 'C:').replace(/\\$/, '')}\\$Recycle.Bin`;
 
 /** Cuenta y mide elementos en la papelera de reciclaje por SID. */
-export async function measureRecycleBin() {
+async function measureRecycleBin() {
   const recycleRoot = RECYCLE_BIN_ROOT;
   let sidDirs;
   try {
@@ -212,7 +212,7 @@ export async function measureRecycleBin() {
 }
 
 /** Vacía la papelera de reciclaje borrando los contenidos por SID. */
-export async function emptyRecycleBinNative() {
+async function emptyRecycleBinNative() {
   const recycleRoot = RECYCLE_BIN_ROOT;
   let deleted = 0;
   let errors = 0;

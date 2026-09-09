@@ -93,7 +93,7 @@ export function isOptimized(setting, currentValue) {
 /**
  * Detecta la tarjeta gráfica activa mediante wmic.
  */
-export async function detectActiveGPU() {
+async function detectActiveGPU() {
   try {
     const { stdout, code } = await spawnCapture('wmic', [
       'path', 'win32_VideoController', 'get', 'Name,DriverVersion', '/format:csv',

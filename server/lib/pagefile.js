@@ -46,7 +46,7 @@ export const PAGEFILE_SETTINGS = [
   },
 ];
 
-export async function getExistingPagefiles() {
+async function getExistingPagefiles() {
   const r = await spawnCapture('reg', [
     'query',
     'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management',
