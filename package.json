@@ -25,7 +25,8 @@
     ],
     "extraResources": [
       "scripts/Notify.ps1",
-      "scripts/Apply-Hosts.ps1"
+      "scripts/Apply-Hosts.ps1",
+      "scripts/Run-Scheduled.ps1"
     ],
     "win": {
       "target": "nsis",

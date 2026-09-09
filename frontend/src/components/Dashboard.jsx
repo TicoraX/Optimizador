@@ -254,15 +254,25 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
           {order.map((id, i) => (
             <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-1) 0' }}>
               <button
-                className="btn btn-sm" disabled={i === 0}
+                className="btn btn-sm"
+                disabled={i === 0}
                 onClick={() => moveModule(id, -1)}
                 aria-label={`Subir ${MODULES[id].label}`}
-              >↑</button>
+                title="Mover arriba"
+                style={{ padding: '4px 6px', display: 'inline-flex', alignItems: 'center' }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+              </button>
               <button
-                className="btn btn-sm" disabled={i === order.length - 1}
+                className="btn btn-sm"
+                disabled={i === order.length - 1}
                 onClick={() => moveModule(id, 1)}
                 aria-label={`Bajar ${MODULES[id].label}`}
-              >↓</button>
+                title="Mover abajo"
+                style={{ padding: '4px 6px', display: 'inline-flex', alignItems: 'center' }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
               <label className="checkbox-item" style={{ flex: 1 }}>
                 <input type="checkbox" checked={!hidden.includes(id)} onChange={() => toggleHidden(id)} />
                 <span className="checkbox-label">{MODULES[id].label}</span>
