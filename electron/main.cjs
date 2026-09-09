@@ -66,12 +66,12 @@ function getTrayIcon() {
     }
   }
 
-  // Fallback garantizado: Bitmap de 16x16 en memoria (color acento azul #0ea5e9)
+  // Fallback garantizado: Bitmap de 16x16 en memoria (color acento azul #0ea5e9 en orden BGRA)
   const buffer = Buffer.alloc(16 * 16 * 4);
   for (let i = 0; i < 16 * 16 * 4; i += 4) {
-    buffer[i] = 14;     // R
+    buffer[i] = 233;    // B
     buffer[i + 1] = 165; // G
-    buffer[i + 2] = 233; // B
+    buffer[i + 2] = 14;  // R
     buffer[i + 3] = 255; // Alpha
   }
   return nativeImage.createFromBuffer(buffer, { width: 16, height: 16 });

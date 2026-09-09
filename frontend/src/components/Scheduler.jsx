@@ -755,7 +755,7 @@ export default function Scheduler() {
                         {h.summary} {h.error && <span style={{ color: 'var(--color-danger)' }}>({h.error})</span>}
                       </td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>
-                        {(h.durationMs / 1000).toFixed(1)}s
+                        {Number.isFinite(h.durationMs) ? `${(h.durationMs / 1000).toFixed(1)}s` : '—'}
                       </td>
                     </tr>
                   ))}
