@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from 'fs';
 import {
   PROJECT_ROOT,
@@ -238,11 +238,11 @@ export async function deleteProfileSchedule(taskNameOrProfile, { dryRun = false 
  * Ruta del log estructurado de ejecuciones programadas.
  */
 export function getHistoryLogPath(dataDir = PROJECT_ROOT) {
-  const reportsDir = join(dataDir, 'reports');
+  const reportsDir = resolve(dataDir, 'reports');
   if (!existsSync(reportsDir)) {
     mkdirSync(reportsDir, { recursive: true });
   }
-  return join(reportsDir, 'scheduled-automation.jsonl');
+  return resolve(reportsDir, 'scheduled-automation.jsonl');
 }
 
 /**

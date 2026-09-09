@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'crypto';
 import { spawn } from 'child_process';
 import { readFileSync, existsSync, writeFileSync, statSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve, basename } from 'path';
 import { fileURLToPath } from 'url';
 import {
   PROJECT_ROOT, MODULES, TASK_TO_MODULE, VALID_MODULES, VALID_TASKS,
@@ -1073,8 +1073,10 @@ function readLastLines(filePath, maxLines = 100) {
 app.get('/api/logs/:module', safeHandler((req, res) => {
   const mod = validateModule(req.params.module);
 
-  const logPath = join(mod.dir, 'reports', mod.logFile);
-  if (!existsSync(logPath)) {
+  const reportsDir = resolve(mod.dir, 'reports');
+  const safeFileName = basename(mod.logFile);
+  const logPath = resolve(reportsDir, safeFileName);
+  if (!logPath.startsWith(reportsDir) || !existsSync(logPath)) {
     return res.json({ module: req.params.module, lines: [], size: 0, path: logPath });
   }
 
@@ -1087,8 +1089,10 @@ app.get('/api/logs/:module', safeHandler((req, res) => {
 app.delete('/api/logs/:module', safeHandler((req, res) => {
   const mod = validateModule(req.params.module);
 
-  const logPath = join(mod.dir, 'reports', mod.logFile);
-  if (!existsSync(logPath)) {
+  const reportsDir = resolve(mod.dir, 'reports');
+  const safeFileName = basename(mod.logFile);
+  const logPath = resolve(reportsDir, safeFileName);
+  if (!logPath.startsWith(reportsDir) || !existsSync(logPath)) {
     return res.json({ module: req.params.module, action: 'nothing-to-clear', path: logPath });
   }
 
