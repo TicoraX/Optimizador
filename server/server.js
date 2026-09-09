@@ -42,6 +42,13 @@ import { getRestorePoints, createRestorePoint } from './lib/restore.js';
 import { findLargeFiles, revealInExplorer } from './lib/largefiles.js';
 import { calculateHealthScore } from './lib/healthscore.js';
 import { generateSystemExport } from './lib/exportreport.js';
+import {
+  listScheduledProfiles,
+  registerProfileSchedule,
+  toggleProfileSchedule,
+  deleteProfileSchedule,
+  getScheduledHistory,
+} from './lib/automation.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -1005,6 +1012,43 @@ app.post('/api/scheduler/:task/reschedule', safeHandler((req, res) => {
   proc.on('error', () => {
     res.status(500).json({ error: 'Error al reprogramar la tarea' });
   });
+}));
+
+// ═══════════════════════════════════════════════════════
+// Automatización de Perfiles (server/lib/automation.js)
+// ═══════════════════════════════════════════════════════
+app.get('/api/scheduler/profiles', safeHandler(async (_req, res) => {
+  const profiles = await listScheduledProfiles();
+  res.json({ profiles });
+}));
+
+app.post('/api/scheduler/profiles', safeHandler(async (req, res) => {
+  const result = await registerProfileSchedule({
+    ...req.body,
+    port: PORT,
+  });
+  res.json(result);
+}));
+
+app.post('/api/scheduler/profiles/:taskName/toggle', safeHandler(async (req, res) => {
+  const enable = validateBooleanField(req.body?.enable ?? false, 'enable');
+  const result = await toggleProfileSchedule(req.params.taskName, enable, {
+    dryRun: req.body?.dryRun === true,
+  });
+  res.json(result);
+}));
+
+app.delete('/api/scheduler/profiles/:taskName', safeHandler(async (req, res) => {
+  const result = await deleteProfileSchedule(req.params.taskName, {
+    dryRun: req.query?.dryRun === 'true',
+  });
+  res.json(result);
+}));
+
+app.get('/api/scheduler/history', safeHandler((req, res) => {
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 50), 200);
+  const history = getScheduledHistory({ limit });
+  res.json({ history });
 }));
 
 // ═══════════════════════════════════════════════════════

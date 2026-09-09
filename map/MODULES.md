@@ -39,4 +39,5 @@ Tabla de referencia técnica de los 23 módulos de optimización. Cada fila resu
 - **`restore.js`**: API de puntos de restauración nativos de Windows mediante WMI (`SystemRestore.CreateRestorePoint`).
 - **`system.js`**: Telemetría en tiempo real de hardware (CPU delta ticks, RAM disponible/total y espacio de almacenamiento de particiones lógicas).
 - **`profiles.js`**: Perfiles de optimización preconfigurados (Gaming, Trabajo, Rendimiento Extremo, Batería).
+- **`automation.js`**: Gestor de tareas programadas de perfiles en Windows Task Scheduler (`schtasks.exe`), con soporte para ejecución desatendida vía `Run-Scheduled.ps1`.
 - **`exportreport.js`**: Exportador consolidado del estado del sistema en Markdown y JSON.
