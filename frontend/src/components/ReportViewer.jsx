@@ -401,26 +401,41 @@ export default function ReportViewer() {
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
         let currentEvent = 'message';
+        let currentData = [];
+
+        const flushFrame = () => {
+          if (currentData.length > 0) {
+            handleSSEEvent(currentEvent, currentData.join('\n'));
+          }
+          currentEvent = 'message';
+          currentData = [];
+        };
+
+        const consumeLine = (line) => {
+          const trimmed = line.trim();
+          if (!trimmed) {
+            flushFrame();
+          } else if (trimmed.startsWith('event:')) {
+            currentEvent = trimmed.slice(6).trim();
+          } else if (trimmed.startsWith('data:')) {
+            currentData.push(trimmed.slice(5).trim());
+          }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            if (buffer) consumeLine(buffer);
+            flushFrame();
+            break;
+          }
           buffer += decoder.decode(value, { stream: true });
 
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
 
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) {
-              currentEvent = 'message';
-            } else if (trimmed.startsWith('event:')) {
-              currentEvent = trimmed.slice(6).trim();
-            } else if (trimmed.startsWith('data:')) {
-              const data = trimmed.slice(5).trim();
-              handleSSEEvent(currentEvent, data);
-              currentEvent = 'message';
-            }
+            consumeLine(line);
           }
         }
       } catch (err) {

@@ -372,7 +372,8 @@ export default function Scheduler() {
             {AVAILABLE_PROFILES.map((prof) => {
               const taskInfo = scheduledProfiles.find((t) => t.profileId === prof.id);
               const isRegistered = Boolean(taskInfo);
-              const isEnabled = taskInfo && (taskInfo.status.toLowerCase() === 'ready' || taskInfo.status.toLowerCase() === 'running');
+              const profStatus = (taskInfo?.status || '').toLowerCase();
+              const isEnabled = profStatus === 'ready' || profStatus === 'running';
               const isEditing = editingItem && editingItem.type === 'profile' && editingItem.id === prof.id;
 
               return (
@@ -558,7 +559,8 @@ export default function Scheduler() {
               </thead>
               <tbody>
                 {tasks.map((task) => {
-                  const isEnabled = task.status.toLowerCase() === 'ready' || task.status.toLowerCase() === 'running';
+                  const taskStatus = (task?.status || '').toLowerCase();
+                  const isEnabled = taskStatus === 'ready' || taskStatus === 'running';
                   const isEditing = editingItem && editingItem.type === 'module' && editingItem.id === task.name;
                   return (
                     <Fragment key={task.name}>
