@@ -193,6 +193,20 @@ export const MODULES = Object.freeze({
     taskName: 'WerFault_Monthly',
     logFile: 'optimize-log.txt',
   }),
+  smartdisk: Object.freeze({
+    dir: join(PROJECT_ROOT, 'smartdisk-optimizer'),
+    countsFile: 'smartdisk-counts.json',
+    reportPrefix: 'smartdisk-report',
+    taskName: 'SmartDisk_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
+  shadercache: Object.freeze({
+    dir: join(PROJECT_ROOT, 'shadercache-optimizer'),
+    countsFile: 'shadercache-counts.json',
+    reportPrefix: 'shadercache-report',
+    taskName: 'ShaderCache_Monthly',
+    logFile: 'optimize-log.txt',
+  }),
 });
 
 export const TASK_TO_MODULE = Object.fromEntries(
@@ -750,7 +764,10 @@ export function spawnCaptureShell(cmd, args, timeoutMs = 120000) {
       resolve({ code: -1, stdout, stderr, timedOut: true });
     }, timeoutMs);
     try {
-      proc = spawn(cmd, args, { windowsHide: true, shell: true });
+      const fullCmd = Array.isArray(args) && args.length > 0
+        ? `${cmd} ${args.map((a) => (/[ \t"]/i.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)).join(' ')}`
+        : cmd;
+      proc = spawn(fullCmd, { windowsHide: true, shell: true });
     } catch (err) {
       clearTimeout(timer);
       resolve({ code: -1, stdout: '', stderr: err.message });

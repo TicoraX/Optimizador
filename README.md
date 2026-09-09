@@ -1,12 +1,12 @@
 # Optimizador — Suite Integral de Mantenimiento y Optimización para Windows
 
-Conjunto de herramientas de optimización y mantenimiento de alto rendimiento para Windows: **21 módulos nativos en Node.js**, telemetría de hardware en tiempo real, cálculo de Health Score, gestión de puntos de restauración, paleta de comandos rápida (`Ctrl+K`) y panel de control moderno (React + Vite + Electron con elevación administrativa UAC).
+Conjunto de herramientas de optimización y mantenimiento de alto rendimiento para Windows: **23 módulos nativos en Node.js**, motor de perfiles de optimización en 1 clic, interfaz CLI headless para terminal, minimizado a la bandeja del sistema (System Tray), telemetría de hardware en tiempo real, cálculo de Health Score, gestión de puntos de restauración, paleta de comandos rápida (`Ctrl+K`) y panel de control de escritorio (React + Vite + Electron con elevación administrativa UAC).
 
 > Todo el procesamiento y almacenamiento de reportes se ejecuta **localmente en tu equipo**. Sin servicios en la nube ni telemetría propia hacia servidores externos (únicamente *Update Checker* consulta gestores oficiales de paquetes y *AdBlock* descarga listas de dominios públicas).
 
 ---
 
-## Qué hace (21 Módulos Nativos)
+## Qué hace (23 Módulos Nativos)
 
 | Módulo | Qué hace |
 |---|---|
@@ -31,6 +31,8 @@ Conjunto de herramientas de optimización y mantenimiento de alto rendimiento pa
 | **Network Privacy** | Desactiva protocolos de red inseguros o con fugas de datos (LLMNR, NetBIOS, WPAD, sondeo activo NCSI). |
 | **Virtual Memory / Pagefile** | Diagnostica la memoria paginada, paginación del kernel y directivas de administración de memoria. |
 | **WerFault Optimizer** | Suprime cuadros de diálogo de cuelgue, generación de minidumps masivos y telemetría de errores de Windows. |
+| **SSD Health & TRIM** | Diagnóstico de salud SMART de unidades físicas, verificación de activación TRIM y optimización de desgaste de celdas SSD (`defrag.exe /O /C`). |
+| **GPU Shader Cache** | Localiza y purga cachés residuales de sombreadores DirectX, NVIDIA, AMD e Intel para corregir stuttering tras actualizar drivers. |
 
 Cada módulo sigue el mismo patrón:
 - **Scan** — lee el sistema y genera un reporte en Markdown, un JSON de conteos y un JSON de elementos seleccionables. No modifica nada.
@@ -40,13 +42,50 @@ Cada módulo sigue el mismo patrón:
 
 ## Características Principales
 
-- **Telemetría de Hardware en Vivo (Bento Grid 4-Cards + Sparklines)**: Monitoreo en tiempo real de CPU (uso %, núcleos, GHz, curva histórica SVG), Memoria RAM (usada, libre, %, sparkline en vivo), Almacenamiento Local (espacio libre por partición) y Red & Conectividad (adaptadores activos, IP local, hostname).
+- **Perfiles de Optimización en 1 Clic**: Presets configurados para escenarios frecuentes (Gaming, Oficina & Productividad, Laptop & Batería, Desarrollador & Compilación) con ejecución encadenada y simulación `dryRun`.
+- **CLI Headless para Terminal (`server/cli.js`)**: Ejecución de comandos de diagnóstico, limpieza, optimización de RAM, TRIM y perfiles desde PowerShell/CMD sin interfaz gráfica.
+- **Bandeja del Sistema (System Tray)**: La aplicación de escritorio minimiza a segundo plano sin interrumpir procesos, ofreciendo acciones rápidas de optimización desde el menú contextual del icono en la barra de tareas.
+- **Telemetría de Hardware en Vivo**: Monitoreo en tiempo real de CPU (uso %, núcleos, GHz, curva histórica SVG), Memoria RAM (usada, libre, %, sparkline en vivo), Almacenamiento Local (espacio libre por partición) y Red & Conectividad (adaptadores activos, IP local, hostname).
 - **Paleta Global de Comandos (`Ctrl+K` / `Cmd+K`)**: Buscador instantáneo por teclado para navegar a cualquier módulo, vista principal, alternar modo claro/oscuro o exportar reportes.
-- **Selección Masiva y Filtrado Rápido**: Botones *Todos* y *Ninguno* en módulos genéricos, con barra de búsqueda instantánea que preserva la indexación atómica del estado.
 - **Health Score & Quick Optimize**: Algoritmo ponderado (0 a 100) que califica la salud general del sistema y ofrece optimización en 1 clic de los módulos más seguros.
 - **Cazador de Archivos Grandes (Large Files Hunter)**: Localiza archivos pesados (>100MB) y permite abrirlos directamente en el Explorador de Windows.
 - **Gestor de Puntos de Restauración**: Creación, listado y consulta de puntos de restauración de Windows con control de throttling.
 - **Elevación Administrativa Integrada (UAC)**: Manifiesto `requireAdministrator` en el instalador de Electron para garantizar que las operaciones sobre el registro del sistema, servicios y BCD se ejecuten sin errores de permisos.
+
+---
+
+## Uso por Terminal (CLI Headless)
+
+El backend incluye una herramienta CLI para ejecutar diagnósticos y mantenimientos directamente desde la terminal:
+
+```powershell
+# Ver estado consolidado de todos los módulos
+node server/cli.js status
+
+# Calcular Health Score y ver acciones recomendadas
+node server/cli.js health
+
+# Listar perfiles disponibles
+node server/cli.js profiles
+
+# Aplicar perfil Gaming en modo simulación (dryRun)
+node server/cli.js profile gaming --dry-run
+
+# Aplicar perfil Gaming en modo real
+node server/cli.js profile gaming
+
+# Ejecutar limpieza segura de temporales
+node server/cli.js clean
+
+# Ejecutar optimización de memoria RAM
+node server/cli.js ram
+
+# Ejecutar TRIM en unidades SSD
+node server/cli.js trim
+
+# Purgar caché de sombreadores de GPU
+node server/cli.js shaders
+```
 
 ---
 
@@ -56,16 +95,21 @@ Cada módulo sigue el mismo patrón:
 Optimizador/
 ├── server/
 │   ├── server.js            # Express: rutas, seguridad, SSE, rate limiting
-│   ├── lib/                 # La logica de los 21 modulos, 100% nativa en Node.js
+│   ├── cli.js               # CLI Headless para terminal
+│   ├── lib/                 # La logica de los 23 modulos, 100% nativa en Node.js
 │   │   ├── shared.js        # Whitelist, validadores, spawn, barrera y diario
 │   │   ├── changes.js       # Reversion atomica de cambios aplicados
+│   │   ├── status.js        # Estado consolidado desacoplado
+│   │   ├── profiles.js      # Motor de perfiles de optimización
+│   │   ├── smartdisk.js     # Módulo SMART SSD y TRIM
+│   │   ├── shadercache.js   # Módulo de purga de caché de shaders GPU
 │   │   └── <modulo>.js      # Un archivo por modulo: scan + accion
-│   └── tests/               # 228 pruebas unitarias y suites de integracion E2E
+│   └── tests/               # Suites de pruebas unitarias y de integracion E2E
 ├── frontend/                # React + Vite
-│   ├── src/modules.js       # Registro declarativo de los 21 modulos
+│   ├── src/modules.js       # Registro declarativo de los 23 modulos
 │   ├── src/styles/tokens.css# Sistema de diseno (color, espaciado, tipografia)
 │   └── src/components/      # Componentes UI desacoplados y modulares
-├── electron/                # App de escritorio (Electron + electron-updater)
+├── electron/                # App de escritorio (Electron + Tray + electron-updater)
 ├── scripts/Notify.ps1       # Tareas programadas de notificaciones semanales
 └── <modulo>/reports/        # Reportes, conteos, items, logs y diario de cambios
 ```
@@ -101,119 +145,30 @@ npm run release    # genera y lo publica como GitHub Release (requiere GITHUB_TO
 
 ---
 
-## Inicio rápido — Dashboard web (desarrollo por separado)
+## Inicio rápido — Modo Servidor Web
+
+Si preferís correr solo el backend y abrir el dashboard en tu navegador (`http://localhost:5173` en desarrollo o `http://localhost:3001` con build estático):
 
 ```powershell
-git clone https://github.com/TicoraX/Optimizador.git
-cd Optimizador
+# En una terminal — Backend
+cd server
+npm start
 
-# 1. Backend
-npm --prefix server ci
-npm start --prefix server
-
-# 2. Frontend (en otra terminal)
-npm --prefix frontend ci
-npm run dev --prefix frontend
-```
-
-Abre tu navegador en **http://localhost:5173**
-
----
-
-## Automatización semanal
-
-El programador vive en la app: entra a **Programador**, elige el módulo y la frecuencia. La app crea la tarea de Windows apuntando a `scripts/Notify.ps1`, que corre el escaneo y muestra un resumen.
-
-Si prefieres crear la tarea a mano:
-
-```powershell
-schtasks /Create /TN "RAMOptimizer_Weekly" /SC WEEKLY /D SAT /ST 10:00 /RL LIMITED /F ^
-  /TR "powershell.exe -ep Bypass -nop -w Hidden -File \"<RUTA>\scripts\Notify.ps1\" -Module ram -Port 3001"
-```
-
-`<RUTA>` es la raíz del repo si corres desde el código. En la app instalada el script vive en `%LOCALAPPDATA%\Programs\optimizador\resources\scripts`.
-
-`-Module` acepta cualquiera de los 21 módulos (`updates`, `cleanup`, `startup`, `ram`, `network`, `services`, `power`, `apps`, `privacy`, `adblock`, `gaming`, `integrity`, `contextmenu`, `oemdebloat`, `timers`, `ghostdevices`, `searchindex`, `dnsflush`, `networkprivacy`, `pagefile`, `werfault`).
-
-Y para habilitar, deshabilitar o correr una tarea a mano:
-
-```powershell
-schtasks /Change /TN "UpdateChecker_Weekly" /ENABLE
-schtasks /Change /TN "UpdateChecker_Weekly" /DISABLE
-schtasks /Run   /TN "UpdateChecker_Weekly"
+# En otra terminal — Frontend (modo desarrollo)
+cd frontend
+npm run dev
 ```
 
 ---
 
-## Antes de que algo cambie (Capas de Seguridad)
+## Seguridad
 
-Toda acción destructiva tiene tres capas de contención:
+El proyecto implementa un modelo de seguridad por capas auditado contra las guías OWASP y STRIDE:
 
-1. **Simulación.** El botón *Ver qué va a pasar* corre la acción completa sin tocar nada y lista exactamente qué haría: cuántos MB, qué archivos, qué servicios o claves de registro.
-2. **Listas de protección.** No se desinstalan runtimes ni drivers (VC++, .NET, WebView2, NVIDIA, Intel), no se deshabilitan servicios críticos (Defender, firewall, Windows Update, RPC), y nunca se tocan procesos esenciales del sistema.
-3. **Historial con deshacer.** Cada cambio aplicado queda en **Historial** con el valor que tenía antes. Lo reversible tiene botón de reversión atómica; lo que no lo es (un archivo borrado, una app desinstalada) se marca explícitamente en el diario.
-
----
-
-## Arquitectura y Seguridad
-
-```
-Navegador  http://localhost:5173 / Electron
-    │
-    ├── GET  /api/status          →  Dashboard: metricas consolidadas (consulta cada 30s)
-    ├── GET  /api/reports/:module →  Visor de reportes: Markdown renderizado
-    ├── POST /api/scan/:module    →  Salida de escaneo en vivo (stream Server-Sent Events)
-    ├── POST /api/action/:module  →  Salida de accion en vivo (stream Server-Sent Events)
-    ├── GET  /api/scheduler                  →  Estado de tareas programadas
-    ├── POST /api/scheduler/:task/toggle     →  Habilitar / deshabilitar una tarea
-    ├── POST /api/scheduler/:task/reschedule →  Cambiar dia/hora/frecuencia (diaria o semanal)
-    ├── GET  /api/reports/:module/items      →  Elementos seleccionables estructurados
-    ├── GET  /api/changes                    →  Diario de todo lo que la app cambio
-    ├── POST /api/changes/:module/:id/undo   →  Revertir un cambio
-    ├── GET  /api/logs/:module    →  Ultimas 100 lineas del log de accion
-    └── DELETE /api/logs/:module  →  Limpiar o rotar el log de accion
-                │
-                ▼
-    API Express  http://127.0.0.1:3001   (solo localhost)
-                │
-                ├── Lee reportes JSON / Markdown del disco
-                ├── Corre la logica de scan/action nativa en Node (fs, reg.exe, schtasks.exe,
-                │   winget.exe, pip, npm) — NO invoca powershell.exe para scan/action
-                └── Llama a schtasks.exe para consultar / activar / reprogramar tareas
-```
-
-### Modelo de seguridad
-
-| Riesgo | Control |
-|---|---|
-| Inyección de comandos | Whitelist estricta de módulos + `spawn()` con `shell: false` + argumentos como array |
-| Web arbitraria disparando acciones | Validación estricta de headers `Origin` y `Sec-Fetch-Site`. Sin dependencia `cors`: la app se sirve del mismo origen que su API |
-| XSS vía nombres del sistema | Renderizado seguro de Markdown sanitizado con HTML crudo desactivado y protocolos restringidos |
-| Cabeceras y abuso | `helmet` con CSP explícita + `express-rate-limit` adaptativo (1000/15min global, 120 en scan/action, ilimitado en tests) |
-| Exposición en red local | El servidor solo escucha en `127.0.0.1` — inaccesible desde otros equipos de la red |
-| Directory traversal | Validación de fecha con chequeo de calendario real + `normalize()` + verificación de límites de ruta |
-| Permisos de Administrador | Manifiesto `requireAdministrator` en el empaquetado de Electron para UAC automático |
-| DoS | Límite de 16 KB por body + timeout de seguridad en cada scan/action (2 min scan, 10 min action) |
-
----
-
-## Verificación y Calidad
-
-El proyecto cuenta con una cobertura integral de pruebas automatizadas:
-
-- **Pruebas de Backend**: **228 tests pasando al 100%** (48 suites que validan controladores, parámetros y simulación de los 21 módulos).
-- **Pruebas de Frontend**: **10 tests pasando al 100%** (sanitización XSS, renderizado de Markdown, configuración de paneles).
-- **Total**: **238 pruebas automatizadas**.
-
-Para ejecutar los tests:
-
-```powershell
-npm test --prefix server       # pruebas del backend y suites E2E
-npm test --prefix frontend     # pruebas unitarias del frontend
-```
-
----
-
-## Licencia
-
-[MIT](LICENSE)
+1. **Localhost Binding Estricto**: El servidor Express se enlaza exclusivamente a `127.0.0.1`. Bloquea conexiones externas de LAN o Internet.
+2. **Sin Inyección de Comandos**: Ningún comando usa shells intermedias como `exec()` con concatenación. Todo el procesamiento de procesos se realiza con `spawn()` y arrays de argumentos tipados y delimitados.
+3. **Whitelist de Módulos**: Solo se permite la ejecución de los 23 módulos formalmente registrados en `MODULES`. Cualquier llamada fuera de lista es rechazada con HTTP 400.
+4. **Validación de Rutas Seguras con `realpath`**: Todo borrado en disco valida que el path sea una subcarpeta estricta y canónica de directorios permitidos (`%TEMP%`, `Caches`, etc.).
+5. **Modo `dryRun` en Acciones**: Todas las mutaciones del sistema admiten el flag `dryRun` para previsualizar exactamente qué cambios ocurrirían sin modificar el estado del sistema.
+6. **Reversibilidad Atómica (`changes.json`)**: Cada cambio aplicado guarda su valor previo para permitir deshacer modificaciones (`undo`) de forma individual.
+7. **Rate Limiting y Headers de Seguridad**: Protección contra abusos de endpoints con `express-rate-limit` y `helmet`.

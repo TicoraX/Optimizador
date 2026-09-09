@@ -159,4 +159,48 @@ export const GENERIC_PANEL_CONFIG = {
       statusColor: item.isOptimized ? 'var(--color-success)' : 'var(--color-warning)',
     }),
   },
+  smartdisk: {
+    label: 'Acciones de Optimización SSD:',
+    hint: 'Seleccioná las tareas de mantenimiento de almacenamiento a ejecutar:',
+    bodyKey: 'actions',
+    bodyFormat: 'csv',
+    renderItem: (item) => ({
+      title: item.name,
+      subtitle: item.desc,
+    }),
+  },
+  shadercache: {
+    label: 'Cachés de Sombreadores GPU a Purgar:',
+    hint: 'Seleccioná las ubicaciones de caché de sombreadores a liberar:',
+    bodyKey: 'caches',
+    bodyFormat: 'csv',
+    renderItem: (item) => ({
+      prefix: item.vendor,
+      title: item.name,
+      subtitle: `${item.sizeMB} MB (${item.files} archivos) · ${item.path}`,
+      statusColor: Number(item.sizeMB) > 0 ? 'var(--color-warning)' : 'var(--color-ink-3)',
+    }),
+  },
+  updates: {
+    label: 'Actualizaciones a instalar:',
+    hint: 'Seleccioná las aplicaciones y paquetes a actualizar de forma individual y silenciosa:',
+    bodyKey: 'packages',
+    bodyFormat: 'csv',
+    renderItem: (item) => {
+      const srcTag = item.source === 'msstore' ? '[MSSTORE]' : `[${(item.manager || 'APP').toUpperCase()}]`;
+      const adminTag = item.isSystemScope ? ' · Requiere Admin' : '';
+      const unknownTag = item.isUnknownVersion ? ' · [AVISO] Versión indefinida' : '';
+
+      let statusColor = 'var(--color-primary)';
+      if (item.isUnknownVersion) statusColor = 'var(--color-ink-3)';
+      else if (item.isSystemScope) statusColor = 'var(--color-warning)';
+
+      return {
+        prefix: srcTag,
+        title: item.name,
+        subtitle: `${item.currentVersion || 'Actual'} → ${item.availableVersion || 'Nueva'}${adminTag}${unknownTag} · ID: ${item.id}`,
+        statusColor,
+      };
+    },
+  },
 };
