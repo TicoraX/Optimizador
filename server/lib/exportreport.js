@@ -3,7 +3,7 @@ import { getSystemTelemetry } from './system.js';
 import { MODULES, readChanges, getScanTimeline } from './shared.js';
 import { calculateHealthScore } from './healthscore.js';
 
-export function getAllChanges() {
+function getAllChanges() {
   const changes = [];
   for (const mod of Object.keys(MODULES)) {
     const list = readChanges(mod);

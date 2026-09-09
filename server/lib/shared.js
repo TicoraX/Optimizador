@@ -264,7 +264,7 @@ export function validateTask(task) {
   return task;
 }
 
-export const VALID_WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const VALID_WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 /** Valida hora en formato HH:MM (24h). */
 export function validateTime(value) {
@@ -617,7 +617,7 @@ export function errText(r) {
  * El valor anterior se COPIA a la fila, no se referencia: la fila describe lo
  * que paso ese dia y nada que cambie despues puede reescribirla.
  */
-export function changesPath(moduleKey) {
+function changesPath(moduleKey) {
   return join(reportsDirOf(moduleKey), 'changes.json');
 }
 

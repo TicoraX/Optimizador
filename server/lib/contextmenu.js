@@ -117,7 +117,7 @@ export async function runContextMenuScanNative(onOutput) {
   }, onOutput, items);
 }
 
-export function isAllowedContextLocation(targetKey) {
+function isAllowedContextLocation(targetKey) {
   if (!targetKey || typeof targetKey !== 'string') return false;
   const normalized = targetKey.toUpperCase().replace(/^HKEY_CLASSES_ROOT\\/, 'HKCR\\');
   return CONTEXT_LOCATIONS.some((loc) => normalized.startsWith(loc.key.toUpperCase() + '\\'));

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Terminal from './Terminal';
 import LogViewer from './LogViewer';
@@ -50,6 +50,7 @@ export default function ReportViewer() {
 
   // ── Hook genérico para los 14 módulos con patrón items/selected ──
   const generic = useModuleItems(module);
+  const { load: loadGenericItems } = generic;
 
   // ── Estados especiales: solo los módulos que NO encajan en el genérico ──
 
@@ -100,42 +101,8 @@ export default function ReportViewer() {
 
   const noneChecked = (list) => Object.fromEntries(list.map((_, i) => [i, false]));
 
-  const fetchReport = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch(`${API_BASE}/reports/${module}/latest`);
-      if (!res.ok) {
-        if (res.status === 404) {
-          throw new Error('No se encontró ningún reporte reciente. Por favor ejecuta un escaneo primero.');
-        }
-        throw new Error('Error al obtener el reporte');
-      }
-      const data = await res.json();
-      setReport(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      await loadItems();
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchReport();
-    setLogs([]);
-    setIsRunning(false);
-    
-    return () => {
-      if (sseControllerRef.current) {
-        sseControllerRef.current.abort();
-      }
-      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
-    };
-  }, [module]);
-
   // ── Cargar items del último escaneo ──
-  const clearSpecialItems = () => {
+  const clearSpecialItems = useCallback(() => {
     if (module === 'cleanup') {
       setAvailableCategories(CLEAN_CATEGORIES);
       setSelectedCategories({});
@@ -153,12 +120,12 @@ export default function ReportViewer() {
     } else if (module === 'adblock') {
       setAdblockSources([]); setSelectedSources({});
     }
-  };
+  }, [module]);
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     // Módulos genéricos: delegar al hook
     if (GENERIC_MODULES.has(module)) {
-      await generic.load();
+      await loadGenericItems();
       return;
     }
 
@@ -192,7 +159,41 @@ export default function ReportViewer() {
     } else {
       clearSpecialItems();
     }
-  };
+  }, [module, loadGenericItems, clearSpecialItems]);
+
+  const fetchReport = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE}/reports/${module}/latest`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          throw new Error('No se encontró ningún reporte reciente. Por favor ejecuta un escaneo primero.');
+        }
+        throw new Error('Error al obtener el reporte');
+      }
+      const data = await res.json();
+      setReport(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      await loadItems();
+      setLoading(false);
+    }
+  }, [module, loadItems]);
+
+  useEffect(() => {
+    fetchReport();
+    setLogs([]);
+    setIsRunning(false);
+    
+    return () => {
+      if (sseControllerRef.current) {
+        sseControllerRef.current.abort();
+      }
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+    };
+  }, [fetchReport]);
 
   const handleCheckboxChange = (type, index) => {
     if (type === 'program') {

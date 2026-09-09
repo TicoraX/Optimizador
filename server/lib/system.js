@@ -115,7 +115,7 @@ export function parseLogicalDisks(csvOutput) {
 /**
  * Obtiene la lista de discos lógicos de Windows mediante wmic con fallback a PowerShell.
  */
-export async function getLogicalDisks() {
+async function getLogicalDisks() {
   try {
     const { stdout, code } = await spawnCapture('wmic', [
       'logicaldisk', 'where', 'DriveType=3', 'get', 'DeviceID,FreeSpace,Size,VolumeName', '/format:csv',

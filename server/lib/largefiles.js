@@ -105,7 +105,7 @@ export async function scanDirForLargeFiles(dirPath, minSizeBytes, maxDepth = 4, 
 /**
  * Obtiene las rutas estándar de usuario para escanear.
  */
-export function getUserScanRoots() {
+function getUserScanRoots() {
   const userProfile = process.env.USERPROFILE || 'C:\\Users\\Default';
   const roots = [
     join(userProfile, 'Downloads'),
