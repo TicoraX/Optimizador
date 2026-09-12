@@ -1,0 +1,54 @@
+# Optimizador D1 — AI & LLM Context File (llms.txt)
+
+> Suite integral de optimización, mantenimiento y monitoreo para Windows construida con Electron, Express y React/Vite.
+
+## Arquitectura y Entorno
+- **Frontend**: React 19, Vite, Recharts, Marked. Servido en SPA sobre `http://127.0.0.1:3001`.
+- **Backend**: Node.js ESM (`server/server.js`), Express, Helmet, Rate-Limit. Exclusivamente en `127.0.0.1:3001`.
+- **Desktop Shell**: Electron 33 (`electron/main.cjs`) con aislamiento de contexto y bandeja del sistema.
+- **Acceso a SO**: APIs nativas de Node.js (`child_process`, `fs`, `os`) y comandos nativos (`wmic`, `sc`, `reg`, `bcdedit`, `schtasks`, `defrag`). Cero scripts de optimización en PowerShell.
+
+## Catálogo de los 23 Módulos de Optimización
+1. `updates`: Gestor de actualizaciones winget y comprobación de procesos activos.
+2. `cleanup`: Liberación de disco en 9 categorías seguras con validación `realpath`.
+3. `startup`: Gestión de programas y tareas de inicio en registro y Task Scheduler.
+4. `ram`: Purga inteligente de memoria RAM con soft/hard mode y límite configurable.
+5. `network`: Detección y mitigación de bufferbloat y optimización de TCP.
+6. `services`: Sintonización de servicios innecesarios de Windows con lista blanca estricta.
+7. `power`: Ajuste y alternancia de planes de energía de alto rendimiento.
+8. `apps`: Desinstalación desatendida de bloatware y paquetes UWP/AppX.
+9. `privacy`: Endurecimiento de telemetría y diagnóstico en Windows.
+10. `adblock`: Filtrado DNS de publicidad y telemetría vía `hosts` con backup atómico.
+11. `gaming`: Optimización de Game Mode, GPU scheduling y respuesta de baja latencia.
+12. `integrity`: Comprobación y reparación de archivos de sistema (`sfc /scannow`, `DISM`).
+13. `contextmenu`: Limpieza de extensiones huérfanas en el menú contextual del Explorer.
+14. `oemdebloat`: Detección y desactivación de servicios y telemetría OEM (Dell, HP, Lenovo).
+15. `timers`: Sintonización de temporizadores de precisión BCD (HPET, dynamic tick).
+16. `ghostdevices`: Detección y remoción de controladores de dispositivos fantasma o desconectados.
+17. `searchindex`: Optimización del indexador de búsqueda de Windows y ubicación de base de datos.
+18. `dnsflush`: Vaciado de caché de resolución DNS (`ipconfig /flushdns`).
+19. `networkprivacy`: Desactivación de WPAD, LLMNR y emisión de nombres NetBIOS.
+20. `pagefile`: Configuración del archivo de paginación de memoria virtual.
+21. `werfault`: Optimización del servicio de reporte de errores de Windows.
+22. `smartdisk`: Diagnóstico SMART y activación de TRIM en unidades SSD.
+23. `shadercache`: Limpieza de cachés de compilación de shaders GPU (NVIDIA, AMD, DirectX).
+
+## Contratos de la API HTTP/SSE
+- `GET /api/status`: Telemetría global en tiempo real (CPU delta ticks, RAM, discos, red).
+- `GET /api/scan/:module`: Inicia escaneo nativo del módulo y retorna estado y diagnóstico.
+- `GET /api/scan-stream/:module`: Streaming en tiempo real de escaneo vía Server-Sent Events (SSE).
+- `POST /api/action/:module`: Ejecución de optimizaciones. Requiere selección explícita y soporta `dryRun: true`.
+- `GET /api/reports/:module/latest`: Recupera el último reporte generado en Markdown del módulo.
+- `GET /api/reports/:module/items`: Recupera elementos interactivos seleccionables de un módulo.
+- `GET /api/system/export`: Exportación integral del estado del sistema en Markdown o JSON.
+- `GET /api/automation/scheduled`: Listado de tareas y perfiles programados en Task Scheduler.
+
+## Reglas Invariantes para Agentes
+- **Cero Emojis**: Prohibido el uso de emojis en código, respuestas, commits o documentación.
+- **Acceso Local Exclusivo**: Servidor restringido a `127.0.0.1`.
+- **Modo dryRun**: Toda mutación destructiva debe implementar y probar el modo de simulación `dryRun`.
+- **Documentación de Referencia**:
+  - Contratos de módulos: `map/MODULES.md`
+  - Ciclo de vida y SSE: `map/LIFECYCLE.md`
+  - Análisis de impacto: `map/IMPACT.md`
+  - Arquitectura y seguridad: `map/CONTEXT.md`

@@ -96,6 +96,7 @@ export default function App() {
           <button
             className="btn btn-quiet"
             onClick={() => setPaletteOpen(true)}
+            aria-label="Abrir paleta de comandos"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -164,6 +165,7 @@ export default function App() {
           <button
             className="btn btn-secondary theme-toggle"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           >
             <ModuleIcon
               path={theme === 'dark'

@@ -1117,6 +1117,12 @@ app.delete('/api/logs/:module', safeHandler((req, res) => {
 // Frontend estatico (build de produccion, ej. dentro del .exe de Electron)
 // ponytail: solo se activa si frontend/dist existe; en dev se usa el proxy de Vite
 // ═══════════════════════════════════════════════════════
+app.get('/llms.txt', (_req, res) => {
+  const p = join(PROJECT_ROOT, 'llms.txt');
+  if (existsSync(p)) return res.type('text/plain; charset=utf-8').sendFile(p);
+  res.status(404).send('Not found');
+});
+
 const FRONTEND_DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'frontend', 'dist');
 if (existsSync(FRONTEND_DIST)) {
   app.use(express.static(FRONTEND_DIST));

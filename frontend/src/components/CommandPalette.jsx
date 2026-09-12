@@ -218,6 +218,7 @@ export default function CommandPalette({ isOpen, onClose, onToggleTheme, theme }
               cursor: 'pointer',
             }}
             title="Cerrar paleta"
+            aria-label="Cerrar paleta de comandos"
           >
             ESC
           </button>
