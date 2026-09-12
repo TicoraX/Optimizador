@@ -383,39 +383,8 @@ export async function runRamActionNative(envVars, onOutput) {
 
   writeLog(`=== Liberacion de RAM - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
 
-  // Re-escanear procesos actuales (mismas columnas/criterio que el scan)
-  const procResult = await spawnCapture('tasklist', ['/V', '/FO', 'CSV', '/NH']);
-  const allProcesses = [];
-  if (procResult.code === 0) {
-    for (const line of procResult.stdout.trim().split(/\r?\n/)) {
-      const cols = parseCsvLine(line);
-      if (cols.length < 9) continue;
-      const memStr = (cols[4] || '0 K').replace(/,/g, '').trim();
-      const memKB = parseInt(memStr, 10) || 0;
-      const memMB = Math.round(memKB / 1024);
-      if (memMB > 0) {
-        const pid = parseInt(cols[1], 10);
-        const windowTitle = (cols[8] || '').trim();
-        const hasWindow = windowTitle !== '' && windowTitle.toUpperCase() !== 'N/A';
-        allProcesses.push({ name: cols[0], pid, memMB, hasWindow });
-      }
-    }
-  }
-
-  // Clasificacion en vivo de cada proceso (no la del momento del escaneo -
-  // ver killIfStillEligible mas abajo, que re-valida con esto mismo justo
-  // antes de matar). Nunca el propio servidor ni sus ancestros (terminal/shell).
-  const protectedPids = await getProtectedPids();
-  for (const p of allProcesses) {
-    p.tier = protectedPids.has(p.pid) ? 'critical' : classifyProcessTier(p.name, p.hasWindow);
-  }
-
   // Seleccion por PID (no por posicion en una lista): el frontend manda los
-  // PIDs reales mostrados en el reporte. Si solo se usara la posicion N de
-  // una lista recalculada en este momento, un proceso que cambio de orden
-  // (su MB vario un poco entre el escaneo y este clic) haria que el indice
-  // apunte a un proceso DISTINTO al que el usuario vio y marco - exactamente
-  // el bug reportado ("seleccione uno y no hizo nada / hizo otra cosa").
+  // PIDs reales mostrados en el reporte.
   const parsePidSelection = (selection) => {
     const trimmed = (selection || '').trim();
     if (trimmed === '') return [];
@@ -425,6 +394,35 @@ export async function runRamActionNative(envVars, onOutput) {
   const knownPids = parsePidSelection(envVars.OPTIMIZE_PROCESSES);
   const unknownPids = parsePidSelection(envVars.UNKNOWN_PROCESSES);
   const riskyPids = parsePidSelection(envVars.RISKY_PROCESSES);
+  const hasPids = knownPids.length > 0 || unknownPids.length > 0 || riskyPids.length > 0;
+
+  const allProcesses = [];
+  if (hasPids) {
+    // Re-escanear procesos actuales solo si hay PIDs a terminar
+    const procResult = await spawnCapture('tasklist', ['/V', '/FO', 'CSV', '/NH']);
+    if (procResult.code === 0) {
+      for (const line of procResult.stdout.trim().split(/\r?\n/)) {
+        const cols = parseCsvLine(line);
+        if (cols.length < 9) continue;
+        const memStr = (cols[4] || '0 K').replace(/,/g, '').trim();
+        const memKB = parseInt(memStr, 10) || 0;
+        const memMB = Math.round(memKB / 1024);
+        if (memMB > 0) {
+          const pid = parseInt(cols[1], 10);
+          const windowTitle = (cols[8] || '').trim();
+          const hasWindow = windowTitle !== '' && windowTitle.toUpperCase() !== 'N/A';
+          allProcesses.push({ name: cols[0], pid, memMB, hasWindow });
+        }
+      }
+    }
+
+    const protectedPids = await getProtectedPids();
+    for (const p of allProcesses) {
+      p.tier = protectedPids.has(p.pid) ? 'critical' : classifyProcessTier(p.name, p.hasWindow);
+    }
+  } else {
+    writeLog('No se especificaron procesos para finalizar. Procediendo a purga de memoria del sistema...');
+  }
 
   const byPid = new Map(allProcesses.map((p) => [p.pid, p]));
 

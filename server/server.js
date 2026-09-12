@@ -273,6 +273,9 @@ app.get('/api/profiles', safeHandler((_req, res) => {
 
 app.post('/api/profiles/:id/apply', safeHandler(async (req, res) => {
   const dryRun = req.body?.dryRun === true;
+  if (req.headers.accept?.includes('text/event-stream')) {
+    return runNativeOverSSE(res, (onOutput, onProgress) => applyProfile(req.params.id, { dryRun }, onOutput, onProgress), 300000);
+  }
   const result = await applyProfile(req.params.id, { dryRun });
   res.json(result);
 }));

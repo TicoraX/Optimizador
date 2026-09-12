@@ -21,10 +21,10 @@ export const PROFILES = [
     icon: 'gaming',
     accent: 'var(--color-primary)',
     steps: [
-      { module: 'gaming', params: { SETTINGS: 'hags,gamedvr,fso,gpu_priority' } },
+      { module: 'gaming', params: { SETTINGS: 'hags,gamemode,gamedvr,fse,networkThrottle,systemResponsiveness' } },
       { module: 'timers', params: { SETTINGS: 'disabledynamictick,useplatformclock' } },
       { module: 'werfault', params: { SETTINGS: 'dontshowui,loggingdisabled' } },
-      { module: 'ram', params: { CLEAN_MODE: 'soft', MIN_RAM_MB: '50', OPTIMIZE_PROCESSES: '1234' } },
+      { module: 'ram', params: { CLEAN_MODE: 'soft', MIN_RAM_MB: '50', GLOBAL_OPTIMIZE: 'true' } },
     ],
   },
   {
@@ -45,7 +45,7 @@ export const PROFILES = [
     icon: 'power',
     accent: 'var(--color-warning)',
     steps: [
-      { module: 'networkprivacy', params: { SETTINGS: 'wifisense,spotlight,edgepreload' } },
+      { module: 'networkprivacy', params: { SETTINGS: 'wifisense,spotlight,edgepreloading' } },
       { module: 'werfault', params: { SETTINGS: 'loggingdisabled' } },
     ],
   },
@@ -57,8 +57,8 @@ export const PROFILES = [
     accent: 'var(--color-info, #47bfff)',
     steps: [
       { module: 'cleanup', params: { CLEAN_CATEGORIES: 'devCache,temp' } },
-      { module: 'dnsflush', params: { ACTIONS: 'flushdns,registers' } },
-      { module: 'ram', params: { CLEAN_MODE: 'soft', MIN_RAM_MB: '50', OPTIMIZE_PROCESSES: '1234' } },
+      { module: 'dnsflush', params: { ACTIONS: 'flushdns,registerdns' } },
+      { module: 'ram', params: { CLEAN_MODE: 'soft', MIN_RAM_MB: '50', GLOBAL_OPTIMIZE: 'true' } },
     ],
   },
 ];
@@ -74,7 +74,7 @@ export function getProfiles() {
   }));
 }
 
-export async function applyProfile(profileId, { dryRun = false } = {}, onOutput = () => {}) {
+export async function applyProfile(profileId, { dryRun = false } = {}, onOutput = () => {}, onProgress = () => {}) {
   const profile = PROFILES.find((p) => p.id === profileId);
   if (!profile) {
     const err = new Error(`Perfil '${profileId}' no encontrado`);
@@ -84,9 +84,12 @@ export async function applyProfile(profileId, { dryRun = false } = {}, onOutput 
 
   onOutput(`[PERFIL] Iniciando aplicación del ${profile.name} (Modo: ${dryRun ? 'SIMULACIÓN (dryRun)' : 'REAL'})...`);
   const results = [];
+  const total = profile.steps.length;
 
-  for (const step of profile.steps) {
-    onOutput(`[PERFIL] Ejecutando módulo: ${step.module}...`);
+  for (let i = 0; i < total; i++) {
+    const step = profile.steps[i];
+    onProgress({ current: i + 1, total, module: step.module, percentage: Math.round(((i + 1) / total) * 100) });
+    onOutput(`[PERFIL] (${i + 1}/${total}) Ejecutando módulo: ${step.module}...`);
     const envVars = {
       DRY_RUN: dryRun ? 'true' : 'false',
     };

@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MODULES, MODULE_KEYS } from '../modules';
 import { ModuleIcon } from './ModuleIcon';
@@ -174,6 +174,49 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
     }
   }, [onRefreshStatus]);
 
+  const scanAllAbortRef = useRef(null);
+  const [scanningAll, setScanningAll] = useState(false);
+  const [scanAllProgress, setScanAllProgress] = useState({ current: 0, total: 0, module: '' });
+
+  const cancelScanAll = useCallback(() => {
+    if (scanAllAbortRef.current) {
+      scanAllAbortRef.current.abort();
+      scanAllAbortRef.current = null;
+    }
+    setScanningAll(false);
+  }, []);
+
+  const handleScanAll = useCallback(async () => {
+    if (scanningAll) {
+      cancelScanAll();
+      return;
+    }
+
+    const targetKeys = order.filter((id) => !hidden.includes(id));
+    if (targetKeys.length === 0) return;
+
+    setScanningAll(true);
+    const abortCtrl = new AbortController();
+    scanAllAbortRef.current = abortCtrl;
+
+    for (let i = 0; i < targetKeys.length; i++) {
+      if (abortCtrl.signal.aborted) break;
+      const key = targetKeys[i];
+      const label = MODULES[key]?.label || key;
+      setScanAllProgress({ current: i + 1, total: targetKeys.length, module: label });
+
+      try {
+        await handleScan(key);
+      } catch (err) {
+        console.error(`Error escaneando ${key}:`, err);
+      }
+    }
+
+    setScanningAll(false);
+    scanAllAbortRef.current = null;
+    onRefreshStatus();
+  }, [scanningAll, order, hidden, handleScan, onRefreshStatus, cancelScanAll]);
+
   if (loading) {
     return (
       <div className="dashboard-grid">
@@ -228,6 +271,40 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
           </p>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <button
+            className={`btn ${scanningAll ? 'btn-danger' : 'btn-primary'}`}
+            onClick={handleScanAll}
+            disabled={Object.values(scanning).some(Boolean) && !scanningAll}
+            title={scanningAll ? 'Detener escaneo general' : 'Escanear todos los módulos del sistema'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            {scanningAll ? (
+              <>
+                <span
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: '2px solid currentColor',
+                    borderRightColor: 'transparent',
+                    borderRadius: '50%',
+                    display: 'inline-block',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
+                Detener ({scanAllProgress.current}/{scanAllProgress.total})
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                  <path d="M21 3v5h-5" />
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                  <path d="M3 21v-5h5" />
+                </svg>
+                Escanear Todo
+              </>
+            )}
+          </button>
           <a
             className="btn btn-secondary"
             href={`${API_BASE}/system/export?format=markdown`}
@@ -279,6 +356,47 @@ export default function Dashboard({ systemStatus, loading, error, onRefreshStatu
               </label>
             </div>
           ))}
+        </div>
+      )}
+
+      {scanningAll && (
+        <div
+          className="glass-panel"
+          style={{
+            padding: 'var(--space-3) var(--space-4)',
+            marginBottom: 'var(--space-5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-4)',
+            borderLeft: '4px solid var(--color-accent)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minWidth: 0 }}>
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                border: '2px solid var(--color-accent)',
+                borderRightColor: 'transparent',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'spin 0.8s linear infinite',
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-ink)' }}>
+              Escaneando sistema: <strong>{scanAllProgress.module}</strong> ({scanAllProgress.current} de {scanAllProgress.total})
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={cancelScanAll}
+            style={{ fontSize: 'var(--text-xs)' }}
+          >
+            Detener
+          </button>
         </div>
       )}
 

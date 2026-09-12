@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE } from '../config';
 import { ModuleIcon } from './ModuleIcon';
 
@@ -6,59 +6,177 @@ export default function ProfilesSelector({ onProfileApplied }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applyingId, setApplyingId] = useState(null);
+  const [applyProgress, setApplyProgress] = useState(null);
   const [dryRun, setDryRun] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const abortCtrlRef = useRef(null);
 
   useEffect(() => {
+    let active = true;
     async function loadProfiles() {
       try {
         setLoading(true);
         const res = await fetch(`${API_BASE}/profiles`);
         if (!res.ok) throw new Error('Error al cargar perfiles de optimización');
         const json = await res.json();
-        setProfiles(json.profiles || []);
+        if (active) setProfiles(json.profiles || []);
       } catch (err) {
-        setError(err.message);
+        if (active) setError(err.message);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
     loadProfiles();
+    return () => { active = false; };
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort();
+      abortCtrlRef.current = null;
+    }
+    setApplyingId(null);
+    setApplyProgress(null);
+    setError('Aplicación de perfil cancelada por el usuario');
   }, []);
 
   const handleApply = async (profileId) => {
+    if (applyingId) return;
+
     try {
       setApplyingId(profileId);
       setResult(null);
       setError(null);
+      setApplyProgress({ current: 0, total: 4, module: 'Iniciando...', percentage: 0, log: '' });
+
+      const ctrl = new AbortController();
+      abortCtrlRef.current = ctrl;
+
+      const timeoutId = setTimeout(() => {
+        ctrl.abort();
+      }, 45000);
 
       const res = await fetch(`${API_BASE}/profiles/${profileId}/apply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream, application/json',
+        },
         body: JSON.stringify({ dryRun }),
+        signal: ctrl.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Error ${res.status} al aplicar perfil`);
+        throw new Error(errJson.error || `Error HTTP ${res.status}`);
       }
 
-      const json = await res.json();
-      setResult(json);
-      if (onProfileApplied) onProfileApplied(json);
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) {
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No se pudo inicializar la lectura del stream');
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEvent = 'message';
+        let currentData = [];
+
+        const dispatchEvent = (ev, dataStr) => {
+          if (ev === 'progress') {
+            try {
+              const p = JSON.parse(dataStr);
+              setApplyProgress(prev => ({
+                ...prev,
+                current: p.current,
+                total: p.total,
+                module: p.module,
+                percentage: p.percentage,
+              }));
+            } catch { /* parse error ignore */ }
+          } else if (ev === 'output') {
+            setApplyProgress(prev => ({
+              ...prev,
+              log: dataStr.replace(/^\[PERFIL\]\s*/, ''),
+            }));
+          } else if (ev === 'error') {
+            setError(dataStr);
+          } else if (ev === 'done') {
+            try {
+              const d = JSON.parse(dataStr);
+              if (d.exitCode === 0) {
+                setResult({ ok: true, dryRun, profileId });
+              } else {
+                setError('El proceso finalizó con advertencias.');
+              }
+            } catch {
+              setResult({ ok: true, dryRun, profileId });
+            }
+          }
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              if (currentData.length > 0) {
+                dispatchEvent(currentEvent, currentData.join('\n'));
+                currentData = [];
+                currentEvent = 'message';
+              }
+              continue;
+            }
+            if (trimmed.startsWith('event: ')) {
+              currentEvent = trimmed.slice(7).trim();
+            } else if (trimmed.startsWith('data: ')) {
+              currentData.push(trimmed.slice(6));
+            }
+          }
+        }
+        if (currentData.length > 0) {
+          dispatchEvent(currentEvent, currentData.join('\n'));
+        }
+      } else {
+        const json = await res.json();
+        setResult(json);
+      }
+
+      if (onProfileApplied) onProfileApplied();
     } catch (err) {
-      setError(err.message);
+      if (err.name === 'AbortError') {
+        setError('La operación tardó demasiado o fue cancelada.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setApplyingId(null);
+      setApplyProgress(null);
+      abortCtrlRef.current = null;
     }
   };
 
   if (loading) {
     return (
-      <div className="card profiles-card mb-6 p-4">
-        <div className="flex items-center gap-2 text-muted">
-          <span className="spinner-border spinner-border-sm" role="status" />
+      <div className="glass-panel" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', color: 'var(--color-ink-3)', fontSize: 'var(--text-sm)' }}>
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: '2px solid currentColor',
+              borderRightColor: 'transparent',
+              borderRadius: '50%',
+              display: 'inline-block',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
           <span>Cargando perfiles de optimización...</span>
         </div>
       </div>
@@ -67,8 +185,10 @@ export default function ProfilesSelector({ onProfileApplied }) {
 
   if (error && profiles.length === 0) {
     return (
-      <div className="card profiles-card mb-6 p-4 border border-danger/30 text-xs text-danger">
-        No se pudieron cargar los perfiles: {error}
+      <div className="glass-panel" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-6)', borderLeft: '4px solid var(--color-danger)' }}>
+        <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-danger)' }}>
+          No se pudieron cargar los perfiles: {error}
+        </div>
       </div>
     );
   }
@@ -76,52 +196,143 @@ export default function ProfilesSelector({ onProfileApplied }) {
   if (profiles.length === 0) return null;
 
   return (
-    <div className="card profiles-card mb-6 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+    <div
+      className="glass-panel"
+      style={{
+        padding: 'var(--space-5)',
+        marginBottom: 'var(--space-6)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 'var(--space-4)',
+          marginBottom: 'var(--space-4)',
+          flexWrap: 'wrap',
+        }}
+      >
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-white mb-1">
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--color-ink)', marginBottom: 'var(--space-1)' }}>
             Perfiles de Optimización en 1 Clic
           </h2>
-          <p className="text-xs text-muted">
+          <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)' }}>
             Aplica ajustes integrales calibrados para flujos de trabajo específicos sin alterar manualmente cada módulo.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-ink-2)', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={dryRun}
               onChange={(e) => setDryRun(e.target.checked)}
-              className="accent-primary"
+              style={{ accentColor: 'var(--color-accent)' }}
             />
             <span>Simular cambios (dryRun)</span>
           </label>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {applyingId && applyProgress && (
+        <div
+          style={{
+            padding: 'var(--space-3) var(--space-4)',
+            marginBottom: 'var(--space-4)',
+            background: 'var(--color-paper-3)',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--color-rule)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'var(--space-4)',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minWidth: 0, flex: 1 }}>
+            <span
+              style={{
+                width: 14,
+                height: 14,
+                border: '2px solid var(--color-accent)',
+                borderRightColor: 'transparent',
+                borderRadius: '50%',
+                display: 'inline-block',
+                animation: 'spin 0.8s linear infinite',
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-ink)' }}>
+                Aplicando {profiles.find((p) => p.id === applyingId)?.name || 'perfil'}
+                {applyProgress.total > 0 ? ` — Paso ${applyProgress.current} de ${applyProgress.total}` : ''}
+              </div>
+              {applyProgress.log && (
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {applyProgress.log}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={handleCancel}
+            style={{ fontSize: 'var(--text-xs)' }}
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 'var(--space-4)',
+        }}
+      >
         {profiles.map((p) => {
           const isApplying = applyingId === p.id;
           return (
             <div
               key={p.id}
-              className="profile-preset-card p-4 rounded border flex flex-col justify-between"
+              className="glass-panel"
               style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                padding: 'var(--space-4)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                border: isApplying ? '1px solid var(--color-accent)' : '1px solid var(--color-rule)',
+                borderRadius: 'var(--radius)',
+                background: isApplying ? 'var(--color-paper-3)' : 'var(--color-paper-2)',
+                transition: 'border-color var(--dur) var(--ease-out)',
               }}
             >
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="profile-icon-wrapper p-2 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                    <ModuleIcon moduleKey={p.icon || 'gaming'} className="w-5 h-5 text-primary" />
+              <div style={{ marginBottom: 'var(--space-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+                  <span
+                    style={{
+                      background: 'var(--color-paper-3)',
+                      padding: 'var(--space-2)',
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'inline-flex',
+                      color: 'var(--color-accent)',
+                    }}
+                  >
+                    <ModuleIcon moduleKey={p.icon || 'gaming'} style={{ width: 18, height: 18 }} />
                   </span>
                   <div>
-                    <h3 className="text-sm font-semibold text-white leading-tight">{p.name}</h3>
-                    <span className="text-[11px] text-muted">{p.stepCount} módulos encadenados</span>
+                    <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-ink)', margin: 0, lineHeight: 1.2 }}>
+                      {p.name}
+                    </h3>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-ink-3)', fontFamily: 'var(--font-mono)' }}>
+                      {p.stepCount} módulos encadenados
+                    </span>
                   </div>
                 </div>
-                <p className="text-xs text-muted mb-4 line-clamp-3">
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-2)', margin: 0, lineHeight: 1.4 }}>
                   {p.desc}
                 </p>
               </div>
@@ -130,9 +341,14 @@ export default function ProfilesSelector({ onProfileApplied }) {
                 type="button"
                 onClick={() => handleApply(p.id)}
                 disabled={applyingId !== null}
-                className="btn btn-sm btn-outline-primary w-full text-xs font-medium py-1.5"
+                className={`btn ${dryRun ? 'btn-secondary' : 'btn-primary'}`}
+                style={{ width: '100%', fontSize: 'var(--text-xs)', padding: 'var(--space-2)' }}
               >
-                {isApplying ? 'Aplicando...' : dryRun ? 'Simular Perfil' : 'Activar Perfil'}
+                {isApplying
+                  ? `Aplicando (${applyProgress?.current || 1}/${p.stepCount})...`
+                  : dryRun
+                    ? 'Simular Perfil'
+                    : 'Activar Perfil'}
               </button>
             </div>
           );
@@ -140,19 +356,38 @@ export default function ProfilesSelector({ onProfileApplied }) {
       </div>
 
       {result && (
-        <div className="mt-4 p-3 rounded bg-surface-dark border border-border text-xs">
-          <div className="font-semibold text-success mb-1">
+        <div
+          style={{
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--color-paper-3)',
+            border: '1px solid var(--color-rule)',
+            fontSize: 'var(--text-xs)',
+          }}
+        >
+          <div style={{ fontWeight: 600, color: 'var(--color-success)', marginBottom: 'var(--space-1)' }}>
             {result.dryRun ? 'Simulación de perfil completada exitosamente' : 'Perfil aplicado exitosamente'}
           </div>
-          <div className="text-muted">
-            Pasos procesados: {result.results?.length || 0} módulos ({result.results?.filter((r) => r.ok).length} correctos).
+          <div style={{ color: 'var(--color-ink-3)' }}>
+            Ajustes aplicados al sistema en modo {result.dryRun ? 'simulación' : 'activo'}.
           </div>
         </div>
       )}
 
       {error && (
-        <div className="mt-4 p-3 rounded bg-danger/10 border border-danger/30 text-xs text-danger">
-          Error: {error}
+        <div
+          style={{
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius)',
+            background: 'oklch(from var(--color-danger) l c h / 0.1)',
+            border: '1px solid var(--color-danger)',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--color-danger)',
+          }}
+        >
+          {error}
         </div>
       )}
     </div>
