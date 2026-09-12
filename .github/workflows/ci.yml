@@ -2,9 +2,9 @@ name: CI & Tests
 
 on:
   push:
-    branches: [ main, experiment/** ]
+    branches: [ main, develop, experiment/** ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
 
 jobs:
   test-and-build:
@@ -19,16 +19,28 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            frontend/package-lock.json
 
       - name: Install Root Dependencies
         run: npm ci
 
-      - name: Install Server Dependencies & Run Unit Tests
-        run: |
-          npm --prefix server ci
-          npm test
+      - name: Install Server Dependencies
+        run: npm --prefix server ci
+
+      - name: Install Frontend Dependencies
+        run: npm --prefix frontend ci
+
+      - name: Lint Frontend
+        run: npm run lint --prefix frontend
+
+      - name: Run Frontend Tests
+        run: npm test --prefix frontend
 
       - name: Build Frontend
-        run: |
-          npm --prefix frontend ci
-          npm run build --prefix frontend
+        run: npm run build --prefix frontend
+
+      - name: Run Backend Tests
+        run: npm test
