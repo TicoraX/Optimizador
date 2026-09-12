@@ -150,4 +150,23 @@ describe('E2E QA Suite — Verificación Segura (Zero Destructive Changes / dryR
       assert.ok(res.output.includes('event: done'));
     });
   }
+
+  it('GET /api/health-score retorna diagnóstico y desglose válido', async () => {
+    const res = await request('/api/health-score');
+    assert.equal(res.statusCode, 200);
+    assert.ok(typeof res.json?.score === 'number');
+    assert.ok(Array.isArray(res.json?.breakdown));
+    assert.ok(Array.isArray(res.json?.quickFixes));
+  });
+
+  it('POST /api/quick-optimize en dryRun ejecuta simulaciones sin mutar el sistema', async () => {
+    const res = await request('/api/quick-optimize', {
+      method: 'POST',
+      body: { dryRun: true, actions: ['cleanup', 'privacy', 'gaming'] },
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.json?.ok, true);
+    assert.equal(res.json?.dryRun, true);
+    assert.ok(Array.isArray(res.json?.results));
+  });
 });

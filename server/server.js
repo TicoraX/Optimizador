@@ -333,6 +333,7 @@ app.post('/api/quick-optimize', rateLimit({
       try {
         const env = { DRY_RUN: dryRun ? 'true' : 'false' };
         if (fix.module === 'cleanup') env.CLEAN_CATEGORIES = 'temp,recycle,cache';
+        else if (fix.module === 'ram') { env.GLOBAL_OPTIMIZE = 'true'; env.CLEAN_MODE = 'soft'; }
         else if (fix.module === 'privacy') env.OPTIMIZE_PRIVACY = '1,2,3,4,5,6,7,8';
         else if (fix.module === 'gaming') env.SETTINGS = 'hags,gamemode,gamedvr,fse,networkThrottle,systemResponsiveness';
         else if (fix.module === 'dnsflush') env.FLUSH_DNS = 'true';
@@ -341,6 +342,16 @@ app.post('/api/quick-optimize', rateLimit({
         else if (fix.module === 'werfault') env.SETTINGS = 'disableerrorreporting,disablecrashdumps,disablecer,disablesqmlogger';
 
         await handler(env, (msg) => logs.push(msg));
+
+        // Re-escaneo automático post-optimización para persistir el nuevo estado en reportes y conteos
+        if (!dryRun && SCAN_HANDLERS[fix.module]) {
+          try {
+            await SCAN_HANDLERS[fix.module](() => {});
+          } catch (scanErr) {
+            logs.push(`Advertencia de sincronización de estado: ${scanErr.message}`);
+          }
+        }
+
         results.push({ id: fix.id, module: fix.module, success: true, logs });
       } catch (err) {
         results.push({ id: fix.id, module: fix.module, success: false, error: err.message });
@@ -348,11 +359,20 @@ app.post('/api/quick-optimize', rateLimit({
     }
   }
 
+  // Recalcular diagnóstico global con métricas frescas si hubo cambios reales
+  let updatedHealth = null;
+  if (!dryRun) {
+    const updatedStatus = getConsolidatedStatus();
+    const updatedTelemetry = await getSystemTelemetry();
+    updatedHealth = calculateHealthScore(updatedStatus, updatedTelemetry);
+  }
+
   res.json({
     ok: true,
     dryRun,
     executedCount: results.length,
     results,
+    healthScore: updatedHealth,
   });
 }));
 
@@ -849,7 +869,18 @@ app.post('/api/action/:module', safeHandler((req, res) => {
   const handler = ACTION_HANDLERS[req.params.module];
   if (!handler) return res.status(400).json({ error: 'Modulo sin handler de accion' });
 
-  runNativeOverSSE(res, (onOutput, onProgress) => handler(envVars, onOutput, onProgress), ACTION_TIMEOUT_MS);
+  runNativeOverSSE(res, async (onOutput, onProgress) => {
+    await handler(envVars, onOutput, onProgress);
+    if (envVars.DRY_RUN !== 'true' && req.params.module !== 'updates' && req.params.module !== 'integrity' && SCAN_HANDLERS[req.params.module]) {
+      try {
+        onOutput(`Sincronizando estado y reporte de ${req.params.module}...`);
+        await SCAN_HANDLERS[req.params.module](() => {});
+        onOutput(`Estado de ${req.params.module} sincronizado.`);
+      } catch {
+        // Omisión silenciosa para no interrumpir el flujo si el escaneo complementario falla
+      }
+    }
+  }, ACTION_TIMEOUT_MS);
 }));
 
 // ═══════════════════════════════════════════════════════

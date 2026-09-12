@@ -48,6 +48,9 @@ export default function HealthScoreCard({ onOptimized }) {
       const result = await res.json();
       setExecutionResult(result);
       if (!dryRun) {
+        if (result.healthScore) {
+          setData(result.healthScore);
+        }
         await fetchHealthScore();
         if (onOptimized) onOptimized();
       }
@@ -265,6 +268,23 @@ export default function HealthScoreCard({ onOptimized }) {
               </div>
             </div>
           ))}
+          {data.breakdown?.some((b) => b.category === 'Actualizaciones' && b.score < b.max) && (
+            <div
+              style={{
+                background: 'var(--color-surface-panel)',
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--color-ink-1)' }}>
+                Actualizaciones pendientes
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-ink-3)', marginTop: 2 }}>
+                Las actualizaciones de paquetes se seleccionan e instalan desde el módulo Actualizaciones para proteger apps en uso.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
