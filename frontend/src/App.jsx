@@ -77,8 +77,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="app-container">
-        <CommandPalette
+      <ErrorBoundary>
+        <div className="app-container">
+          <CommandPalette
           isOpen={paletteOpen}
           onClose={() => setPaletteOpen(false)}
           onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -179,7 +180,6 @@ export default function App() {
 
         {/* Central Router Container */}
         <main className="main-content">
-          <ErrorBoundary>
             <Routes>
               <Route 
                 path="/" 
@@ -189,7 +189,7 @@ export default function App() {
                     loading={loading} 
                     error={error} 
                     onRefreshStatus={fetchStatus} 
-                  />
+                  /> 
                 } 
               />
               <Route path="/report/:module" element={<ReportViewer />} />
@@ -198,9 +198,9 @@ export default function App() {
               <Route path="/archivos-grandes" element={<LargeFilesHunter />} />
               <Route path="/scheduler" element={<Scheduler />} />
             </Routes>
-          </ErrorBoundary>
         </main>
-      </div>
+        </div>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

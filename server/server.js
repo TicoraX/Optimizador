@@ -100,8 +100,11 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      // Vite inyecta el CSS del bundle como <style>; los reportes no aportan CSS.
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      // Vite inyecta el CSS del bundle como <style> en dev; en produccion el bundle
+      // esta compilado y no necesita inline styles.
+      styleSrc: process.env.NODE_ENV === 'production'
+        ? ["'self'"]
+        : ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
       fontSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],

@@ -552,6 +552,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
 
   let totalFreedBytes = 0;
   let totalDeletedFiles = 0;
+  let totalErrors = 0;
 
   for (let i = 0; i < categoryList.length; i++) {
     const cat = categoryList[i];
@@ -570,6 +571,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
         for (const p of targets.temp.paths) {
           const r = await removeDirContents(p);
           freed += r.freedBytes;
+          totalErrors += r.errors;
           del += r.deleted;
         }
         totalFreedBytes += freed;
@@ -589,6 +591,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
         for (const p of targets.windowsUpdate.paths) {
           const r = await removeDirContents(p);
           freed += r.freedBytes;
+          totalErrors += r.errors;
           del += r.deleted;
         }
         totalFreedBytes += freed;
@@ -608,6 +611,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
         for (const p of targets.crashDumps.paths) {
           const r = await removeDirContents(p);
           freed += r.freedBytes;
+          totalErrors += r.errors;
           del += r.deleted;
         }
         totalFreedBytes += freed;
@@ -627,6 +631,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
         for (const p of targets.devCache.paths) {
           const r = await removeDirContents(p);
           freed += r.freedBytes;
+          totalErrors += r.errors;
           del += r.deleted;
         }
         totalFreedBytes += freed;
@@ -646,6 +651,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
         for (const p of targets.shaderCache.paths) {
           const r = await removeDirContents(p);
           freed += r.freedBytes;
+          totalErrors += r.errors;
           del += r.deleted;
         }
         totalFreedBytes += freed;
@@ -666,6 +672,7 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
         for (const p of targets.browserCache.paths) {
           const r = await removeDirContents(p);
           freed += r.freedBytes;
+          totalErrors += r.errors;
           del += r.deleted;
         }
         const ff = await targets.browserCache.customClean(false);
@@ -726,5 +733,6 @@ export async function runCleanupActionNative(envVars, onOutput, onProgress) {
     });
   }
 
-  writeLog(`=== Limpieza de Disco - Fin (${dryRun ? 'Simulacion completada' : 'Liberados ' + totalFreedMB + ' MB en total'}) ===`);
+  const errorSuffix = totalErrors > 0 ? ` | ${totalErrors} archivo(s) bloqueado(s) (EPERM/EBUSY)` : '';
+  writeLog(`=== Limpieza de Disco - Fin (${dryRun ? 'Simulacion completada' : 'Liberados ' + totalFreedMB + ' MB en total'}${errorSuffix}) ===`);
 }
