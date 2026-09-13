@@ -234,6 +234,22 @@ const SCAN_HANDLERS = {
   smartdisk: runSmartDiskScanNative,
   shadercache: runShaderCacheScanNative,
 };
+
+// Defaults de re-escaneo por modulo: solo los que tienen firma distinta a (onOutput).
+// cleanup(ageDays, onOutput), ram(cleanMode, minMB, onOutput), network(bufferbloat, onOutput, onProgress).
+const RESCAN_ARGS = {
+  cleanup: (noop) => [30, noop],
+  ram: (noop) => ['soft', 100, noop],
+  network: (noop) => [false, noop, () => {}],
+};
+
+/** Re-escanea un modulo con los argumentos correctos segun su firma. */
+async function rescanModule(mod, onOutput = () => {}) {
+  const handler = SCAN_HANDLERS[mod];
+  if (!handler) return;
+  const argsFn = RESCAN_ARGS[mod];
+  await handler(...(argsFn ? argsFn(onOutput) : [onOutput]));
+}
 const ACTION_HANDLERS = {
   cleanup: runCleanupActionNative,
   updates: runUpdatesActionNative,
@@ -346,7 +362,7 @@ app.post('/api/quick-optimize', rateLimit({
         // Re-escaneo automático post-optimización para persistir el nuevo estado en reportes y conteos
         if (!dryRun && SCAN_HANDLERS[fix.module]) {
           try {
-            await SCAN_HANDLERS[fix.module](() => {});
+            await rescanModule(fix.module);
           } catch (scanErr) {
             logs.push(`Advertencia de sincronización de estado: ${scanErr.message}`);
           }
@@ -704,6 +720,21 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     envVars.DEVICES = [...new Set(picked)].join(',');
   }
 
+  // Disks: letras de unidad para smartdisk (ej. "C", "D:")
+  if (req.body?.disks !== undefined) {
+    const raw = Array.isArray(req.body.disks)
+      ? req.body.disks
+      : String(req.body.disks || '').split(',');
+    const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+    const bad = picked.filter((s) => !/^[A-Za-z]:?$/.test(s));
+    if (bad.length > 0) {
+      const err = new Error(`Letras de unidad invalidas: ${bad.slice(0, 3).join(', ')}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    envVars.DISKS = [...new Set(picked)].join(',');
+  }
+
   // Mode: modo de configuracion para oemdebloat (demand | disable)
   if (req.body?.mode !== undefined) {
     const mode = String(req.body.mode).trim().toLowerCase();
@@ -874,7 +905,7 @@ app.post('/api/action/:module', safeHandler((req, res) => {
     if (envVars.DRY_RUN !== 'true' && req.params.module !== 'updates' && req.params.module !== 'integrity' && SCAN_HANDLERS[req.params.module]) {
       try {
         onOutput(`Sincronizando estado y reporte de ${req.params.module}...`);
-        await SCAN_HANDLERS[req.params.module](() => {});
+        await rescanModule(req.params.module, onOutput);
         onOutput(`Estado de ${req.params.module} sincronizado.`);
       } catch {
         // Omisión silenciosa para no interrumpir el flujo si el escaneo complementario falla
