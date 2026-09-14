@@ -22,7 +22,7 @@ const MODULE_CONFIG = {
   contextmenu:    { idKey: 'regPath', defaultCheck: (it) => it.recommendedDisable === true },
   oemdebloat:     { idKey: 'serviceName', defaultCheck: (it) => it.recommendedManual === true },
   timers:         { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
-  ghostdevices:   { idKey: 'id',      defaultCheck: (it) => it.recommended === true },
+  ghostdevices:   { idKey: 'id',      defaultCheck: () => false },
   searchindex:    { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
   dnsflush:       { idKey: 'id',      defaultCheck: (it) => it.recommended === true },
   networkprivacy: { idKey: 'id',      defaultCheck: (it) => !it.isOptimized },
