@@ -110,6 +110,7 @@ export async function runPrivacyScanNative(onOutput) {
   results.map((s, i) => ({
     index: i + 1, id: s.id, name: s.name, desc: s.desc,
     currentValue: s.currentValue, safe: s.safe,
+    status: statusLabel(s, s.currentValue),
   })));
 }
 

@@ -19,6 +19,8 @@ const PROTECTED_CLASSES = new Set([
   'firmware',
   'biometric',
   'securitydevices',
+  'monitor',
+  'display',
 ]);
 
 export function isSafeGhostDevice(instanceId = '', className = '') {
@@ -26,7 +28,7 @@ export function isSafeGhostDevice(instanceId = '', className = '') {
   const id = (instanceId || '').toUpperCase().trim();
 
   if (PROTECTED_CLASSES.has(c)) return false;
-  if (id.startsWith('ROOT\\') || id.startsWith('ACPI\\') || id.startsWith('SWD\\') || id.startsWith('HTREE\\') || id.startsWith('PCI\\') || id.startsWith('UEFI\\')) return false;
+  if (id.startsWith('ROOT\\') || id.startsWith('ACPI\\') || id.startsWith('SWD\\') || id.startsWith('HTREE\\') || id.startsWith('PCI\\') || id.startsWith('UEFI\\') || id.startsWith('DISPLAY\\')) return false;
 
   return true;
 }

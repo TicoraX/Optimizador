@@ -16,7 +16,7 @@ import { API_BASE } from '../config.js';
 const MODULE_CONFIG = {
   services:       { idKey: 'name',    defaultCheck: () => false },
   apps:           { idKey: 'id',      defaultCheck: () => false },
-  privacy:        { idKey: null,      defaultCheck: () => false },
+  privacy:        { idKey: null,      defaultCheck: (it) => !it.safe },
   gaming:         { idKey: 'id',      defaultCheck: (it) => !it.optimized },
   integrity:      { idKey: 'action',  defaultCheck: (it) => it.recommended !== false },
   contextmenu:    { idKey: 'regPath', defaultCheck: (it) => it.recommendedDisable === true },

@@ -37,7 +37,8 @@ export const GENERIC_PANEL_CONFIG = {
     bodyFormat: 'csv',
     renderItem: (item) => ({
       title: item.name,
-      subtitle: item.status,
+      subtitle: item.safe ? `✓ Protegido (${item.desc})` : `Pendiente · ${item.desc}`,
+      statusColor: item.safe ? 'var(--color-success)' : 'var(--color-warning)',
     }),
   },
   gaming: {

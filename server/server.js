@@ -849,10 +849,31 @@ app.post('/api/action/:module', safeHandler((req, res) => {
 
   if (req.params.module === 'updates') {
     if (req.body?.packages !== undefined) {
-      envVars.PACKAGES = validateIdList(req.body.packages, 'packages');
+      const raw = Array.isArray(req.body.packages)
+        ? req.body.packages
+        : String(req.body.packages || '').split(',');
+      const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+      // Validar que no contengan saltos de línea ni pipes de inyección
+      const bad = picked.filter((id) => id.length > 512 || /[\r\n]/.test(id));
+      if (bad.length > 0) {
+        const err = new Error('packages: identificadores invalidos');
+        err.statusCode = 400;
+        throw err;
+      }
+      envVars.PACKAGES = [...new Set(picked)].join(',');
     }
     if (req.body?.items !== undefined) {
-      envVars.ITEMS = validateIdList(req.body.items, 'items');
+      const raw = Array.isArray(req.body.items)
+        ? req.body.items
+        : String(req.body.items || '').split(',');
+      const picked = raw.map((s) => String(s).trim()).filter(Boolean);
+      const bad = picked.filter((id) => id.length > 512 || /[\r\n]/.test(id));
+      if (bad.length > 0) {
+        const err = new Error('items: identificadores invalidos');
+        err.statusCode = 400;
+        throw err;
+      }
+      envVars.ITEMS = [...new Set(picked)].join(',');
     }
   }
 
