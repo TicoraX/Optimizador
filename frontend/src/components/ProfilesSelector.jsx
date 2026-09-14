@@ -2,6 +2,29 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE } from '../config';
 import { ModuleIcon } from './ModuleIcon';
 
+const PROFILE_ACCENTS = {
+  gaming: {
+    color: 'oklch(70% 0.22 280)', // Violeta / Púrpura gaming vibrante
+    bg: 'oklch(70% 0.22 280 / 0.14)',
+    border: 'oklch(70% 0.22 280 / 0.35)',
+  },
+  work: {
+    color: 'var(--color-success)', // Verde productivo esmeralda
+    bg: 'var(--color-success-soft)',
+    border: 'oklch(72% 0.15 155 / 0.35)',
+  },
+  battery: {
+    color: 'var(--color-warning)', // Ámbar cálido de energía
+    bg: 'oklch(80% 0.14 80 / 0.14)',
+    border: 'oklch(80% 0.14 80 / 0.35)',
+  },
+  dev: {
+    color: 'var(--color-accent)', // Cobalto / Azul desarrollo
+    bg: 'var(--color-accent-soft)',
+    border: 'oklch(66% 0.17 256 / 0.35)',
+  },
+};
+
 export default function ProfilesSelector({ onProfileApplied }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -295,6 +318,12 @@ export default function ProfilesSelector({ onProfileApplied }) {
       >
         {profiles.map((p) => {
           const isApplying = applyingId === p.id;
+          const profileAccent = PROFILE_ACCENTS[p.id] || {
+            color: 'var(--color-accent)',
+            bg: 'var(--color-accent-soft)',
+            border: 'oklch(66% 0.17 256 / 0.3)',
+          };
+
           return (
             <div
               key={p.id}
@@ -304,24 +333,29 @@ export default function ProfilesSelector({ onProfileApplied }) {
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                border: isApplying ? '1px solid var(--color-accent)' : '1px solid var(--color-rule)',
+                border: isApplying ? `1px solid ${profileAccent.color}` : '1px solid var(--color-rule)',
                 borderRadius: 'var(--radius)',
                 background: isApplying ? 'var(--color-paper-3)' : 'var(--color-paper-2)',
-                transition: 'border-color var(--dur) var(--ease-out)',
+                transition: 'border-color var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out)',
               }}
             >
               <div style={{ marginBottom: 'var(--space-3)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
                   <span
                     style={{
-                      background: 'var(--color-paper-3)',
-                      padding: 'var(--space-2)',
-                      borderRadius: 'var(--radius-sm)',
+                      background: profileAccent.bg,
+                      border: `1px solid ${profileAccent.border}`,
+                      padding: '8px',
+                      borderRadius: '10px',
                       display: 'inline-flex',
-                      color: 'var(--color-accent)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: profileAccent.color,
+                      boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.2)',
+                      flexShrink: 0,
                     }}
                   >
-                    <ModuleIcon moduleKey={p.icon || 'gaming'} style={{ width: 18, height: 18 }} />
+                    <ModuleIcon moduleKey={p.icon || p.id} size={20} />
                   </span>
                   <div>
                     <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-ink)', margin: 0, lineHeight: 1.2 }}>

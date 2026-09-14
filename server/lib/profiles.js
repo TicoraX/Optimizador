@@ -31,7 +31,7 @@ export const PROFILES = [
     id: 'work',
     name: 'Perfil Oficina & Productividad',
     desc: 'Equilibrio entre rendimiento y estabilidad: asegura la búsqueda local rápida de Windows Search y protege la privacidad de red.',
-    icon: 'searchindex',
+    icon: 'work',
     accent: 'var(--color-success)',
     steps: [
       { module: 'networkprivacy', params: { SETTINGS: 'wifisense,spotlight' } },
@@ -42,7 +42,7 @@ export const PROFILES = [
     id: 'battery',
     name: 'Perfil Laptop & Ahorro de Batería',
     desc: 'Reduce la actividad de fondo innecesaria, suprime telemetría de red y minimiza la indexación en reposo para extender la autonomía.',
-    icon: 'power',
+    icon: 'battery',
     accent: 'var(--color-warning)',
     steps: [
       { module: 'networkprivacy', params: { SETTINGS: 'wifisense,spotlight,edgepreloading' } },
@@ -53,7 +53,7 @@ export const PROFILES = [
     id: 'dev',
     name: 'Perfil Desarrollador & Compilación',
     desc: 'Purga cachés de compiladores (npm, pip, cargo, uv), renueva la pila DNS y libera memoria standby retenida.',
-    icon: 'cleanup',
+    icon: 'dev',
     accent: 'var(--color-info, #47bfff)',
     steps: [
       { module: 'cleanup', params: { CLEAN_CATEGORIES: 'devCache,temp' } },

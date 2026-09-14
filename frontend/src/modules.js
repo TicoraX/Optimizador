@@ -5,7 +5,7 @@
  */
 
 // Iconos como path de SVG: el wrapper comun vive en <ModuleIcon>.
-const ICONS = {
+export const ICONS = {
   updates: 'M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16',
   cleanup: 'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6',
   startup: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z',
@@ -29,6 +29,10 @@ const ICONS = {
   werfault: 'M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z',
   smartdisk: 'M22 12A10 10 0 0 0 12 2v10zM12 22a10 10 0 1 0 0-20v10l7.07 7.07A10 10 0 0 0 12 22z',
   shadercache: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  // Símbolos específicos para perfiles de optimización
+  work: 'M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zM16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M12 12v3m-4-3h8',
+  battery: 'M5 18H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2m14 0h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2M11 7l-3 5h4l-1 5 4-5h-4l1-5z',
+  dev: 'M16 18l6-6-6-6M8 6l-6 6 6 6M14 4l-4 16',
 };
 
 const fmtSize = (mb) => {

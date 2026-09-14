@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { API_BASE } from '../config';
+import { ModuleIcon } from './ModuleIcon';
 
 const WEEKDAYS = [
   { value: 'MON', label: 'Lun' },
@@ -19,6 +20,8 @@ const AVAILABLE_PROFILES = [
     defaultTime: '03:00',
     defaultDays: ['SUN'],
     color: 'var(--color-primary)',
+    bg: 'var(--color-accent-soft)',
+    icon: 'dev',
   },
   {
     id: 'gaming',
@@ -26,7 +29,9 @@ const AVAILABLE_PROFILES = [
     desc: 'Temporizadores de precisión, HAGS, GameDVR y supresión de WerFault para evitar caídas de FPS.',
     defaultTime: '18:00',
     defaultDays: ['FRI', 'SAT'],
-    color: 'var(--color-accent, #3b82f6)',
+    color: 'oklch(70% 0.22 280)',
+    bg: 'oklch(70% 0.22 280 / 0.14)',
+    icon: 'gaming',
   },
   {
     id: 'work',
@@ -35,6 +40,8 @@ const AVAILABLE_PROFILES = [
     defaultTime: '08:30',
     defaultDays: ['MON'],
     color: 'var(--color-success)',
+    bg: 'var(--color-success-soft)',
+    icon: 'work',
   },
   {
     id: 'battery',
@@ -43,6 +50,8 @@ const AVAILABLE_PROFILES = [
     defaultTime: '09:00',
     defaultDays: ['MON', 'TUE', 'WED', 'THU', 'FRI'],
     color: 'var(--color-warning)',
+    bg: 'oklch(80% 0.14 80 / 0.14)',
+    icon: 'battery',
   },
 ];
 
@@ -390,10 +399,27 @@ export default function Scheduler() {
                   }}
                 >
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span style={{ fontWeight: 600, fontSize: 'var(--text-md)', color: prof.color }}>
-                        {prof.name}
-                      </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span
+                          style={{
+                            background: prof.bg || 'var(--color-paper-3)',
+                            border: `1px solid ${prof.color}`,
+                            padding: '6px',
+                            borderRadius: '8px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: prof.color,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <ModuleIcon moduleKey={prof.icon || prof.id} size={18} />
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: 'var(--text-md)', color: prof.color }}>
+                          {prof.name}
+                        </span>
+                      </div>
                       {isRegistered ? (
                         <span
                           style={{
