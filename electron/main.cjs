@@ -12,7 +12,17 @@ process.on('unhandledRejection', (err) => log(`unhandledRejection: ${err.stack |
 log('main.cjs cargado');
 
 const { app, BrowserWindow, dialog, shell, Tray, Menu, nativeImage, Notification } = require('electron');
-log('electron requerido OK');
+log(`electron requerido OK (args: ${process.argv.slice(1).join(' ')})`);
+
+// Si se pasa flag de no-sandbox o deshabilitar GPU por hardware antiguo / compatibilidad
+if (process.argv.includes('--no-sandbox')) {
+  app.commandLine.appendSwitch('no-sandbox');
+  log('Flag --no-sandbox habilitado por argumento CLI');
+}
+if (process.argv.includes('--disable-gpu')) {
+  app.commandLine.appendSwitch('disable-gpu');
+  log('Flag --disable-gpu habilitado por argumento CLI');
+}
 
 const PORT = process.env.PORT || 3001;
 const APP_ORIGIN = `http://127.0.0.1:${PORT}`;
