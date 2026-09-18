@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "test": "npm test --prefix server",
+    "tauri": "tauri",
     "build:frontend": "npm run build --prefix frontend",
     "dist": "npm run build:frontend && electron-builder",
     "pack": "npm run build:frontend && electron-builder --dir",
@@ -39,6 +40,7 @@
     }
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
   },

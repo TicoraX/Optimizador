@@ -76,19 +76,36 @@ const ALLOWED_ORIGINS = new Set([
   `http://localhost:${PORT}`,
   'http://127.0.0.1:5173', // vite dev
   'http://localhost:5173',
+  'tauri://localhost',
+  'http://tauri.localhost',
+  'https://tauri.localhost',
 ]);
 
 app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+
+  if (req.method === 'OPTIONS') {
+    if (origin && ALLOWED_ORIGINS.has(origin)) {
+      return res.sendStatus(204);
+    }
+    return res.status(403).end();
+  }
+
   // Los GET de solo lectura no cambian estado; el navegador ya impide leer la
-  // respuesta cross-origin sin CORS, que es justamente lo que ya no emitimos.
+  // respuesta cross-origin sin CORS, que es justamente lo que ya no emitimos para origenes no autorizados.
   if (req.method === 'GET' || req.method === 'HEAD') return next();
 
   const site = req.get('sec-fetch-site');
-  const origin = req.get('origin');
-  const crossSite = site && site !== 'same-origin' && site !== 'none';
-  const badOrigin = origin && !ALLOWED_ORIGINS.has(origin);
+  const isAllowedOrigin = origin && ALLOWED_ORIGINS.has(origin);
+  const badOrigin = origin && !isAllowedOrigin;
+  const crossSiteWithoutAllowedOrigin = !isAllowedOrigin && site && site !== 'same-origin' && site !== 'none';
 
-  if (crossSite || badOrigin) {
+  if (badOrigin || crossSiteWithoutAllowedOrigin) {
     console.warn(`[seguridad] ${req.method} ${req.path} rechazado (origin=${origin || '-'} sec-fetch-site=${site || '-'})`);
     return res.status(403).json({ error: 'Origen no permitido' });
   }
