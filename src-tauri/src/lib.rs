@@ -95,46 +95,81 @@ impl ServerState {
 }
 
 fn resolve_server_script() -> PathBuf {
-    let direct = PathBuf::from("server/server.js");
-    if direct.exists() {
-        return direct;
-    }
-    let parent = PathBuf::from("../server/server.js");
-    if parent.exists() {
-        return parent;
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let from_exe = dir.join("server/server.js");
-            if from_exe.exists() {
-                return from_exe;
-            }
-            let from_exe_parent = dir.join("../server/server.js");
-            if from_exe_parent.exists() {
-                return from_exe_parent;
-            }
-            let resources = dir.join("resources/server/server.js");
-            if resources.exists() {
-                return resources;
-            }
+    for candidate in &["server/server.js", "../server/server.js"] {
+        let p = PathBuf::from(candidate);
+        if p.exists() {
+            return p;
         }
     }
-    direct
+
+    if let Ok(exe) = std::env::current_exe() {
+        let mut curr = exe.parent();
+        while let Some(dir) = curr {
+            let direct = dir.join("server/server.js");
+            if direct.exists() {
+                return direct;
+            }
+            let in_resources = dir.join("resources/server/server.js");
+            if in_resources.exists() {
+                return in_resources;
+            }
+            let in_up = dir.join("resources/_up_/server/server.js");
+            if in_up.exists() {
+                return in_up;
+            }
+            curr = dir.parent();
+        }
+    }
+
+    PathBuf::from("server/server.js")
+}
+
+fn strip_unc_prefix(path: PathBuf) -> PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(stripped) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
+    } else {
+        path
+    }
 }
 
 fn spawn_server() -> Result<ServerState, String> {
-    let script_path = resolve_server_script();
-    let working_dir = script_path
+    let raw_script = resolve_server_script();
+    let script_path = raw_script
         .canonicalize()
-        .ok()
-        .and_then(|p| p.parent().and_then(|s| s.parent().map(|r| r.to_path_buf())))
-        .unwrap_or_else(|| PathBuf::from("."));
+        .map(strip_unc_prefix)
+        .unwrap_or(raw_script);
+
+    let working_dir = if let Some(parent) = script_path.parent() {
+        if parent.file_name().map_or(false, |n| n == "server") {
+            parent.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| parent.to_path_buf())
+        } else {
+            parent.to_path_buf()
+        }
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    };
 
     let mut cmd = std::process::Command::new("node");
     cmd.arg(&script_path);
     cmd.current_dir(&working_dir);
     cmd.env("PORT", "3001");
     cmd.env("NODE_ENV", "production");
+
+    if let Ok(temp_dir) = std::env::var("TEMP") {
+        let log_path = PathBuf::from(temp_dir).join("optimizador-server.log");
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(log_path)
+        {
+            if let Ok(file_err) = file.try_clone() {
+                cmd.stdout(file);
+                cmd.stderr(file_err);
+            }
+        }
+    }
 
     #[cfg(windows)]
     {

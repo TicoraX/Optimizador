@@ -8,6 +8,8 @@
     "start": "electron .",
     "test": "npm test --prefix server",
     "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "npm run build:frontend && tauri build",
     "build:frontend": "npm run build --prefix frontend",
     "dist": "npm run build:frontend && electron-builder",
     "pack": "npm run build:frontend && electron-builder --dir",
