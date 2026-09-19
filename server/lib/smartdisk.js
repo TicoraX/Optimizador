@@ -58,7 +58,21 @@ export async function runDiskSpeedBenchmark(driveLetter, sizeMB = 64, dryRun = f
     };
   }
 
-  const targetDir = driveLetter ? (driveLetter.endsWith('\\') ? driveLetter : `${driveLetter}\\`) : os.tmpdir();
+  let targetDir = os.tmpdir();
+  if (driveLetter && /^[A-Za-z]:?$/.test(driveLetter)) {
+    const root = driveLetter.endsWith('\\') ? driveLetter : `${driveLetter}\\`;
+    try {
+      const candidateTemp = path.join(root, 'Temp');
+      if (fs.existsSync(candidateTemp)) {
+        targetDir = candidateTemp;
+      } else {
+        targetDir = root;
+      }
+    } catch {
+      targetDir = os.tmpdir();
+    }
+  }
+
   const filePath = path.join(targetDir, `d1_speed_test_${Date.now()}.tmp`);
   const buffer = Buffer.alloc(1024 * 1024, 0xAA);
 
@@ -247,14 +261,24 @@ export async function runSmartDiskActionNative(envVars = {}, onOutput, onProgres
   if (rawActions.includes('benchmark')) {
     if (onProgress) onProgress({ percent: 80, message: 'Ejecutando micro-benchmark de velocidad...' });
     writeLog('Iniciando micro-benchmark secuencial de velocidad (64 MB)...');
-    const bench = await runDiskSpeedBenchmark(rawDisks[0] || null, 64, dryRun);
-    results.push({
-      action: 'DISK_BENCHMARK',
-      ok: true,
-      writeSpeedMBs: bench.writeSpeedMBs,
-      readSpeedMBs: bench.readSpeedMBs,
-    });
-    writeLog(`- Benchmark completado: Escritura: ${bench.writeSpeedMBs} MB/s | Lectura: ${bench.readSpeedMBs} MB/s.`);
+    const requestedDrive = rawDisks.find((disk) => /^[A-Za-z]:?$/.test(disk));
+    try {
+      const bench = await runDiskSpeedBenchmark(requestedDrive || null, 64, dryRun);
+      results.push({
+        action: 'DISK_BENCHMARK',
+        ok: true,
+        writeSpeedMBs: bench.writeSpeedMBs,
+        readSpeedMBs: bench.readSpeedMBs,
+      });
+      writeLog(`- Benchmark completado: Escritura: ${bench.writeSpeedMBs} MB/s | Lectura (buffer cache): ${bench.readSpeedMBs} MB/s.`);
+    } catch (err) {
+      writeLog(`- Advertencia: no se pudo completar el benchmark de disco: ${err.message}`);
+      results.push({
+        action: 'DISK_BENCHMARK',
+        ok: false,
+        error: err.message,
+      });
+    }
   }
 
   if (onProgress) onProgress({ percent: 100, message: 'Optimización y análisis finalizados' });

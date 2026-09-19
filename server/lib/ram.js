@@ -538,7 +538,7 @@ export async function runRamActionNative(envVars, onOutput) {
   const freeAfterMB = Math.round(freemem() / (1024 * 1024));
   const usedAfterMB = totalMB - freeAfterMB;
   const netFreedMB = Math.max(0, freeAfterMB - freeBeforeMB);
-  const totalReportedFreed = netFreedMB > 0 ? netFreedMB : freedMB;
+  const totalReportedFreed = dryRun ? 0 : (netFreedMB > 0 ? netFreedMB : freedMB);
 
   writeLog(`Resultado final: ${usedAfterMB} MB usados / ${freeAfterMB} MB libres | Recuperado: ~${totalReportedFreed} MB`);
 

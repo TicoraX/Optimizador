@@ -16,11 +16,15 @@ mod job_object {
 
     pub struct JobObject(HANDLE);
 
+    // SAFETY: Los handles de Windows Job Object son primitivas seguras del kernel
+    // que pueden transferirse y compartirse entre hilos concurrentes.
     unsafe impl Send for JobObject {}
     unsafe impl Sync for JobObject {}
 
     impl JobObject {
         pub fn new() -> Result<Self, String> {
+            // SAFETY: Invocación FFI de Win32 con punteros nulos válidos para el descriptor de seguridad por defecto
+            // e inicialización a cero de JOBOBJECT_EXTENDED_LIMIT_INFORMATION con tamaño explícito.
             unsafe {
                 let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
                 if job.is_null() {
@@ -47,6 +51,7 @@ mod job_object {
         }
 
         pub fn assign_process(&self, child: &Child) -> Result<(), String> {
+            // SAFETY: Invocación FFI de Win32 pasando el handle del proceso hijo activo retornado por el SO.
             unsafe {
                 let handle = child.as_raw_handle() as HANDLE;
                 let res = AssignProcessToJobObject(self.0, handle);
@@ -60,6 +65,7 @@ mod job_object {
 
     impl Drop for JobObject {
         fn drop(&mut self) {
+            // SAFETY: self.0 es verificado contra null antes de invocar CloseHandle.
             unsafe {
                 if !self.0.is_null() {
                     CloseHandle(self.0);
@@ -94,31 +100,39 @@ impl ServerState {
     }
 }
 
-fn resolve_server_script() -> PathBuf {
-    for candidate in &["server/server.js", "../server/server.js"] {
-        let p = PathBuf::from(candidate);
-        if p.exists() {
-            return p;
-        }
-    }
-
+fn find_in_ancestors(relative_paths: &[&str]) -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe() {
         let mut curr = exe.parent();
         while let Some(dir) = curr {
-            let direct = dir.join("server/server.js");
-            if direct.exists() {
-                return direct;
-            }
-            let in_resources = dir.join("resources/server/server.js");
-            if in_resources.exists() {
-                return in_resources;
-            }
-            let in_up = dir.join("resources/_up_/server/server.js");
-            if in_up.exists() {
-                return in_up;
+            for rel in relative_paths {
+                let candidate = dir.join(rel);
+                if candidate.exists() {
+                    return Some(candidate);
+                }
             }
             curr = dir.parent();
         }
+    }
+    None
+}
+
+fn resolve_server_script() -> PathBuf {
+    #[cfg(debug_assertions)]
+    {
+        for candidate in &["server/server.js", "../server/server.js"] {
+            let p = PathBuf::from(candidate);
+            if p.exists() {
+                return p;
+            }
+        }
+    }
+
+    if let Some(path) = find_in_ancestors(&[
+        "server/server.js",
+        "resources/server/server.js",
+        "resources/_up_/server/server.js",
+    ]) {
+        return path;
     }
 
     PathBuf::from("server/server.js")
@@ -134,23 +148,12 @@ fn strip_unc_prefix(path: PathBuf) -> PathBuf {
 }
 
 fn resolve_node_binary() -> PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        let mut curr = exe.parent();
-        while let Some(dir) = curr {
-            let embedded = dir.join("resources/node/node.exe");
-            if embedded.exists() {
-                return embedded;
-            }
-            let embedded_up = dir.join("resources/_up_/node/node.exe");
-            if embedded_up.exists() {
-                return embedded_up;
-            }
-            let direct_node = dir.join("node.exe");
-            if direct_node.exists() {
-                return direct_node;
-            }
-            curr = dir.parent();
-        }
+    if let Some(path) = find_in_ancestors(&[
+        "resources/node/node.exe",
+        "resources/_up_/node/node.exe",
+        "node.exe",
+    ]) {
+        return path;
     }
 
     PathBuf::from("node")
@@ -202,14 +205,22 @@ fn spawn_server() -> Result<ServerState, String> {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
-    let child = cmd
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("Error al iniciar el subproceso Node (server.js): {}", e))?;
 
     #[cfg(windows)]
     {
-        let job = job_object::JobObject::new()?;
-        job.assign_process(&child)?;
+        let job = job_object::JobObject::new().map_err(|error| {
+            let _ = child.kill();
+            let _ = child.wait();
+            error
+        })?;
+        job.assign_process(&child).map_err(|error| {
+            let _ = child.kill();
+            let _ = child.wait();
+            error
+        })?;
         Ok(ServerState {
             _job: Some(job),
             child: Mutex::new(Some(child)),
