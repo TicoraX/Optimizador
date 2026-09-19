@@ -381,7 +381,12 @@ export async function runRamActionNative(envVars, onOutput) {
   const dryRun = envVars.DRY_RUN === 'true';
   const guard = makeGuard('ram', { dryRun, writeLog });
 
+  const totalMB = Math.round(totalmem() / (1024 * 1024));
+  const freeBeforeMB = Math.round(freemem() / (1024 * 1024));
+  const usedBeforeMB = totalMB - freeBeforeMB;
+
   writeLog(`=== Liberacion de RAM - inicio${dryRun ? ' (SIMULACION)' : ''} ===`);
+  writeLog(`Estado inicial: ${usedBeforeMB} MB usados / ${freeBeforeMB} MB libres (${totalMB} MB total)`);
 
   // Seleccion por PID (no por posicion en una lista): el frontend manda los
   // PIDs reales mostrados en el reporte.
@@ -529,4 +534,25 @@ export async function runRamActionNative(envVars, onOutput) {
   }
 
   writeLog('=== Liberacion de RAM - fin ===');
+
+  const freeAfterMB = Math.round(freemem() / (1024 * 1024));
+  const usedAfterMB = totalMB - freeAfterMB;
+  const netFreedMB = Math.max(0, freeAfterMB - freeBeforeMB);
+  const totalReportedFreed = netFreedMB > 0 ? netFreedMB : freedMB;
+
+  writeLog(`Resultado final: ${usedAfterMB} MB usados / ${freeAfterMB} MB libres | Recuperado: ~${totalReportedFreed} MB`);
+
+  return {
+    ok: true,
+    dryRun,
+    metrics: {
+      totalMB,
+      usedBeforeMB,
+      usedAfterMB,
+      freeBeforeMB,
+      freeAfterMB,
+      freedMB: totalReportedFreed,
+      processesKilled: killed,
+    },
+  };
 }

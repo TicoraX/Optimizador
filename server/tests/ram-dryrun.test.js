@@ -53,4 +53,14 @@ describe('RAM en simulacion', () => {
   it('deja constancia de que fue una simulacion', () => {
     assert.match(log, /inicio \(SIMULACION\)/);
   });
+
+  it('retorna métricas estructuradas de memoria al finalizar', async () => {
+    const res = await runRamActionNative({ DRY_RUN: 'true' }, () => {});
+    assert.equal(res.ok, true);
+    assert.equal(res.dryRun, true);
+    assert.ok(res.metrics);
+    assert.ok(typeof res.metrics.totalMB === 'number');
+    assert.ok(typeof res.metrics.freeBeforeMB === 'number');
+    assert.ok(typeof res.metrics.usedBeforeMB === 'number');
+  });
 });

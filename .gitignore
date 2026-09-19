@@ -21,3 +21,7 @@ dist-ssr/
 test_output.txt
 reports/
 */reports/
+
+# Tauri build artifacts y binarios embebidos
+src-tauri/target/
+src-tauri/resources/node/

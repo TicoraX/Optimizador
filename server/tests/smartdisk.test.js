@@ -42,4 +42,24 @@ describe('Optimizador de Salud SSD & TRIM (smartdisk.js)', () => {
     assert.equal(res.dryRun, true);
     assert.ok(outputs.some((o) => o.includes('SIMULACIÓN (dryRun)')));
   });
+
+  it('runDiskSpeedBenchmark en dryRun retorna métricas simuladas consistentes', async () => {
+    const res = await import('../lib/smartdisk.js').then((m) => m.runDiskSpeedBenchmark(null, 32, true));
+    assert.equal(res.ok, true);
+    assert.equal(res.dryRun, true);
+    assert.ok(res.writeSpeedMBs > 0);
+    assert.ok(res.readSpeedMBs > 0);
+  });
+
+  it('runSmartDiskActionNative con acción benchmark ejecuta prueba de velocidad', async () => {
+    const outputs = [];
+    const res = await runSmartDiskActionNative(
+      { DRY_RUN: 'true', ACTIONS: 'benchmark' },
+      (out) => outputs.push(out),
+      () => {},
+    );
+    assert.equal(res.ok, true);
+    assert.ok(res.results.some((r) => r.action === 'DISK_BENCHMARK'));
+    assert.ok(outputs.some((o) => o.includes('micro-benchmark')));
+  });
 });

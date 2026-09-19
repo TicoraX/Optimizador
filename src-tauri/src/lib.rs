@@ -133,6 +133,29 @@ fn strip_unc_prefix(path: PathBuf) -> PathBuf {
     }
 }
 
+fn resolve_node_binary() -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        let mut curr = exe.parent();
+        while let Some(dir) = curr {
+            let embedded = dir.join("resources/node/node.exe");
+            if embedded.exists() {
+                return embedded;
+            }
+            let embedded_up = dir.join("resources/_up_/node/node.exe");
+            if embedded_up.exists() {
+                return embedded_up;
+            }
+            let direct_node = dir.join("node.exe");
+            if direct_node.exists() {
+                return direct_node;
+            }
+            curr = dir.parent();
+        }
+    }
+
+    PathBuf::from("node")
+}
+
 fn spawn_server() -> Result<ServerState, String> {
     let raw_script = resolve_server_script();
     let script_path = raw_script
@@ -150,7 +173,8 @@ fn spawn_server() -> Result<ServerState, String> {
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
     };
 
-    let mut cmd = std::process::Command::new("node");
+    let node_bin = resolve_node_binary();
+    let mut cmd = std::process::Command::new(&node_bin);
     cmd.arg(&script_path);
     cmd.current_dir(&working_dir);
     cmd.env("PORT", "3001");

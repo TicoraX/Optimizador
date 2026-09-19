@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { performance } from 'node:perf_hooks';
 import {
   spawnCapture, makeLogger, makeGuard, prepareReport, finishReport,
 } from './shared.js';
@@ -25,6 +29,13 @@ export const SMARTDISK_ACTIONS = [
     command: 'fsutil behavior set DisableDeleteNotify 0',
     type: 'FSUTIL_SET',
   },
+  {
+    id: 'benchmark',
+    name: 'Micro-Benchmark de Velocidad (Lectura y Escritura secuencial en MB/s)',
+    desc: 'Mide la velocidad real de transferencia secuencial de las unidades mediante una prueba rápida no destructiva de 64 MB.',
+    command: 'node:internal:benchmark',
+    type: 'DISK_BENCHMARK',
+  },
 ];
 
 export async function checkTrimStatus() {
@@ -35,9 +46,62 @@ export async function checkTrimStatus() {
   return { enabled, raw: r.stdout.trim() };
 }
 
+export async function runDiskSpeedBenchmark(driveLetter, sizeMB = 64, dryRun = false) {
+  if (dryRun) {
+    return {
+      ok: true,
+      sizeMB,
+      writeSpeedMBs: 480.5,
+      readSpeedMBs: 2200.0,
+      drive: driveLetter || 'C:',
+      dryRun: true,
+    };
+  }
+
+  const targetDir = driveLetter ? (driveLetter.endsWith('\\') ? driveLetter : `${driveLetter}\\`) : os.tmpdir();
+  const filePath = path.join(targetDir, `d1_speed_test_${Date.now()}.tmp`);
+  const buffer = Buffer.alloc(1024 * 1024, 0xAA);
+
+  try {
+    const t0 = performance.now();
+    const fd = fs.openSync(filePath, 'w');
+    for (let i = 0; i < sizeMB; i++) {
+      fs.writeSync(fd, buffer);
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    const writeSec = (performance.now() - t0) / 1000;
+    const writeSpeed = Number((sizeMB / Math.max(writeSec, 0.001)).toFixed(1));
+
+    const t1 = performance.now();
+    const readFd = fs.openSync(filePath, 'r');
+    const readBuf = Buffer.alloc(1024 * 1024);
+    for (let i = 0; i < sizeMB; i++) {
+      fs.readSync(readFd, readBuf, 0, 1024 * 1024, null);
+    }
+    fs.closeSync(readFd);
+    const readSec = (performance.now() - t1) / 1000;
+    const readSpeed = Number((sizeMB / Math.max(readSec, 0.001)).toFixed(1));
+
+    return {
+      ok: true,
+      sizeMB,
+      writeSpeedMBs: writeSpeed,
+      readSpeedMBs: readSpeed,
+      drive: targetDir,
+      dryRun: false,
+    };
+  } finally {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch {}
+  }
+}
+
 async function getPhysicalDisks() {
-  // Consulta PowerShell ligera a Get-PhysicalDisk para obtener tipo de medio (SSD/HDD), salud y bus
-  const psCmd = 'Get-PhysicalDisk | Select-Object DeviceId, FriendlyName, MediaType, HealthStatus, OperationalStatus, Size | ConvertTo-Json -Compress';
+  const psCmd = 'Get-PhysicalDisk | ForEach-Object { $d = $_; $rel = Get-StorageReliabilityCounter -PhysicalDisk $d -ErrorAction SilentlyContinue; [PSCustomObject]@{ DeviceId=$d.DeviceId; FriendlyName=$d.FriendlyName; MediaType=$d.MediaType; HealthStatus=$d.HealthStatus; OperationalStatus=$d.OperationalStatus; Size=$d.Size; Wear=$rel.Wear; Temperature=$rel.Temperature } } | ConvertTo-Json -Compress';
   const r = await spawnCapture('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd]);
   if (r.code !== 0 || !r.stdout.trim()) {
     return [];
@@ -45,14 +109,28 @@ async function getPhysicalDisks() {
   try {
     const parsed = JSON.parse(r.stdout.trim());
     const list = Array.isArray(parsed) ? parsed : [parsed];
-    return list.map((d) => ({
-      id: String(d.DeviceId ?? ''),
-      name: String(d.FriendlyName ?? 'Unidad de Disco'),
-      type: String(d.MediaType ?? 'Desconocido'),
-      health: String(d.HealthStatus ?? 'Healthy'),
-      status: String(d.OperationalStatus ?? 'OK'),
-      sizeGB: d.Size ? (Number(d.Size) / (1024 ** 3)).toFixed(1) : 'Desconocido',
-    }));
+    return list.map((d) => {
+      const wear = d.Wear !== null && d.Wear !== undefined ? Number(d.Wear) : null;
+      let healthPercent = 100;
+      if (wear !== null && !Number.isNaN(wear)) {
+        healthPercent = Math.max(0, Math.min(100, 100 - wear));
+      } else {
+        const h = String(d.HealthStatus || '').toLowerCase();
+        if (h === 'warning') healthPercent = 70;
+        else if (h === 'unhealthy') healthPercent = 35;
+      }
+
+      return {
+        id: String(d.DeviceId ?? ''),
+        name: String(d.FriendlyName ?? 'Unidad de Disco'),
+        type: String(d.MediaType ?? 'Desconocido'),
+        health: String(d.HealthStatus ?? 'Healthy'),
+        healthPercent,
+        status: String(d.OperationalStatus ?? 'OK'),
+        temperature: d.Temperature !== null && d.Temperature !== undefined ? `${d.Temperature}°C` : null,
+        sizeGB: d.Size ? (Number(d.Size) / (1024 ** 3)).toFixed(1) : 'Desconocido',
+      };
+    });
   } catch {
     return [];
   }
@@ -88,7 +166,7 @@ export async function runSmartDiskScanNative(onOutput, onProgress) {
     '',
     '| ID | Modelo | Tipo | Capacidad | Salud SMART | Estado |',
     '| :--- | :--- | :--- | :--- | :--- | :--- |',
-    ...disks.map((d) => `| ${d.id} | ${d.name} | ${d.type} | ${d.sizeGB} GB | ${d.health} | ${d.status} |`),
+    ...disks.map((d) => `| ${d.id} | ${d.name} | ${d.type} | ${d.sizeGB} GB | ${d.healthPercent}% (${d.health}) | ${d.status} |`),
     '',
     '## Acciones Recomendadas',
     '',
@@ -136,7 +214,7 @@ export async function runSmartDiskActionNative(envVars = {}, onOutput, onProgres
   }
 
   // 2. Manejo de TRIM / Defrag por discos o general
-  const shouldTrim = rawActions.includes('trim_all') || rawDisks.length > 0 || rawActions.length === 0;
+  const shouldTrim = rawActions.includes('trim_all') || (rawDisks.length > 0 && !rawActions.includes('benchmark')) || (rawActions.length === 0);
   if (shouldTrim) {
     if (onProgress) onProgress({ percent: 60, message: 'Ejecutando TRIM en unidades SSD...' });
 
@@ -165,7 +243,21 @@ export async function runSmartDiskActionNative(envVars = {}, onOutput, onProgres
     }
   }
 
-  if (onProgress) onProgress({ percent: 100, message: 'Optimización TRIM finalizada' });
-  writeLog('Optimización de unidades de disco completada exitosamente.');
+  // 3. Manejo de Micro-Benchmark de Velocidad
+  if (rawActions.includes('benchmark')) {
+    if (onProgress) onProgress({ percent: 80, message: 'Ejecutando micro-benchmark de velocidad...' });
+    writeLog('Iniciando micro-benchmark secuencial de velocidad (64 MB)...');
+    const bench = await runDiskSpeedBenchmark(rawDisks[0] || null, 64, dryRun);
+    results.push({
+      action: 'DISK_BENCHMARK',
+      ok: true,
+      writeSpeedMBs: bench.writeSpeedMBs,
+      readSpeedMBs: bench.readSpeedMBs,
+    });
+    writeLog(`- Benchmark completado: Escritura: ${bench.writeSpeedMBs} MB/s | Lectura: ${bench.readSpeedMBs} MB/s.`);
+  }
+
+  if (onProgress) onProgress({ percent: 100, message: 'Optimización y análisis finalizados' });
+  writeLog('Operación de unidades de disco completada exitosamente.');
   return { ok: true, dryRun, results };
 }
