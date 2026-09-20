@@ -1,0 +1,1 @@
+Optimizador D1: 23 modulos nativos en Node.js, telemetria de hardware en tiempo real y 2.9 MB de ejecutable. Tu Windows como el primer dia, 100% local y con simulacion dryRun antes de tocar un solo byte.
