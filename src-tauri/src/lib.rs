@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
+use tauri::Manager;
 
 #[cfg(windows)]
 mod job_object {
@@ -131,6 +132,7 @@ fn resolve_server_script() -> PathBuf {
         "server/server.js",
         "resources/server/server.js",
         "resources/_up_/server/server.js",
+        "_up_/server/server.js",
     ]) {
         return path;
     }
@@ -149,8 +151,10 @@ fn strip_unc_prefix(path: PathBuf) -> PathBuf {
 
 fn resolve_node_binary() -> PathBuf {
     if let Some(path) = find_in_ancestors(&[
+        "_up_/resources/node/node.exe",
         "resources/node/node.exe",
         "resources/_up_/node/node.exe",
+        "_up_/node/node.exe",
         "node.exe",
     ]) {
         return path;
@@ -182,6 +186,17 @@ fn spawn_server() -> Result<ServerState, String> {
     cmd.current_dir(&working_dir);
     cmd.env("PORT", "3001");
     cmd.env("NODE_ENV", "production");
+
+    let scripts_dir = working_dir.join("scripts");
+    if scripts_dir.exists() {
+        cmd.env("OPTIMIZADOR_SCRIPTS_DIR", scripts_dir);
+    }
+
+    if let Ok(app_data) = std::env::var("APPDATA") {
+        let user_data = PathBuf::from(app_data).join("optimizador");
+        let _ = std::fs::create_dir_all(&user_data);
+        cmd.env("OPTIMIZADOR_DATA_DIR", user_data);
+    }
 
     if let Ok(temp_dir) = std::env::var("TEMP") {
         let log_path = PathBuf::from(temp_dir).join("optimizador-server.log");
@@ -240,6 +255,10 @@ pub fn run() {
     let server_state = match spawn_server() {
         Ok(state) => Arc::new(state),
         Err(err) => {
+            if let Ok(temp) = std::env::var("TEMP") {
+                let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
+                let _ = std::fs::write(&p, format!("[spawn_server error] {}\n", err));
+            }
             eprintln!("[error] {}", err);
             Arc::new(ServerState::new())
         }
@@ -249,6 +268,38 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .setup(|app| {
+            let windows = app.webview_windows();
+            if let Ok(temp) = std::env::var("TEMP") {
+                let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
+                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&p);
+                if let Ok(ref mut file) = f {
+                    use std::io::Write;
+                    let _ = writeln!(file, "[setup] Window count: {}, labels: {:?}", windows.len(), windows.keys().collect::<Vec<_>>());
+                }
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                let res_show = window.show();
+                let res_focus = window.set_focus();
+                if let Ok(temp) = std::env::var("TEMP") {
+                    let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
+                    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&p);
+                    if let Ok(ref mut file) = f {
+                        use std::io::Write;
+                        let _ = writeln!(file, "[setup] show result: {:?}, focus result: {:?}", res_show, res_focus);
+                    }
+                }
+            } else if let Some((_, window)) = windows.into_iter().next() {
+                let res_show = window.show();
+                let res_focus = window.set_focus();
+                if let Ok(temp) = std::env::var("TEMP") {
+                    let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
+                    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&p);
+                    if let Ok(ref mut file) = f {
+                        use std::io::Write;
+                        let _ = writeln!(file, "[setup fallback] show result: {:?}, focus result: {:?}", res_show, res_focus);
+                    }
+                }
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

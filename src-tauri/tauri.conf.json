@@ -12,11 +12,14 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Optimizador del Sistema",
+        "url": "index.html",
         "width": 1200,
         "height": 800,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "visible": true
       }
     ],
     "security": {
@@ -30,7 +33,9 @@
       "../server/server.js",
       "../server/package.json",
       "../server/lib/*",
-      "../scripts/*"
+      "../server/node_modules/**/*",
+      "../scripts/*",
+      "../resources/node/node.exe"
     ],
     "icon": [
       "icons/32x32.png",
