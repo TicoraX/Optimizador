@@ -255,10 +255,6 @@ pub fn run() {
     let server_state = match spawn_server() {
         Ok(state) => Arc::new(state),
         Err(err) => {
-            if let Ok(temp) = std::env::var("TEMP") {
-                let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
-                let _ = std::fs::write(&p, format!("[spawn_server error] {}\n", err));
-            }
             eprintln!("[error] {}", err);
             Arc::new(ServerState::new())
         }
@@ -268,37 +264,12 @@ pub fn run() {
 
     let app = tauri::Builder::default()
         .setup(|app| {
-            let windows = app.webview_windows();
-            if let Ok(temp) = std::env::var("TEMP") {
-                let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
-                let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&p);
-                if let Ok(ref mut file) = f {
-                    use std::io::Write;
-                    let _ = writeln!(file, "[setup] Window count: {}, labels: {:?}", windows.len(), windows.keys().collect::<Vec<_>>());
-                }
-            }
             if let Some(window) = app.get_webview_window("main") {
-                let res_show = window.show();
-                let res_focus = window.set_focus();
-                if let Ok(temp) = std::env::var("TEMP") {
-                    let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
-                    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&p);
-                    if let Ok(ref mut file) = f {
-                        use std::io::Write;
-                        let _ = writeln!(file, "[setup] show result: {:?}, focus result: {:?}", res_show, res_focus);
-                    }
-                }
-            } else if let Some((_, window)) = windows.into_iter().next() {
-                let res_show = window.show();
-                let res_focus = window.set_focus();
-                if let Ok(temp) = std::env::var("TEMP") {
-                    let p = PathBuf::from(temp).join("optimizador-tauri-init.log");
-                    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&p);
-                    if let Ok(ref mut file) = f {
-                        use std::io::Write;
-                        let _ = writeln!(file, "[setup fallback] show result: {:?}, focus result: {:?}", res_show, res_focus);
-                    }
-                }
+                let _ = window.show();
+                let _ = window.set_focus();
+            } else if let Some((_, window)) = app.webview_windows().into_iter().next() {
+                let _ = window.show();
+                let _ = window.set_focus();
             }
             if cfg!(debug_assertions) {
                 app.handle().plugin(

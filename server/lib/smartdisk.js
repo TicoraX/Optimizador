@@ -110,7 +110,9 @@ export async function runDiskSpeedBenchmark(driveLetter, sizeMB = 64, dryRun = f
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[smartdisk] No se pudo eliminar el archivo temporal de benchmark: ${err.message}`);
+    }
   }
 }
 
