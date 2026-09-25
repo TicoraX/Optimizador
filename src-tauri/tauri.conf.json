@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Optimizador",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "identifier": "com.ticorax.optimizador",
   "build": {
     "frontendDist": "../frontend/dist",
