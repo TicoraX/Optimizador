@@ -126,5 +126,24 @@ describe('TDD Ciclo 4: runUpdatesActionNative con diagnóstico y procesos bloque
   });
 });
 
+describe('TDD Ciclo 5: getBlockingProcessForPackage inmunidad de procesos del sistema', () => {
+  it('no confunde procesos del sistema (services, msedgewebview2) con bloqueantes', async () => {
+    const { getBlockingProcessForPackage } = await import('../lib/updates.js');
+    const mockActiveProcesses = ['services', 'msedgewebview2', 'svchost', 'explorer'];
+
+    // EpicGames.EpicOnlineServices no debe ser bloqueado por services.exe
+    const blockingEpic = getBlockingProcessForPackage('EpicGames.EpicOnlineServices', 'Epic Online Services', mockActiveProcesses);
+    assert.equal(blockingEpic, null);
+
+    // Microsoft.Edge no debe ser bloqueado por msedgewebview2.exe
+    const blockingEdge = getBlockingProcessForPackage('Microsoft.Edge', 'Microsoft Edge', mockActiveProcesses);
+    assert.equal(blockingEdge, null);
+
+    // Si msedge real está abierto, sí debe bloquear Microsoft.Edge
+    const blockingEdgeReal = getBlockingProcessForPackage('Microsoft.Edge', 'Microsoft Edge', ['msedge']);
+    assert.equal(blockingEdgeReal, 'msedge');
+  });
+});
+
 
 

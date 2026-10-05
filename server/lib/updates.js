@@ -38,30 +38,67 @@ export function classifyAndFilterUpdates(items = []) {
   });
 }
 
+const SYSTEM_IMMUNE_PROCESSES = new Set([
+  'services', 'system', 'svchost', 'smss', 'csrss', 'wininit', 'lsass',
+  'runtimebroker', 'taskhostw', 'explorer', 'dwm', 'ctfmon', 'conhost',
+  'cmd', 'powershell', 'pwsh', 'wslservice', 'sihost', 'shellexperiencehost',
+  'startmenuexperiencehost', 'applicationframehost', 'securityhealthservice',
+  'fontdrvhost', 'searchhost', 'searchindexer', 'textinputhost', 'msedgewebview2',
+]);
+
+const KNOWN_PACKAGE_PROCESSES = {
+  'microsoft.edge': ['msedge'],
+  'microsoft.visualstudiocode': ['code'],
+  'sst.opencode': ['opencode'],
+  'sst.opencodedesktop': ['opencode'],
+  'anysphere.cursor': ['cursor'],
+  'discord.discord': ['discord'],
+  'spotify.spotify': ['spotify'],
+  'obsidian.obsidian': ['obsidian'],
+  'google.chrome': ['chrome'],
+  'mozilla.firefox': ['firefox'],
+  'valve.steam': ['steam'],
+  'telegram.telegramdesktop': ['telegram'],
+  'slacktechnologies.slack': ['slack'],
+  'notion.notion': ['notion'],
+};
+
 export function getBlockingProcessForPackage(packageId = '', packageName = '', activeProcesses = []) {
   if (!packageId && !packageName) return null;
 
-  const idParts = packageId.toLowerCase().split('.');
+  const lowId = packageId.toLowerCase();
+  const known = KNOWN_PACKAGE_PROCESSES[lowId];
+  if (known) {
+    for (const proc of activeProcesses) {
+      const p = proc.toLowerCase().replace(/\.exe$/i, '');
+      if (known.includes(p)) return proc;
+    }
+    return null;
+  }
+
+  const idParts = lowId.split('.');
   const lastPart = idParts[idParts.length - 1] || '';
   const cleanName = packageName.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const candidates = new Set([
     lastPart,
     lastPart.replace(/desktop$/i, ''),
-    idParts[0] || '',
     cleanName,
-    packageName.toLowerCase().split(' ')[0] || '',
   ]);
 
-  if (packageId.toLowerCase().includes('visualstudiocode')) candidates.add('code');
-  if (packageId.toLowerCase().includes('cursor')) candidates.add('cursor');
-  if (packageId.toLowerCase().includes('opencode')) candidates.add('opencode');
+  if (lowId.includes('visualstudiocode')) candidates.add('code');
+  if (lowId.includes('cursor')) candidates.add('cursor');
+  if (lowId.includes('opencode')) candidates.add('opencode');
 
   for (const proc of activeProcesses) {
     const p = proc.toLowerCase().replace(/\.exe$/i, '');
+    if (SYSTEM_IMMUNE_PROCESSES.has(p)) continue;
+
     for (const c of candidates) {
-      if (c && c.length >= 3 && (p === c || p.includes(c) || c.includes(p))) {
-        return proc;
+      if (c && c.length >= 3) {
+        if (p === c || (c.length >= 4 && p.startsWith(c))) {
+          return proc;
+        }
       }
     }
   }
@@ -397,8 +434,8 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           { target: item.id, action: 'UPGRADE_WINGET' },
         );
 
-        const code = res.result?.code;
-        const errRaw = (res.result?.stderr || res.result?.stdout || '').trim();
+        const code = dryRun ? 0 : (res.code ?? (res.ok ? 0 : 1));
+        const errRaw = dryRun ? '' : (res.stderr || res.stdout || '').trim();
 
         if (code === 0 || dryRun) {
           writeLog(`  - ${item.name} actualizado con éxito.`);
@@ -406,6 +443,9 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
         } else if (code === -1978335189 || /elevation|administrator|permisos/i.test(errRaw)) {
           writeLog(`  [Aviso] ${item.name} requiere permisos de Administrador para instalarse.`);
           results.push({ item: item.id, name: item.name, ok: false, status: 'requires_elevation', error: errRaw });
+        } else if (/install technology is different/i.test(errRaw) || /uninstall the package/i.test(errRaw)) {
+          writeLog(`  [Aviso] ${item.name} cambió de tecnología de instalación. Requiere desinstalar la versión anterior manualmente.`);
+          results.push({ item: item.id, name: item.name, ok: false, status: 'manual_reinstall_required', error: errRaw });
         } else {
           writeLog(`  - Falló la actualización de ${item.name} (código ${code}): ${errRaw.slice(0, 200)}`);
           results.push({ item: item.id, name: item.name, ok: false, status: 'failed', error: errRaw });
@@ -416,12 +456,15 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           () => spawnCapture('pip', ['install', '-U', item.name]),
           { target: item.name, action: 'UPGRADE_PIP' },
         );
-        if (res.result?.code === 0 || dryRun) {
+        const code = dryRun ? 0 : (res.code ?? (res.ok ? 0 : 1));
+        const errRaw = dryRun ? '' : (res.stderr || res.stdout || '').trim();
+
+        if (code === 0 || res.ok || dryRun) {
           writeLog(`  - [OK] Paquete pip ${item.name} actualizado.`);
-          results.push({ item: item.id, ok: true });
+          results.push({ item: item.id, name: item.name, ok: true, status: 'updated' });
         } else {
-          writeLog(`  - [FALLO] Falló la actualización de pip ${item.name}.`);
-          results.push({ item: item.id, ok: false });
+          writeLog(`  - [FALLO] Falló la actualización de pip ${item.name} (código ${code}): ${errRaw.slice(0, 200)}`);
+          results.push({ item: item.id, name: item.name, ok: false, status: 'failed', error: errRaw });
         }
       } else if (item.manager === 'npm') {
         const res = await guard(
@@ -429,12 +472,15 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           () => spawnCaptureShell('npm', ['update', '-g', item.name]),
           { target: item.name, action: 'UPGRADE_NPM' },
         );
-        if (res.result?.code === 0 || dryRun) {
+        const code = dryRun ? 0 : (res.code ?? (res.ok ? 0 : 1));
+        const errRaw = dryRun ? '' : (res.stderr || res.stdout || '').trim();
+
+        if (code === 0 || res.ok || dryRun) {
           writeLog(`  - [OK] Paquete npm ${item.name} actualizado.`);
-          results.push({ item: item.id, ok: true });
+          results.push({ item: item.id, name: item.name, ok: true, status: 'updated' });
         } else {
-          writeLog(`  - [FALLO] Falló la actualización de npm ${item.name}.`);
-          results.push({ item: item.id, ok: false });
+          writeLog(`  - [FALLO] Falló la actualización de npm ${item.name} (código ${code}): ${errRaw.slice(0, 200)}`);
+          results.push({ item: item.id, name: item.name, ok: false, status: 'failed', error: errRaw });
         }
       } else if (item.manager === 'choco') {
         const res = await guard(
@@ -442,12 +488,15 @@ export async function runUpdatesActionNative(arg1, arg2, arg3) {
           () => spawnCapture('choco', ['upgrade', item.name, '-y', '--no-color']),
           { target: item.name, action: 'UPGRADE_CHOCO' },
         );
-        if (res.result?.code === 0 || dryRun) {
+        const code = dryRun ? 0 : (res.code ?? (res.ok ? 0 : 1));
+        const errRaw = dryRun ? '' : (res.stderr || res.stdout || '').trim();
+
+        if (code === 0 || res.ok || dryRun) {
           writeLog(`  - [OK] Paquete Chocolatey ${item.name} actualizado.`);
-          results.push({ item: item.id, ok: true });
+          results.push({ item: item.id, name: item.name, ok: true, status: 'updated' });
         } else {
-          writeLog(`  - [FALLO] Falló la actualización de Chocolatey ${item.name}.`);
-          results.push({ item: item.id, ok: false });
+          writeLog(`  - [FALLO] Falló la actualización de Chocolatey ${item.name} (código ${code}): ${errRaw.slice(0, 200)}`);
+          results.push({ item: item.id, name: item.name, ok: false, status: 'failed', error: errRaw });
         }
       }
     } catch (err) {
